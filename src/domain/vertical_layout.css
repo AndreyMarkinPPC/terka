@@ -1,0 +1,61 @@
+Screen {
+	layout: grid;
+	grid-gutter: 0;
+	grid-size: 5;
+	grid-columns: 2fr 1fr 1fr 1fr 1fr;
+	grid-rows: 10% 10% 30% 30% 20%;
+}
+
+.body {
+	height: 100%;
+	border: solid green;
+}
+
+.history {
+	height: 1fr;
+	border: solid green;
+}
+
+.header_simple {
+	height: 1fr;
+	border: solid grey;
+	background: grey;
+	color: black;
+}
+
+.header_completed {
+	height: 1fr;
+	border: solid green;
+	background: green;
+	color: white;
+}
+
+.header_overdue {
+	height: 1fr;
+	border: solid red;
+	background: red;
+	color: white;
+}
+
+.transp {
+	height: 1fr;
+	border: solid grey;
+	background: grey;
+	color: black;
+}
+
+#desc {
+	column-span: 5;
+}
+
+#header {
+	column-span: 5;
+}
+
+#comment {
+	column-span: 5;
+}
+
+#history {
+	column-span: 5;
+}
