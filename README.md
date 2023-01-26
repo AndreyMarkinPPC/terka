@@ -1,3 +1,15 @@
+# Terka - Ter[minal] Ka[nban]
+
+`terka` (pronounced *tyorka* or *Тёрка*) is a CLI tool that helps you manage your tasks
+in the terminal. Create task, assign it to a project, update it status, write
+comments and many more!
+
+## Installation
+
+`pip install terka`
+
+## Usage
+
 `terka` exposes several commands and entities:
 
 ## terka entities
