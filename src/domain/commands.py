@@ -290,11 +290,6 @@ class CommandHandler:
             print_new_object(obj, project)
             logger.info("<create> %s: %s", entity_type, obj.id)
             return entity, obj
-        elif command == "delete":
-            kwargs.update({"status": "DELETED"})
-            self.execute("update", entity_type, kwargs)
-            logger.info("<delete> %s", entity_type)
-            return entity, None
         elif command == "update":
             if (task_id := kwargs.get("id")):
                 del kwargs["id"]
@@ -322,10 +317,17 @@ class CommandHandler:
                                 self.repo.add(
                                     Event(entity_type, task, now, key,
                                           old_value, value))
+                        else:
+                            print("nothing to update")  #TODO: reword
                     session.commit()
                 return entity, None
             else:
                 raise ValueError("No task_id is provided")
+        elif command == "delete":
+            kwargs.update({"status": "DELETED"})
+            self.execute("update", entity_type, kwargs)
+            logger.info("<delete> %s", entity_type)
+            return entity, None
         elif command == "edit":
             if (task_id := kwargs.get("id")):
                 tasks = get_ids(task_id)
@@ -754,11 +756,8 @@ class TerkaTask(App):
         yield Input(placeholder="Add a comment", classes="body", id="comment")
         # yield Comment()
 
-    def action_quit(self) -> None:
-        App.action_quit()
-
-    def on_input_changed(self, event: Input.Changed) -> None:
-        self.query_one(Comment).text = event.value
+    # def on_input_changed(self, event: Input.Changed) -> None:
+    #     self.query_one(Comment).text = event.value
 
     def _get_completion_date(self):
         for event in self.history:

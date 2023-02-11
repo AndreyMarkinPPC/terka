@@ -6,7 +6,7 @@ README = (HERE / "README.md").read_text()
 
 setup(
     name="terka",
-    version="0.0.4",
+    version="0.0.6",
     description="CLI utility for creating and managing tasks in a terminal",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -15,6 +15,8 @@ setup(
     license="Apache 2.0",
     url="https://github.com/AndreyMarkinPPC/terka",
     packages=find_packages(),
+    include_package_data=True,
+    package_data={"": ["domain/*.css"]},
     install_requires=[
         "sqlalchemy", "pyaml", "rich", "textual==0.5.0"
     ],
