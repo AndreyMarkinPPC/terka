@@ -18,8 +18,7 @@ from src.adapters.orm import metadata, start_mappers
 from src.adapters.repository import SqlAlchemyRepository
 
 from src.domain.commands import CommandHandler
-from src.service_layer import services
-from src.utils import format_task_dict
+from src.utils import format_task_dict, process_command, update_task_dict
 
 
 def init_db(home_dir):
@@ -29,6 +28,7 @@ def init_db(home_dir):
 
 
 class TerkaInitError(Exception): ...
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -72,43 +72,29 @@ def main():
         project_name = config.get("project_name")
         if task_id or project_name:
             focus_type = "task" if task_id else "project"
-            print("Using terka in focus mode")
-            print(f"Current focus is {focus_type}: {task_id or project_name}")
-        task_dict = format_task_dict(config, args, kwargs)
+            logger.warning("Using terka in focus mode")
+            logger.warning(f"Current focus is {focus_type}: {task_id or project_name}")
 
-        if (project := task_dict.get("project")):
-            task_dict["project"] = services.lookup_project_id(project, repo)
-        if (assignee := task_dict.get("assignee")):
-            task_dict["assignee"] = services.lookup_user_id(assignee, repo)
-        if (due_date := task_dict.get("due_date")):
-            if due_date == "None":
-                task_dict["due_date"] = None
-            elif due_date == "today":
-                task_dict["due_date"] = datetime.today()
-            else:
-                task_dict["due_date"] = datetime.strptime(due_date, "%Y-%m-%d")
+        task_dict = format_task_dict(config, args, kwargs)
+        task_dict = update_task_dict(task_dict, repo)
         logger.debug(task_dict)
+
         command, entity = args.command, args.entity
         is_interactive = False
         if not command and not entity:
             is_interactive = True
             console.print(f"[green]>>> Running terka in an interactive mode[/green]")
             command = input("enter command: ")
-            command, *rest = command.split(" ", maxsplit=2)
-            if command[0] == "q":
-                exit()
-            if rest:
-                entity, *task_dict = rest
-                if task_dict:
-                    task_dict = task_dict[0].split(" -")
-                    task_dict = format_task_dict(config, entity, task_dict)
+            command, entity, task_dict = process_command(command, config, repo)
         try:
             command_handler.execute(command, entity, task_dict)
         except ValueError as e:
             console.print(f"[red]{e}[/red]")
+
         while is_interactive:
             console.print(f"[green]>>> Running terka in an interactive mode[/green]")
             command = input("enter command: ")
+            command, entity, task_dict = process_command(command, config, repo)
             if command[0] == "q":
                 exit()
             command_handler.execute(command, entity, task_dict)

@@ -1,7 +1,9 @@
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from datetime import datetime, timedelta
 import re
+from src.service_layer import services
+from src.adapters.repository import AbsRepository
 
 
 def create_task_dict(kwargs: List[str]) -> Dict[str, str]:
@@ -18,7 +20,7 @@ def create_task_dict(kwargs: List[str]) -> Dict[str, str]:
             if i < len(kwargs) and key.startswith("-"):
                 key = re.sub("^-+", "", key)
                 try:
-                    new_dict[key] = kwargs[i+1]
+                    new_dict[key] = kwargs[i + 1]
                 except IndexError:
                     new_dict[key] = True
     return new_dict
@@ -28,8 +30,7 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
     if len(kwargs) > 1:
         new_dict = create_task_dict(kwargs)
         task_dict = {
-            "id":
-            new_dict.get("id") if entity != "commentaries" else None,
+            "id": new_dict.get("id") if entity != "commentaries" else None,
             "task_id":
             new_dict.get("id") if entity == "commentaries" else None,
             "name": new_dict.get("n") or new_dict.get("name"),
@@ -69,12 +70,13 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
         if (id := config.get("task_id")):
             if entity != "commentaries":
                 task_dict["id"] = str(config.get("task_id"))
-            if entity ==  "commentaries":
+            if entity == "commentaries":
                 task_dict["task_id"] = str(config.get("task_id"))
 
     if not task_dict.get("project") and config.get("project_name"):
         task_dict["project"] = config.get("project_name")
     return task_dict
+
 
 def convert_status(status: str):
     conversion_dict = {
@@ -90,9 +92,47 @@ def convert_status(status: str):
 
 def convert_date(date: str):
     if date.startswith("+"):
-        due_date = datetime.now().date() + timedelta(days = float(date[1:]))
+        due_date = datetime.now().date() + timedelta(days=float(date[1:]))
         return due_date.strftime("%Y-%m-%d")
     if date.startswith("-"):
-        due_date = datetime.now().date() - timedelta(days = float(date[1:]))
+        due_date = datetime.now().date() - timedelta(days=float(date[1:]))
         return due_date.strftime("%Y-%m-%d")
     return date
+
+
+def process_command(command: str, config: Dict[str, Any],
+                    repo: AbsRepository) -> Tuple[str, str, Dict[Any, Any]]:
+    task_dict = {}
+    entity = None
+    command, *rest = command.split(" ", maxsplit=2)
+    if command[0] == "q":
+        exit()
+    if rest:
+        entity, *task_dict = rest
+        if task_dict:
+            task_list = re.split(r'\s+(?=[^"]*(?:"[^"]*"[^"]*)*$)',
+                                 task_dict[0])
+            task_list = [
+                re.sub("['|\"]", "", element) for element in task_list
+            ]
+            task_dict = format_task_dict(config, entity, task_list)
+        else:
+            task_dict = {}
+    task_dict = update_task_dict(task_dict, repo)
+    return command, entity, task_dict
+
+
+def update_task_dict(task_dict: Dict[str, str],
+                     repo: AbsRepository) -> Dict[str, str]:
+    if (project := task_dict.get("project")):
+        task_dict["project"] = services.lookup_project_id(project, repo)
+    if (assignee := task_dict.get("assignee")):
+        task_dict["assignee"] = services.lookup_user_id(assignee, repo)
+    if (due_date := task_dict.get("due_date")):
+        if due_date == "None":
+            task_dict["due_date"] = None
+        elif due_date == "today":
+            task_dict["due_date"] = datetime.today()
+        else:
+            task_dict["due_date"] = datetime.strptime(due_date, "%Y-%m-%d")
+    return task_dict
