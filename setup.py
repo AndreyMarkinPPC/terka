@@ -16,7 +16,7 @@ setup(
     url="https://github.com/AndreyMarkinPPC/terka",
     packages=find_packages(),
     include_package_data=True,
-    package_data={"": ["domain/*.css"]},
+    package_data={"": ["service_layer/*.css"]},
     install_requires=[
         "sqlalchemy", "pyaml", "rich", "textual==0.5.0"
     ],
