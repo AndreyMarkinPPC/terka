@@ -15,6 +15,8 @@
 * done
 * delete
 
+> When calling commands and entities you can use their first letters. 
+> I.e. if you want to create new task you can call `terka cre ta` or even `terka c t`.
 To the typical command looks like this
 
 ```

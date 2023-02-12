@@ -136,3 +136,21 @@ def update_task_dict(task_dict: Dict[str, str],
         else:
             task_dict["due_date"] = datetime.strptime(due_date, "%Y-%m-%d")
     return task_dict
+
+
+def format_command(command: str) -> str:
+    if command == "d":
+        command = input("specify: de[lete], do[ne]")
+    if "list".startswith(command):
+        return "list"
+    if "show".startswith(command):
+        return "show"
+    if "create".startswith(command):
+        return "create"
+    if "update".startswith(command):
+        return "update"
+    if "delete".startswith(command):
+        return "delete"
+    if "edit".startswith(command):
+        return "edit"
+    return command

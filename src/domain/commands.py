@@ -28,6 +28,7 @@ from src.domain.event_history import Event
 
 from src.service_layer import services
 from src.adapters.repository import AbsRepository
+from src.utils import format_command
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ def generate_message_template(current_entry: CurrentEntry, task: Task,
 
 class BaseHandler:
 
-    def __init__(self, successor):
+    def __init__(self, successor) -> None:
         self._successor = successor
 
     def handle(self, entity):
@@ -68,36 +69,36 @@ class BaseHandler:
 class TaskHandler(BaseHandler):
 
     def handle(self, entity):
-        if entity == "tasks":
+        if "tasks".startswith(entity):
             logger.debug("Handling task")
-            return Task
+            return Task, "tasks"
         return super().handle(entity)
 
 
 class ProjectHandler(BaseHandler):
 
     def handle(self, entity):
-        if entity == "projects":
+        if "projects".startswith(entity):
             logger.debug("Handling project")
-            return Project
+            return Project, "projects"
         return super().handle(entity)
 
 
 class UserHandler(BaseHandler):
 
     def handle(self, entity):
-        if entity == "users":
+        if "users".startswith(entity):
             logger.debug("Handling user")
-            return User
+            return User, "users"
         return super().handle(entity)
 
 
 class CommentaryHandler(BaseHandler):
 
     def handle(self, entity):
-        if entity == "commentaries":
+        if "commentaries".startswith(entity):
             logger.debug("Handling commentary")
-            return Commentary
+            return Commentary, "commentaries"
         return super().handle(entity)
 
 
@@ -126,13 +127,13 @@ class CommandHandler:
                 kwargs: Dict[str, Any]=None,
                 show_history=False):
         session = self.repo.session
-        entity = self.handle(entity_type)
-        # if not command and not entity_type:
-        #     print("Running terka in interactive mode")
-        #     command = input("enter command: ")
-        #     entity_type = input("enter entity: ")
-        if not entity and command not in ("init", "unfocus", "log", "calendar"):
+        if entity_type:
+            entity, entity_type = self.handle(entity_type)
+        else:
+            entity = None
+        if not entity and command not in ("init", "unfocus", "log", "calendar", "help"):
             raise ValueError(f"Entity *{entity_type}* is not a valid entity")
+        command = format_command(command)
         if command == "list":
             if entity_type == "tasks" and "status" not in kwargs:
                 kwargs["status"] = "BACKLOG,TODO,IN_PROGRESS,REVIEW"
@@ -156,6 +157,12 @@ class CommandHandler:
             print_entities(entities, entity_type, self.repo, custom_sort)
             logger.info("<list> %s", entity_type)
             return entities, None, None
+        elif command == "help":
+            print("""
+            available commands: 'list', 'show', 'create', 'update', 'done', 'calendar', 'log', 'edit'
+            available entities: 'tasks', 'projects', 'commentaries'
+            """
+          )
         elif command == "init":
             home_dir = os.path.expanduser('~')
             path = os.path.join(home_dir, ".terka")
