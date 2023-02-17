@@ -1,9 +1,6 @@
 from enum import Enum
 from datetime import datetime
 
-from .project import Project
-from .user import User
-
 
 class TaskStatus(Enum):
     DELETED = 0
@@ -28,9 +25,9 @@ class Task:
     def __init__(self, name: str,
                  description: str = None,
                  creation_date: datetime = datetime.now(),
-                 project_id: Project = None,
-                 assignee: User = None,
-                 created_by: User = None,
+                 project: int = None,
+                 assignee: int = None,
+                 created_by: int = None,
                  due_date: datetime = None,
                  status: str = "BACKLOG",
                  priority: str = "NORMAL",
@@ -47,7 +44,7 @@ class Task:
         self.name = name
         self.creation_date = creation_date
         self.description = description
-        self.project_id = project_id
+        self.project = project
         self.assignee = assignee
         self.created_by = created_by
         if due_date and due_date.date() < datetime.today().date():

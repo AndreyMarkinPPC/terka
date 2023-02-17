@@ -20,48 +20,7 @@ from src.domain.commentary import Commentary
 
 
 metadata = MetaData()
-Base = declarative_base()
 
-class Tasks(Base):
-    __tablename__ = "tasks"
-    id = Column("id", Integer, primary_key=True, autoincrement=True)
-    name = Column(String(255))
-    creation_date = Column(DateTime, nullable=True)
-    description = Column(String(1000), nullable=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
-    project_obj = relationship("Projects")
-    assignee = Column(Integer, ForeignKey("users.id"), nullable=True)
-    assignee_ = relationship("Users")
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    created_by = relationship("Users")
-    due_date = Column(Date, nullable=True)
-    status = Column(Enum(TaskStatus))
-    priority = Column(Enum(TaskPriority))
-    # comment = Column(String(1000), ForeignKey("commentaries.text"))
-
-
-class Projects(Base):
-    __tablename__ = "projects"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(255))
-    description = Column(String(255))
-    status = Column(Enum(ProjectStatus))
-
-
-class Users(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(50))
-
-class Commentaries(Base):
-    __tablename__ = "commentaries"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    source = Column(String(50))
-    element_id = Column(Integer)
-    date =Column(DateTime, nullable=False)
-    text = Column(String(225))
-    # task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True)
-    # task = relationship("Tasks", primaryjoin="Tasks.id=element_id", secondaryjoin="tasks=source")
 
 tasks = Table(
     "tasks",
