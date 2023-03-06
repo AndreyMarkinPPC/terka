@@ -24,7 +24,8 @@ Special command `q` is used to exit interactive mode.
 
 ### Non-interactive mode
 
-In non-interactive 
+In non-interactive
 `terka <command> <entity> [options]`
 
-`terka` exposes several commands and entities:
+`terka` exposes several commands (`create`, `update`, `show`, `list`, etc) and entities (`tasks`, `projects`, `users`).
+Please refer to the [list of commands](docs/command_examples.md) available in terka.

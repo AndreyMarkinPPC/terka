@@ -4,18 +4,19 @@
 
 * tasks
 * projects
-* commentaries
+* users
 
 ## terka commands
 * create
 * show
 * list
 * update
+* comment
 * edit
 * done
 * delete
 
-> When calling commands and entities you can use their first letters. 
+> When calling commands and entities you can use their first letters.
 > I.e. if you want to create new task you can call `terka cre ta` or even `terka c t`.
 To the typical command looks like this
 
@@ -39,11 +40,6 @@ terka create tasks -n "New task"
 terka create tasks -n "New task" -p "New project" -d +7
 ```
 
-3. Create a commentary for a task 123
-
-```
-terka create commentaries 123 -t "New commentary for a task"
-```
 
 #### `show`
 
@@ -94,6 +90,19 @@ terka list tasks -p "My project" -s NOT:BACKLOG
 terka update tasks 123 -s R -d today
 ```
 
+#### `comment`
+
+1. Create a commentary for a task 123
+
+```
+terka comment task 123 -t "New commentary for a task"
+```
+
+2. Create a commentary for a task 1
+
+```
+terka comment project 1 -t "New commentary for a project"
+```
 #### `edit`
 
 `edit` command allows you to change either name (`--name` CLI flag) or description (`--description` CLI flag) of the task in an editor of your choice (Vim by default)
@@ -123,19 +132,18 @@ terka delete tasks 123
 # terka update tasks 123 -s DELETED
 ```
 
-
 ## terka options
 Options depend on a particular entity but there are some common one
 * `--n|--name` - name of the entity
 * `--desc|--description` - description of an entity
 * `-s|--status` - status of an entity (can be one of "BACKLOG","TODO","IN_PROGRESS", "REVIEW", "DONE", "DELETED"). By default the status is BACKLOG.
-	* for status we can use short names - b for BACKLOG, t for TODO, i for IN_PROGRESS, r for REVIEW, d for DONE, and x for DELETED
+* for status we can use short names - b for BACKLOG, t for TODO, i for IN_PROGRESS, r for REVIEW, d for DONE, and x for DELETED
  * `--priority` - priority of the task (can be one of "LOW", "NORMAL", "HIGH", "URGENT"). By default the priority is NORMAL
  * `-d|--due-date` - due date (applied for tasks only). Can be specified in the following format:
- 	* YYYY-MM-DD (i.e. 2023-01-01)
-    * +7, -7 (in 7 days, 7 days ago)
-    * today - to tasks that are due today
-    * None (default value) - when we want to explicitly specify that task does not have due date.
+ * YYYY-MM-DD (i.e. 2023-01-01)
+   * +7, -7 (in 7 days, 7 days ago)
+   * today - to tasks that are due today
+   * None (default value) - when we want to explicitly specify that task does not have due date.
 
  * `-p|--project` (applied to task only) - project name or project_id for a task
 
@@ -147,5 +155,4 @@ Options depend on a particular entity but there are some common one
  * `focus <entity> <entity_id>` - execute all commands using specified `entity_id`.
  * `unfocus` - remove focus (`terka` is returned to normal mode).
  * `count <entity> [options]` -  count number of entities that safisty condition(s) in `[options]`.
-
 
