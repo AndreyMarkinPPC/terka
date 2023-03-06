@@ -1,18 +1,32 @@
 from datetime import datetime
 
 
-class Commentary:
+class BaseCommentary:
 
-    def __init__(self,
-                 element_id: int,
-                 text: str,
-                 source: str = "tasks",
-                 date: datetime = datetime.now(),
-                 **kwargs):
-        self.source = source
-        self.element_id = element_id
+    def __init__(self, text: str, date: datetime = datetime.now(), **kwargs: str) -> None:
         self.text = text
         self.date = date
 
     def __repr__(self):
         return f"<Commentary> {self.text}"
+
+
+class TaskCommentary(BaseCommentary):
+
+    def __init__(self,
+                 id: int,
+                 text: str,
+                 date: datetime = datetime.now(), **kwargs: str) -> None:
+        self.task = id
+        super().__init__(text=text,
+                         date=date)
+
+
+class ProjectCommentary(BaseCommentary):
+
+    def __init__(self, id: int,
+                 text: str,
+                 date: datetime = datetime.now(), **kwargs: str) -> None:
+        self.project = id
+        super().__init__(text=text,
+                         date=date)

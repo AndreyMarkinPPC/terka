@@ -16,8 +16,8 @@ from rich.table import Table
 from src.domain.task import Task
 from src.domain.project import Project
 from src.domain.user import User
-from src.domain.commentary import Commentary
-from src.domain.event_history import Event
+from src.domain.commentary import TaskCommentary, ProjectCommentary
+from src.domain.event_history import TaskEvent, ProjectEvent
 
 from src.service_layer import services, printer
 from src.service_layer.ui import TerkaTask
@@ -87,15 +87,6 @@ class UserHandler(BaseHandler):
         return super().handle(entity)
 
 
-class CommentaryHandler(BaseHandler):
-
-    def handle(self, entity):
-        if "commentaries".startswith(entity):
-            logger.debug("Handling commentary")
-            return Commentary, "commentaries"
-        return super().handle(entity)
-
-
 class CommandHandler:
 
     def __init__(self, repo: AbsRepository):
@@ -106,9 +97,7 @@ class CommandHandler:
 
     def _init_handlers(self):
         handler_chain = BaseHandler(None)
-        for handler in [
-                TaskHandler, ProjectHandler, UserHandler, CommentaryHandler
-        ]:
+        for handler in [TaskHandler, ProjectHandler, UserHandler]:
             new_handler = handler(handler_chain)
             handler_chain = new_handler
         return handler_chain
@@ -119,14 +108,15 @@ class CommandHandler:
     def execute(self,
                 command,
                 entity_type=None,
-                kwargs: Dict[str, Any]=None,
+                kwargs: Dict[str, Any] = None,
                 show_history=False):
         session = self.repo.session
         if entity_type:
             entity, entity_type = self.handle(entity_type)
         else:
             entity = None
-        if not entity and command not in ("init", "unfocus", "log", "calendar", "help"):
+        if not entity and command not in ("init", "unfocus", "log", "calendar",
+                                          "help"):
             raise ValueError(f"Entity *{entity_type}* is not a valid entity")
         command = format_command(command)
         if command == "list":
@@ -149,34 +139,37 @@ class CommandHandler:
                                             reverse=False)
                 entities = entities_with_due_date
             session.commit()
-            self.printer.print_entities(entities, entity_type, self.repo, custom_sort)
+            self.printer.print_entities(entities, entity_type, self.repo,
+                                        custom_sort)
             logger.info("<list> %s", entity_type)
             return entities, None, None
         elif command == "help":
             print("""
             available commands: 'list', 'show', 'create', 'update', 'done', 'calendar', 'log', 'edit'
             available entities: 'tasks', 'projects', 'commentaries'
-            """
-          )
+            """)
         elif command == "init":
             home_dir = os.path.expanduser('~')
             path = os.path.join(home_dir, ".terka")
             if not os.path.exists(path):
-                answer = input(f"Do you want to init terka in this directory {path}? [Y/n]")
+                answer = input(
+                    f"Do you want to init terka in this directory {path}? [Y/n]"
+                )
                 if "y" in answer.lower():
                     os.mkdirs(path)
                     with open(os.path.join(path, "config.yaml"), "w") as f:
-                      yaml.dump({"user": "admin"}, f)
+                        yaml.dump({"user": "admin"}, f)
                 elif "n" in answer.lower():
                     path = input("Specify full path to the terka directory: ")
                     os.mkdirs(path)
                 else:
                     exit()
             elif not os.path.exists(os.path.join(path, "config.yaml")):
-                answer = input(f"Config.yaml not found in {path}, Create it? [Y/n]")
+                answer = input(
+                    f"Config.yaml not found in {path}, Create it? [Y/n]")
                 if "y" in answer.lower():
                     with open(os.path.join(path, "config.yaml"), "w") as f:
-                      yaml.dump({"user": "admin"}, f)
+                        yaml.dump({"user": "admin"}, f)
                 else:
                     exit()
             else:
@@ -254,28 +247,31 @@ class CommandHandler:
             entities = self.repo.list(entity, kwargs)
             print(len(entities))
             logger.info("<count> tasks")
+        elif command == "comment":
+            if entity_type == "tasks":
+                existing_task = self.repo.list(Task, {"id": kwargs["id"]})
+                if not existing_task:
+                    raise ValueError(
+                        f"Task with id {kwargs['id']} is not found!")
+                obj = TaskCommentary(**kwargs)
+                self.repo.add(obj)
+                session.commit()
+            elif entity_type == "projects":
+                existing_project = self.repo.list(Project,
+                                                  {"id": kwargs["id"]})
+                if not existing_project:
+                    raise ValueError(
+                        f"Project with id {kwargs['id']} is not found!")
+                obj = ProjectCommentary(**kwargs)
+                self.repo.add(obj)
+                session.commit()
         elif command == "create":
             kwargs["created_by"] = services.lookup_user_id(
                 # config.get("user"),
                 "am",
                 self.repo)
-            if entity_type == "commentaries":
-                if "project_id" in kwargs.keys():
-                    kwargs["source"] = "projects"
-                    kwargs["element_id"] = kwargs["project_id"]
-                else:
-                    kwargs["source"] = "tasks"
-                    kwargs["element_id"] = kwargs["id"]
-                    existing_task = self.repo.list(Task,
-                                                   {"id": kwargs["id"]})
-                    if not existing_task:
-                        raise ValueError(
-                            f"Task with id {kwargs['id']} is not found!")
             obj = entity(**kwargs)
-            if entity_type != "commentaries" and (existing_obj :=
-                                                  self.repo.list(
-                                                      entity,
-                                                      {"name": obj.name})):
+            if (existing_obj := self.repo.list(entity, {"name": obj.name})):
                 print("Found existing entity\n")
                 existing_id = str(existing_obj[0].id)
                 self.execute("show", entity_type, {"id": existing_id})
@@ -316,11 +312,16 @@ class CommandHandler:
                                     old_value = old_settings[key].name
                                 except:
                                     old_value = old_settings[key]
+                                if entity_type == "projects":
+                                    event = ProjectEvent
+                                elif entity_type == "tasks":
+                                    event = TaskEvent
                                 self.repo.add(
-                                    Event(entity_type, task, now, key,
-                                          old_value, value))
+                                    event(task, key, old_value, value, now))
                         else:
-                            print("nothing to update")  #TODO: reword
+                            print(
+                                "No changes were proposed to the existing entity"
+                            )
                     session.commit()
                 return entity, None
             else:
@@ -390,33 +391,22 @@ class CommandHandler:
                             task_id = entities[0].id
                         else:
                             task_id = None
-                    if task_id:
-                        history = self.repo.list(Event, {
-                            "element_id": task_id,
-                            "source": entity_type
-                        })
-                        commentaries = self.repo.list(Commentary, {
-                            "element_id": task_id,
-                            "source": entity_type
-                        })
-                    else:
-                        history = None
-                        commentaries = None
                     if entity_type == "projects":
                         if task_id:
                             self.printer.print_project(entities)
                         else:
                             print(f"No entity {task} found!")
                         for entity_ in entities:
-                            self.printer.print_task(entity_.tasks,
-                                       self.repo,
-                                       show_completed=show_completed)
+                            self.printer.print_task(
+                                entity_.tasks,
+                                self.repo,
+                                show_completed=show_completed)
                             logger.info("<show> %s: %s", entity_type,
                                         entity_.id)
-                        if history and show_history:
-                            self.printer.print_history(history)
-                        if commentaries:
+                        if commentaries := entities[0].commentaries:
                             self.printer.print_commentaries(commentaries)
+                        if history := entities[0].history:
+                            self.printer.print_history(history)
                     #TODO: show completed tasks as well
                     if entity_type == "tasks":
                         # if kwargs.get("description"):
@@ -426,19 +416,18 @@ class CommandHandler:
                         #     print(entities[0].name)
                         #     return
                         if task_id:
-                            self.printer.print_task(entities,
-                                       self.repo,
-                                       show_completed=show_completed,
-                                       history=history,
-                                       comments=commentaries)
+                            self.printer.print_task(
+                                entities,
+                                self.repo,
+                                show_completed=show_completed)
+                            if commentaries := entities[0].commentaries:
+                                self.printer.print_commentaries(commentaries)
+                            if history := entities[0].history:
+                                self.printer.print_history(history)
                         else:
                             print(f"No entity {task} found!")
                         logger.info("<show> %s: %s", entity_type, task_id)
-                        if history:
-                            self.printer.print_history(history)
-                        if commentaries:
-                            self.printer.print_commentaries(commentaries)
-                return entities, history, commentaries
+                return entities, None, None
         elif command == "done":
             if entity_type != "tasks":
                 raise ValueError("can complete only tasks!")
@@ -453,7 +442,6 @@ class CommandHandler:
             raise ValueError(f"Uknown command: {command}")
 
 
-
 def get_ids(id_string: str):
     if "," in id_string:
         ids = id_string.split(",")
@@ -463,5 +451,3 @@ def get_ids(id_string: str):
     else:
         ids = [id_string]
     return ids
-
-

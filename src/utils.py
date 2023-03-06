@@ -153,4 +153,6 @@ def format_command(command: str) -> str:
         return "delete"
     if "edit".startswith(command):
         return "edit"
+    if "comment".startswith(command):
+        return "comment"
     return command

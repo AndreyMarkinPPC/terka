@@ -31,7 +31,7 @@ class Printer:
         for column in ("date", "type", "old_value", "new_value"):
             table.add_column(column)
         for event in entities:
-            table.add_row(event.date.strftime("%Y-%m-%d %H:%M"), event.type,
+            table.add_row(event.date.strftime("%Y-%m-%d %H:%M"), event.type.name,
                           event.old_value, event.new_value)
         console.print(table)
 
@@ -42,6 +42,7 @@ class Printer:
         print("Comments:")
         for column in ("date", "text"):
             table.add_column(column)
+        entities.sort(key = lambda c: c.date, reverse=False)
         for event in entities:
             table.add_row(event.date.strftime("%Y-%m-%d %H:%M"), event.text)
         console.print(table)
@@ -145,6 +146,10 @@ class Printer:
                           reverse=True)
         printable_entities = 0
         for entity in entities:
+            if comments := entity.commentaries:
+                comments.sort(key = lambda c: c.date, reverse=False)
+            if history := entity.history:
+                history.sort(key = lambda c: c.date, reverse=False)
             try:
                 project_obj = services.lookup_project_name(entity.project, repo)
                 project = project_obj.name

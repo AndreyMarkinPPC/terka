@@ -7,7 +7,7 @@ from src.domain.element import Element
 from src.domain.task import Task
 from src.domain.project import Project
 from src.domain.user import User
-from src.domain.event_history import Event
+from src.domain.event_history import TaskEvent
 from sqlalchemy import and_, or_, not_
 
 
@@ -111,8 +111,8 @@ class SqlAlchemyRepository(AbsRepository):
                 query_object = query_object.filter(
                     getattr(element,
                             "status").in_(["TODO", "IN_PROGRESS", "REVIEW"])).join(
-                                Event, (element.id == Event.element_id)).filter(
-                                    Event.date <= days_ago, Event.type == "status")
+                                TasknEvent, (element.id == TaskEvent.task)).filter(
+                                    TaskEvent.date <= days_ago, TaskEvent.type == "STATUS")
                 return query_object.all()
             if overdue_check:
                 query_object = query_object.filter(
