@@ -62,9 +62,22 @@ class Printer:
                                if hasattr(c.priority, "value") else 0),
                               reverse=True)
             self.print_task(entities=entities, repo=repo, custom_sort=custom_sort)
+        elif type == "tags":
+            self.print_tag(entities=entities)
         else:
             self.print_default_entity(self, entities)
 
+    def print_tag(self, entities):
+        console = Console()
+        table = Table(box=self.box)
+        for column in ("id",  "text"):
+            table.add_column(column)
+        seen_tags = set()
+        for entity in entities:
+            if entity.text not in seen_tags:
+                table.add_row(f"[red]{entity.id}[/red]", entity.text)
+                seen_tags.add(entity.text)
+        console.print(table)
 
     def print_default_entity(self, entities):
         console = Console()

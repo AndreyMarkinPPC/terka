@@ -7,21 +7,26 @@ class BaseTag:
         return f"<Tag> {self.text}"
 
 
-class TaskTag(BaseTag):
+class TagMixin:
+    def __repr__(self):
+        return f"<Tag> {self.tag}"
+
+
+class TaskTag(TagMixin):
 
     def __init__(self,
                  id: int,
-                 text: str,
+                 tag_id: int,
                  **kwargs: str) -> None:
         self.task = id
-        super().__init__(text=text)
+        self.tag= tag_id
 
 
-class ProjectTag(BaseTag):
+class ProjectTag(TagMixin):
 
     def __init__(self,
                  id: int,
-                 text: str,
+                 tag_id: int,
                  **kwargs: str) -> None:
         self.project = id
-        super().__init__(text=text)
+        self.tag= tag_id

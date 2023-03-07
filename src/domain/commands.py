@@ -17,7 +17,8 @@ from src.domain.task import Task
 from src.domain.project import Project
 from src.domain.user import User
 from src.domain.commentary import TaskCommentary, ProjectCommentary
-from src.domain.tag import TaskTag, ProjectTag
+from src.domain.tag import BaseTag, TaskTag, ProjectTag
+from src.domain.collaborators import TaskCollaborator, ProjectCollaborator
 from src.domain.event_history import TaskEvent, ProjectEvent
 
 from src.service_layer import services, printer
@@ -88,6 +89,15 @@ class UserHandler(BaseHandler):
         return super().handle(entity)
 
 
+class TagHandler(BaseHandler):
+
+    def handle(self, entity):
+        if "tags".startswith(entity):
+            logger.debug("Handling tags")
+            return BaseTag, "tags"
+        return super().handle(entity)
+
+
 class CommandHandler:
 
     def __init__(self, repo: AbsRepository):
@@ -98,7 +108,7 @@ class CommandHandler:
 
     def _init_handlers(self):
         handler_chain = BaseHandler(None)
-        for handler in [TaskHandler, ProjectHandler, UserHandler]:
+        for handler in [TaskHandler, ProjectHandler, UserHandler, TagHandler]:
             new_handler = handler(handler_chain)
             handler_chain = new_handler
         return handler_chain
@@ -248,24 +258,86 @@ class CommandHandler:
             entities = self.repo.list(entity, kwargs)
             print(len(entities))
             logger.info("<count> tasks")
-        elif command == "tag":
+        elif command == "collaborate":
             if entity_type == "tasks":
-                existing_task = self.repo.list(Task, {"id": kwargs["id"]})
+                task_id = kwargs["id"]
+                existing_task = self.repo.list(Task, {"id": task_id})
                 if not existing_task:
                     raise ValueError(
-                        f"Task with id {kwargs['id']} is not found!")
-                obj = TaskTag(**kwargs)
-                self.repo.add(obj)
-                session.commit()
+                        f"Task with id {task_id} is not found!")
+                user = self.repo.list(User, {"name": kwargs["name"]})
+                if not user:
+                    user = User(**kwargs)
+                    self.repo.add(user)
+                    session.commit()
+                existing_task_collaborator = self.repo.list(TaskCollaborator, {
+                    "task": task_id,
+                    "collaborator": user[0].id
+                })
+                if not existing_task_collaborator:
+                    obj = TaskCollaborator(id=task_id, collaborator_id=user[0].id)
+                    self.repo.add(obj)
+                    session.commit()
             elif entity_type == "projects":
+                project_id = kwargs["id"]
                 existing_project = self.repo.list(Project,
-                                                  {"id": kwargs["id"]})
+                                                  {"id": project_id})
                 if not existing_project:
                     raise ValueError(
-                        f"Project with id {kwargs['id']} is not found!")
-                obj = ProjectTag(**kwargs)
-                self.repo.add(obj)
-                session.commit()
+                        f"Project with id {project_id} is not found!")
+                user = self.repo.list(User, {"name": kwargs["name"]})
+                if not user:
+                    user = User(**kwargs)
+                    self.repo.add(user)
+                    session.commit()
+                existing_project_collaborator = self.repo.list(ProjectCollaborator, {
+                    "project": project_id,
+                    "collaborator": user[0].id
+                })
+                if not existing_project_collaborator:
+                    obj = ProjectCollaborator(id=project_id, collaborator_id=user[0].id)
+                    self.repo.add(obj)
+                    session.commit()
+        elif command == "tag":
+            if entity_type == "tasks":
+                task_id = kwargs["id"]
+                existing_task = self.repo.list(Task, {"id": task_id})
+                if not existing_task:
+                    raise ValueError(
+                        f"Task with id {task_id} is not found!")
+                tag = self.repo.list(BaseTag, {"text": kwargs["text"]})
+                if not tag:
+                    tag = BaseTag(**kwargs)
+                    self.repo.add(tag)
+                    session.commit()
+                existing_task_tag = self.repo.list(TaskTag, {
+                    "task": task_id,
+                    "tag": tag[0].id
+                })
+                if not existing_task_tag:
+                    obj = TaskTag(id=task_id, tag_id=tag[0].id)
+                    self.repo.add(obj)
+                    session.commit()
+            elif entity_type == "projects":
+                project_id = kwargs["id"]
+                existing_project = self.repo.list(Project,
+                                                  {"id": project_id})
+                if not existing_project:
+                    raise ValueError(
+                        f"Project with id {project_id} is not found!")
+                tag = self.repo.list(BaseTag, {"text": kwargs["text"]})
+                if not tag:
+                    tag = BaseTag(**kwargs)
+                    self.repo.add(tag)
+                    session.commit()
+                existing_project_tag = self.repo.list(ProjectTag, {
+                    "project": project_id,
+                    "tag": tag[0].id
+                })
+                if not existing_project_tag:
+                    obj = ProjectTag(id=project_id, tag_id=tag[0].id)
+                    self.repo.add(obj)
+                    session.commit()
         elif command == "comment":
             if entity_type == "tasks":
                 existing_task = self.repo.list(Task, {"id": kwargs["id"]})
