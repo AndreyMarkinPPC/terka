@@ -17,6 +17,7 @@ from src.domain.task import Task
 from src.domain.project import Project
 from src.domain.user import User
 from src.domain.commentary import TaskCommentary, ProjectCommentary
+from src.domain.tag import TaskTag, ProjectTag
 from src.domain.event_history import TaskEvent, ProjectEvent
 
 from src.service_layer import services, printer
@@ -247,6 +248,24 @@ class CommandHandler:
             entities = self.repo.list(entity, kwargs)
             print(len(entities))
             logger.info("<count> tasks")
+        elif command == "tag":
+            if entity_type == "tasks":
+                existing_task = self.repo.list(Task, {"id": kwargs["id"]})
+                if not existing_task:
+                    raise ValueError(
+                        f"Task with id {kwargs['id']} is not found!")
+                obj = TaskTag(**kwargs)
+                self.repo.add(obj)
+                session.commit()
+            elif entity_type == "projects":
+                existing_project = self.repo.list(Project,
+                                                  {"id": kwargs["id"]})
+                if not existing_project:
+                    raise ValueError(
+                        f"Project with id {kwargs['id']} is not found!")
+                obj = ProjectTag(**kwargs)
+                self.repo.add(obj)
+                session.commit()
         elif command == "comment":
             if entity_type == "tasks":
                 existing_task = self.repo.list(Task, {"id": kwargs["id"]})

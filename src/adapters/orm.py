@@ -17,6 +17,7 @@ from src.domain.user import User
 from src.domain.project import Project, ProjectStatus
 from src.domain.event_history import TaskEvent, ProjectEvent, EventType
 from src.domain.commentary import TaskCommentary, ProjectCommentary
+from src.domain.tag import TaskTag, ProjectTag
 
 metadata = MetaData()
 
@@ -31,10 +32,6 @@ tasks = Table("tasks", metadata,
               Column("due_date", Date, nullable=True),
               Column("status", Enum(TaskStatus)),
               Column("priority", Enum(TaskPriority)))
-
-users = Table("users", metadata,
-              Column("id", Integer, primary_key=True, autoincrement=True),
-              Column("name", String(50)))
 
 projects = Table("projects", metadata,
                  Column("id", Integer, primary_key=True, autoincrement=True),
@@ -93,14 +90,36 @@ project_commentaries = Table(
     Column("text", String(225)),
 )
 
+users = Table("users", metadata,
+              Column("id", Integer, primary_key=True, autoincrement=True),
+              Column("name", String(50)))
+
+task_tags = Table("task_tags", metadata,
+             Column("id", Integer, primary_key=True, autoincrement=True),
+             Column("task", ForeignKey("tasks.id"), nullable=True),
+             Column("text", String(50)))
+
+project_tags = Table("project_tags", metadata,
+             Column("id", Integer, primary_key=True, autoincrement=True),
+             Column("project", ForeignKey("projects.id"), nullable=True),
+             Column("text", String(50)))
+
+
 def start_mappers():
     task_commentary_mapper = mapper(TaskCommentary, task_commentaries)
     project_commentary_mapper = mapper(ProjectCommentary, project_commentaries)
     task_event_mapper = mapper(TaskEvent, task_events)
     project_event_mapper = mapper(ProjectEvent, project_events)
+    user_mapper = mapper(User, users)
+    task_tag_mapper = mapper(TaskTag, task_tags)
+    project_tag_mapper = mapper(ProjectTag, project_tags)
     task_mapper = mapper(Task,
                          tasks,
                          properties={
+                             "tags":
+                             relationship(task_tag_mapper,
+                                          collection_class=set,
+                                          cascade="all, delete-orphan"),
                              "commentaries":
                              relationship(task_commentary_mapper,
                                           collection_class=list,
@@ -110,13 +129,16 @@ def start_mappers():
                                           collection_class=list,
                                           cascade="all, delete-orphan"),
                          })
-    user_mapper = mapper(User, users)
     project_mapper = mapper(Project,
                             projects,
                             properties={
                                 "tasks":
                                 relationship(task_mapper,
                                              collection_class=set),
+                                 "tags":
+                                 relationship(project_tag_mapper,
+                                              collection_class=set,
+                                              cascade="all, delete-orphan"),
                                 "commentaries":
                                 relationship(project_commentary_mapper,
                                              collection_class=list,
