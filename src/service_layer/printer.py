@@ -11,6 +11,7 @@ from src.service_layer.ui import TerkaTask
 
 
 class Printer:
+
     def __init__(self, box=rich.box.SIMPLE) -> None:
         self.box = box
 
@@ -23,7 +24,6 @@ class Printer:
         table.add_row(*list(zip(*attributes))[1])
         console.print(table)
 
-
     def print_history(self, entities):
         console = Console()
         table = Table(box=self.box)
@@ -31,10 +31,9 @@ class Printer:
         for column in ("date", "type", "old_value", "new_value"):
             table.add_column(column)
         for event in entities:
-            table.add_row(event.date.strftime("%Y-%m-%d %H:%M"), event.type.name,
-                          event.old_value, event.new_value)
+            table.add_row(event.date.strftime("%Y-%m-%d %H:%M"),
+                          event.type.name, event.old_value, event.new_value)
         console.print(table)
-
 
     def print_commentaries(self, entities):
         console = Console()
@@ -42,26 +41,33 @@ class Printer:
         print("Comments:")
         for column in ("date", "text"):
             table.add_column(column)
-        entities.sort(key = lambda c: c.date, reverse=False)
+        entities.sort(key=lambda c: c.date, reverse=False)
         for event in entities:
             table.add_row(event.date.strftime("%Y-%m-%d %H:%M"), event.text)
         console.print(table)
 
-
-
-    def print_entities(self, entities, type, repo, custom_sort):
+    def print_entities(self,
+                       entities,
+                       type,
+                       repo,
+                       custom_sort,
+                       show_completed=False):
         if type == "projects":
             entities.sort(key=self._sort_open_tasks, reverse=True)
             self.print_project(entities)
         elif type == "tasks":
             if custom_sort:
-                entities.sort(key=lambda c: getattr(c, custom_sort), reverse=False)
+                entities.sort(key=lambda c: getattr(c, custom_sort),
+                              reverse=False)
             else:
                 entities.sort(key=lambda c:
                               (c.status.value, c.priority.value
                                if hasattr(c.priority, "value") else 0),
                               reverse=True)
-            self.print_task(entities=entities, repo=repo, custom_sort=custom_sort)
+            self.print_task(entities=entities,
+                            repo=repo,
+                            show_completed=show_completed,
+                            custom_sort=custom_sort)
         elif type == "tags":
             self.print_tag(entities=entities)
         else:
@@ -70,7 +76,7 @@ class Printer:
     def print_tag(self, entities):
         console = Console()
         table = Table(box=self.box)
-        for column in ("id",  "text"):
+        for column in ("id", "text"):
             table.add_column(column)
         seen_tags = set()
         for entity in entities:
@@ -89,8 +95,8 @@ class Printer:
                           entity.date.strftime("%Y-%m-%d %H:%M"), entity.text)
         console.print(table)
 
-
-    def print_project(self, entities,
+    def print_project(self,
+                      entities,
                       zero_tasks: bool = False,
                       zero_tasks_only: bool = False):
         console = Console()
@@ -106,8 +112,8 @@ class Printer:
             if open_tasks > 0:
                 overdue_tasks = [
                     task for task in entity.tasks
-                    if task.due_date and task.due_date <= datetime.now().date()
-                    and task.status.name not in ("DELETED", "DONE")
+                    if task.due_date and task.due_date <= datetime.now().date(
+                    ) and task.status.name not in ("DELETED", "DONE")
                 ]
                 median_task_age = round(
                     median([(datetime.now() - task.creation_date).days
@@ -115,7 +121,8 @@ class Printer:
                             if task.status.name not in ("DELETED", "DONE")]))
                 backlog = self._count_task_status(entity.tasks, "BACKLOG")
                 todo = self._count_task_status(entity.tasks, "TODO")
-                in_progress = self._count_task_status(entity.tasks, "IN_PROGRESS")
+                in_progress = self._count_task_status(entity.tasks,
+                                                      "IN_PROGRESS")
                 review = self._count_task_status(entity.tasks, "REVIEW")
                 done = self._count_task_status(entity.tasks, "DONE")
 
@@ -124,16 +131,16 @@ class Printer:
                 else:
                     entity_id = f"[green]{entity.id}[/green]"
                 table.add_row(f"{entity_id}", entity.name, entity.description,
-                              str(open_tasks),
-                              str(len(overdue_tasks)), str(backlog), str(todo),
-                              str(in_progress), str(review), str(done),
-                              str(median_task_age))
+                              str(open_tasks), str(len(overdue_tasks)),
+                              str(backlog), str(todo), str(in_progress),
+                              str(review), str(done), str(median_task_age))
                 # if zero_tasks_only and open_tasks == 0:
                 #     table.add_row(f"[red]{entity.id}[/red]", entity.name,
                 #                   entity.description, str(tasks))
         console.print(table)
 
-    def print_task(self, entities,
+    def print_task(self,
+                   entities,
                    repo,
                    show_completed=False,
                    custom_sort=None,
@@ -160,11 +167,12 @@ class Printer:
         printable_entities = 0
         for entity in entities:
             if comments := entity.commentaries:
-                comments.sort(key = lambda c: c.date, reverse=False)
+                comments.sort(key=lambda c: c.date, reverse=False)
             if history := entity.history:
-                history.sort(key = lambda c: c.date, reverse=False)
+                history.sort(key=lambda c: c.date, reverse=False)
             try:
-                project_obj = services.lookup_project_name(entity.project, repo)
+                project_obj = services.lookup_project_name(
+                    entity.project, repo)
                 project = project_obj.name
             except:
                 project = None

@@ -131,14 +131,55 @@ class CommandHandler:
             raise ValueError(f"Entity *{entity_type}* is not a valid entity")
         command = format_command(command)
         if command == "list":
-            if entity_type == "tasks" and "status" not in kwargs:
-                kwargs["status"] = "BACKLOG,TODO,IN_PROGRESS,REVIEW"
+            show_completed = False
+            if entity_type == "tasks":
+                if "status" not in kwargs and "all" not in kwargs:
+                    kwargs["status"] = "BACKLOG,TODO,IN_PROGRESS,REVIEW"
+                else:
+                    del kwargs["all"]
+                    show_completed = True
             if (custom_sort := kwargs.get("sort")):
                 del kwargs["sort"]
             else:
                 custom_sort = None
             if entity_type == "projects" and "project_id" in kwargs:
                 kwargs["id"] = kwargs.pop("project_id")
+            if "collaborators" in kwargs:
+                collaborator_name = kwargs["collaborators"]
+                collaborator = self.repo.list(User, {"name": collaborator_name})
+                if collaborator:
+                    task_collaborators = self.repo.list(TaskCollaborator, {"collaborator": collaborator[0].id})
+                    if task_collaborators:
+                        kwargs["id"] = ",".join([str(task_collaborator.task) for task_collaborator in task_collaborators])
+                        del kwargs["collaborators"]
+                    else:
+                        console = Console()
+                        console.print(
+                            f"[red]No task with collaborator '{colaborator_name}' found![/red]")
+                        exit()
+                else:
+                    console = Console()
+                    console.print(
+                        f"[red]No user '{collaborator_name}' found![/red]")
+                    exit()
+            if "tags" in kwargs:
+                tag_text = kwargs["tags"]
+                tag = self.repo.list(BaseTag, {"text": tag_text})
+                if tag:
+                    task_tags = self.repo.list(TaskTag, {"tag": tag[0].id})
+                    if task_tags:
+                        kwargs["id"] = ",".join([str(task_tag.task) for task_tag in task_tags])
+                        del kwargs["tags"]
+                    else:
+                        console = Console()
+                        console.print(
+                            f"[red]No tasks with tag '{tag_text}' found![/red]")
+                        exit()
+                else:
+                    console = Console()
+                    console.print(
+                        f"[red]No tag '{tag_text}' found![/red]")
+                    exit()
             entities = self.repo.list(entity, kwargs)
             if custom_sort == "due_date":
                 entities_with_due_date = []
@@ -151,7 +192,7 @@ class CommandHandler:
                 entities = entities_with_due_date
             session.commit()
             self.printer.print_entities(entities, entity_type, self.repo,
-                                        custom_sort)
+                                        custom_sort, show_completed=show_completed)
             logger.info("<list> %s", entity_type)
             return entities, None, None
         elif command == "help":
@@ -511,9 +552,9 @@ class CommandHandler:
                                 entities,
                                 self.repo,
                                 show_completed=show_completed)
-                            if commentaries := entities[0].commentaries:
+                            if entities and (commentaries := entities[0].commentaries):
                                 self.printer.print_commentaries(commentaries)
-                            if history := entities[0].history:
+                            if entities and (history := entities[0].history):
                                 self.printer.print_history(history)
                         else:
                             print(f"No entity {task} found!")

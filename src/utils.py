@@ -40,6 +40,9 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             "due_date": new_dict.get("d") or new_dict.get("due-date"),
             "description": new_dict.get("desc") or new_dict.get("description"),
             "text": new_dict.get("t") or new_dict.get("text"),
+            "tags": new_dict.get("tag"),
+            "collaborators": new_dict.get("collaborator"),
+            "all": new_dict.get("all"),
             "priority": new_dict.get("priority"),
             "overdue": new_dict.get("overdue"),
             "stale": new_dict.get("stale")
