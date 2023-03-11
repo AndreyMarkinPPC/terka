@@ -15,6 +15,8 @@
 * edit
 * done
 * delete
+* tag
+* collaborate
 
 > When calling commands and entities you can use their first letters.
 > I.e. if you want to create new task you can call `terka cre ta` or even `terka c t`.
@@ -130,6 +132,24 @@ terka done tasks 123
 terka delete tasks 123
 # is equivalent to
 # terka update tasks 123 -s DELETED
+```
+
+#### `tag`
+
+`tag` assigns tag to a task or a project
+
+```
+terka tag tasks 123 -t "My tag"
+terka tag project 1 -t "My tag"
+```
+
+#### `collaborate`
+
+`collaborate` assigns collaborator to a task or a project
+
+```
+terka collaborate tasks 123 -n "user_name"
+terka collaborate projects 1 -n "user_name"
 ```
 
 ## terka options
