@@ -330,9 +330,11 @@ class CommandHandler:
                         "collaborator": user_id
                     })
                 if not existing_task_collaborator:
-                    obj = TaskCollaborator(id=task_id,
-                                           collaborator_id=user_id)
-                    self.repo.add(obj)
+                    task_ids = get_ids(task_id)
+                    for task_id in task_ids:
+                        obj = TaskCollaborator(id=task_id,
+                                               collaborator_id=user_id)
+                        self.repo.add(obj)
                     session.commit()
             elif entity_type == "projects":
                 project_id = kwargs["id"]
@@ -354,10 +356,12 @@ class CommandHandler:
                         "collaborator": user_id
                     })
                 if not existing_project_collaborator:
-                    obj = ProjectCollaborator(id=project_id,
-                                              collaborator_id=user_id)
-                    self.repo.add(obj)
-                    session.commit()
+                    project_ids = get_ids(project_id)
+                    for project_id in project_ids:
+                        obj = ProjectCollaborator(id=project_id,
+                                                  collaborator_id=user_id)
+                        self.repo.add(obj)
+                        session.commit()
         elif command == "tag":
             if entity_type == "tasks":
                 task_id = kwargs["id"]
@@ -377,8 +381,10 @@ class CommandHandler:
                     "tag": tag_id
                 })
                 if not existing_task_tag:
-                    obj = TaskTag(id=task_id, tag_id=tag_id)
-                    self.repo.add(obj)
+                    task_ids = get_ids(task_id)
+                    for task_id in task_ids:
+                        obj = TaskTag(id=task_id, tag_id=tag_id)
+                        self.repo.add(obj)
                     session.commit()
             elif entity_type == "projects":
                 project_id = kwargs["id"]
@@ -400,8 +406,10 @@ class CommandHandler:
                     "tag": tag_id
                 })
                 if not existing_project_tag:
-                    obj = ProjectTag(id=project_id, tag_id=tag_id)
-                    self.repo.add(obj)
+                    project_ids = get_ids(project_id)
+                    for project_id in project_ids:
+                        obj = ProjectTag(id=project_id, tag_id=tag_id)
+                        self.repo.add(obj)
                     session.commit()
         elif command == "comment":
             if entity_type == "tasks":
