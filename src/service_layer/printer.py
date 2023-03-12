@@ -155,7 +155,7 @@ class Printer:
         #     active_in_days = datetime.now() - entities[0].creation_date
         #     console.print(f"[blue]task is active {active_in_days.days} days[/blue]")
         for column in ("id", "name", "description", "status", "priority",
-                       "project", "due_date"):
+                       "project", "due_date", "tags", "collaborators"):
             table.add_column(column)
         entities = list(entities)
         completed_tasks = []
@@ -166,6 +166,19 @@ class Printer:
                           reverse=True)
         printable_entities = 0
         for entity in entities:
+            if tags := entity.tags:
+                tag_texts = sorted([tag.base_tag.text for tag in list(tags)])
+                tag_string = ",".join(tag_texts)
+            else:
+                tag_string = ""
+            if collaborators := entity.collaborators:
+                collaborators_texts = sorted([
+                    collaborator.users.name
+                    for collaborator in list(collaborators)
+                ])
+                collaborator_string = ",".join(collaborators_texts)
+            else:
+                collaborator_string = ""
             if comments := entity.commentaries:
                 comments.sort(key=lambda c: c.date, reverse=False)
             if history := entity.history:
@@ -182,14 +195,15 @@ class Printer:
                 completed_tasks.append(entity)
                 continue
             printable_entities += 1
+            entity_name = f"{entity.name}"
             if entity.due_date and entity.due_date <= date.today():
-                table.add_row(f"[red]{entity.id}[/red]", entity.name,
+                table.add_row(f"[red]{entity.id}[/red]", entity_name,
                               entity.description, entity.status.name, priority,
-                              project, str(entity.due_date))
+                              project, str(entity.due_date), tag_string, collaborator_string)
             else:
-                table.add_row(str(entity.id), entity.name, entity.description,
+                table.add_row(str(entity.id), entity_name, entity.description,
                               entity.status.name, priority, project,
-                              str(entity.due_date))
+                              str(entity.due_date), tag_string, collaborator_string)
         if show_completed:
             console.print(f"[green]****OPEN TASKS*****[/green]")
         if printable_entities:
@@ -208,9 +222,9 @@ class Printer:
                            "project", "due_date"):
                 table.add_column(column)
             for entity in completed_tasks:
-                table.add_row(str(entity.id), entity.name, entity.description,
+                table.add_row(str(entity.id), entity_name, entity.description,
                               entity.status.name, priority, project,
-                              str(entity.due_date))
+                              str(entity.due_date), tags, collaborator_string)
             console.print(table)
         if len(entities) == 1 and printable_entities == 0:
             table = Table(box=self.box)
@@ -224,9 +238,9 @@ class Printer:
                                 history=history,
                                 commentaries=comments)
                 app.run()
-                table.add_row(str(entity.id), entity.name, entity.description,
+                table.add_row(str(entity.id), entity_name, entity.description,
                               entity.status.name, priority, project,
-                              str(entity.due_date))
+                              str(entity.due_date), tags, collaborator_string)
             console.print(table)
 
     def _get_attributes(self, obj) -> List[Tuple[str, str]]:

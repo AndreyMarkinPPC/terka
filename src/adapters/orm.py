@@ -96,28 +96,32 @@ users = Table("users", metadata,
               Column("name", String(50)))
 
 tags = Table("tags", metadata,
-              Column("id", Integer, primary_key=True, autoincrement=True),
-              Column("text", String(50)))
+             Column("id", Integer, primary_key=True, autoincrement=True),
+             Column("text", String(50)))
 
 task_tags = Table("task_tags", metadata,
-             Column("id", Integer, primary_key=True, autoincrement=True),
-             Column("task", ForeignKey("tasks.id"), nullable=True),
-             Column("tag", ForeignKey("tags.id"), nullable=True))
+                  Column("id", Integer, primary_key=True, autoincrement=True),
+                  Column("task", ForeignKey("tasks.id"), nullable=True),
+                  Column("tag", ForeignKey("tags.id"), nullable=True))
 
-project_tags = Table("project_tags", metadata,
-             Column("id", Integer, primary_key=True, autoincrement=True),
-             Column("project", ForeignKey("projects.id"), nullable=True),
-             Column("tag", ForeignKey("tags.id"), nullable=True))
+project_tags = Table(
+    "project_tags", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("project", ForeignKey("projects.id"), nullable=True),
+    Column("tag", ForeignKey("tags.id"), nullable=True))
 
-task_collaborators = Table("task_collaborators", metadata,
-             Column("id", Integer, primary_key=True, autoincrement=True),
-             Column("task", ForeignKey("tasks.id"), nullable=True),
-             Column("collaborator", ForeignKey("users.id"), nullable=True))
+task_collaborators = Table(
+    "task_collaborators", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("task", ForeignKey("tasks.id"), nullable=True),
+    Column("collaborator", ForeignKey("users.id"), nullable=True))
 
-project_collaborators = Table("project_collaborators", metadata,
-             Column("id", Integer, primary_key=True, autoincrement=True),
-             Column("project", ForeignKey("projects.id"), nullable=True),
-             Column("collaborator", ForeignKey("users.id"), nullable=True))
+project_collaborators = Table(
+    "project_collaborators", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("project", ForeignKey("projects.id"), nullable=True),
+    Column("collaborator", ForeignKey("users.id"), nullable=True))
+
 
 def start_mappers():
     task_commentary_mapper = mapper(TaskCommentary, task_commentaries)
@@ -126,10 +130,28 @@ def start_mappers():
     project_event_mapper = mapper(ProjectEvent, project_events)
     user_mapper = mapper(User, users)
     tag_mapper = mapper(BaseTag, tags)
-    task_tag_mapper = mapper(TaskTag, task_tags)
-    project_tag_mapper = mapper(ProjectTag, project_tags)
-    task_collaborator_mapper = mapper(TaskCollaborator, task_collaborators)
-    project_collaborator_mapper = mapper(ProjectCollaborator, project_collaborators)
+    task_tag_mapper = mapper(TaskTag,
+                             task_tags,
+                             properties={
+                                 "base_tag":
+                                 relationship(tag_mapper,
+                                              collection_class=list)
+                             })
+    project_tag_mapper = mapper(ProjectTag,
+                                project_tags,
+                                properties={
+                                    "base_tag":
+                                    relationship(tag_mapper,
+                                                 collection_class=list)
+                                })
+    task_collaborator_mapper = mapper(
+        TaskCollaborator,
+        task_collaborators,
+        properties={"users": relationship(user_mapper, collection_class=list)})
+    project_collaborator_mapper = mapper(
+        ProjectCollaborator,
+        project_collaborators,
+        properties={"users": relationship(user_mapper, collection_class=list)})
     task_mapper = mapper(Task,
                          tasks,
                          properties={
@@ -153,17 +175,17 @@ def start_mappers():
     project_mapper = mapper(Project,
                             projects,
                             properties={
-                                 "collaborators":
-                                 relationship(project_collaborator_mapper,
-                                              collection_class=set,
-                                              cascade="all, delete-orphan"),
+                                "collaborators":
+                                relationship(project_collaborator_mapper,
+                                             collection_class=set,
+                                             cascade="all, delete-orphan"),
                                 "tasks":
                                 relationship(task_mapper,
                                              collection_class=set),
-                                 "tags":
-                                 relationship(project_tag_mapper,
-                                              collection_class=set,
-                                              cascade="all, delete-orphan"),
+                                "tags":
+                                relationship(project_tag_mapper,
+                                             collection_class=set,
+                                             cascade="all, delete-orphan"),
                                 "commentaries":
                                 relationship(project_commentary_mapper,
                                              collection_class=list,

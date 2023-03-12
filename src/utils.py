@@ -30,22 +30,36 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
     if len(kwargs) > 1:
         new_dict = create_task_dict(kwargs)
         task_dict = {
-            "id": new_dict.get("id") if entity != "commentaries" else None,
+            "id":
+            new_dict.get("id") if entity != "commentaries" else None,
             "task_id":
             new_dict.get("id") if entity == "commentaries" else None,
-            "name": new_dict.get("n") or new_dict.get("name"),
-            "status": new_dict.get("s") or new_dict.get("status"),
-            "project": new_dict.get("p") or new_dict.get("project"),
-            "assignee": new_dict.get("a") or new_dict.get("assignee"),
-            "due_date": new_dict.get("d") or new_dict.get("due-date"),
-            "description": new_dict.get("desc") or new_dict.get("description"),
-            "text": new_dict.get("t") or new_dict.get("text"),
-            "tags": new_dict.get("tag"),
-            "collaborators": new_dict.get("collaborator"),
-            "all": new_dict.get("all"),
-            "priority": new_dict.get("priority"),
-            "overdue": new_dict.get("overdue"),
-            "stale": new_dict.get("stale")
+            "name":
+            new_dict.get("n") or new_dict.get("name"),
+            "status":
+            new_dict.get("s") or new_dict.get("status"),
+            "project":
+            new_dict.get("p") or new_dict.get("project"),
+            "assignee":
+            new_dict.get("a") or new_dict.get("assignee"),
+            "due_date":
+            new_dict.get("d") or new_dict.get("due-date"),
+            "description":
+            new_dict.get("desc") or new_dict.get("description"),
+            "text":
+            new_dict.get("t") or new_dict.get("text"),
+            "tags":
+            new_dict.get("tag") or new_dict.get("tags"),
+            "collaborators":
+            new_dict.get("collaborator") or new_dict.get("collaborators"),
+            "all":
+            new_dict.get("all"),
+            "priority":
+            new_dict.get("priority"),
+            "overdue":
+            new_dict.get("overdue"),
+            "stale":
+            new_dict.get("stale")
         }
         if "--show-completed" in kwargs:
             task_dict.update({"show_completed": True})

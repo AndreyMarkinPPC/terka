@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -136,7 +136,8 @@ class CommandHandler:
                 if "status" not in kwargs and "all" not in kwargs:
                     kwargs["status"] = "BACKLOG,TODO,IN_PROGRESS,REVIEW"
                 else:
-                    del kwargs["all"]
+                    if "all" in kwargs:
+                        del kwargs["all"]
                     show_completed = True
             if (custom_sort := kwargs.get("sort")):
                 del kwargs["sort"]
@@ -146,16 +147,22 @@ class CommandHandler:
                 kwargs["id"] = kwargs.pop("project_id")
             if "collaborators" in kwargs:
                 collaborator_name = kwargs["collaborators"]
-                collaborator = self.repo.list(User, {"name": collaborator_name})
+                collaborator = self.repo.list(User,
+                                              {"name": collaborator_name})
                 if collaborator:
-                    task_collaborators = self.repo.list(TaskCollaborator, {"collaborator": collaborator[0].id})
+                    task_collaborators = self.repo.list(
+                        TaskCollaborator, {"collaborator": collaborator[0].id})
                     if task_collaborators:
-                        kwargs["id"] = ",".join([str(task_collaborator.task) for task_collaborator in task_collaborators])
+                        kwargs["id"] = ",".join([
+                            str(task_collaborator.task)
+                            for task_collaborator in task_collaborators
+                        ])
                         del kwargs["collaborators"]
                     else:
                         console = Console()
                         console.print(
-                            f"[red]No task with collaborator '{colaborator_name}' found![/red]")
+                            f"[red]No task with collaborator '{colaborator_name}' found![/red]"
+                        )
                         exit()
                 else:
                     console = Console()
@@ -168,17 +175,18 @@ class CommandHandler:
                 if tag:
                     task_tags = self.repo.list(TaskTag, {"tag": tag[0].id})
                     if task_tags:
-                        kwargs["id"] = ",".join([str(task_tag.task) for task_tag in task_tags])
+                        kwargs["id"] = ",".join(
+                            [str(task_tag.task) for task_tag in task_tags])
                         del kwargs["tags"]
                     else:
                         console = Console()
                         console.print(
-                            f"[red]No tasks with tag '{tag_text}' found![/red]")
+                            f"[red]No tasks with tag '{tag_text}' found![/red]"
+                        )
                         exit()
                 else:
                     console = Console()
-                    console.print(
-                        f"[red]No tag '{tag_text}' found![/red]")
+                    console.print(f"[red]No tag '{tag_text}' found![/red]")
                     exit()
             entities = self.repo.list(entity, kwargs)
             if custom_sort == "due_date":
@@ -191,8 +199,11 @@ class CommandHandler:
                                             reverse=False)
                 entities = entities_with_due_date
             session.commit()
-            self.printer.print_entities(entities, entity_type, self.repo,
-                                        custom_sort, show_completed=show_completed)
+            self.printer.print_entities(entities,
+                                        entity_type,
+                                        self.repo,
+                                        custom_sort,
+                                        show_completed=show_completed)
             logger.info("<list> %s", entity_type)
             return entities, None, None
         elif command == "help":
@@ -304,25 +315,28 @@ class CommandHandler:
                 task_id = kwargs["id"]
                 existing_task = self.repo.list(Task, {"id": task_id})
                 if not existing_task:
-                    raise ValueError(
-                        f"Task with id {task_id} is not found!")
+                    raise ValueError(f"Task with id {task_id} is not found!")
                 user = self.repo.list(User, {"name": kwargs["name"]})
                 if not user:
                     user = User(**kwargs)
                     self.repo.add(user)
                     session.commit()
-                existing_task_collaborator = self.repo.list(TaskCollaborator, {
-                    "task": task_id,
-                    "collaborator": user[0].id
-                })
+                    user_id = user.id
+                else:
+                    user_id = user[0].id
+                existing_task_collaborator = self.repo.list(
+                    TaskCollaborator, {
+                        "task": task_id,
+                        "collaborator": user_id
+                    })
                 if not existing_task_collaborator:
-                    obj = TaskCollaborator(id=task_id, collaborator_id=user[0].id)
+                    obj = TaskCollaborator(id=task_id,
+                                           collaborator_id=user_id)
                     self.repo.add(obj)
                     session.commit()
             elif entity_type == "projects":
                 project_id = kwargs["id"]
-                existing_project = self.repo.list(Project,
-                                                  {"id": project_id})
+                existing_project = self.repo.list(Project, {"id": project_id})
                 if not existing_project:
                     raise ValueError(
                         f"Project with id {project_id} is not found!")
@@ -331,12 +345,17 @@ class CommandHandler:
                     user = User(**kwargs)
                     self.repo.add(user)
                     session.commit()
-                existing_project_collaborator = self.repo.list(ProjectCollaborator, {
-                    "project": project_id,
-                    "collaborator": user[0].id
-                })
+                    user_id = user.id
+                else:
+                    user_id = user[0].id
+                existing_project_collaborator = self.repo.list(
+                    ProjectCollaborator, {
+                        "project": project_id,
+                        "collaborator": user_id
+                    })
                 if not existing_project_collaborator:
-                    obj = ProjectCollaborator(id=project_id, collaborator_id=user[0].id)
+                    obj = ProjectCollaborator(id=project_id,
+                                              collaborator_id=user_id)
                     self.repo.add(obj)
                     session.commit()
         elif command == "tag":
@@ -344,25 +363,26 @@ class CommandHandler:
                 task_id = kwargs["id"]
                 existing_task = self.repo.list(Task, {"id": task_id})
                 if not existing_task:
-                    raise ValueError(
-                        f"Task with id {task_id} is not found!")
+                    raise ValueError(f"Task with id {task_id} is not found!")
                 tag = self.repo.list(BaseTag, {"text": kwargs["text"]})
                 if not tag:
                     tag = BaseTag(**kwargs)
                     self.repo.add(tag)
                     session.commit()
+                    tag_id = tag.id
+                else:
+                    tag_id = tag[0].id
                 existing_task_tag = self.repo.list(TaskTag, {
                     "task": task_id,
-                    "tag": tag[0].id
+                    "tag": tag_id
                 })
                 if not existing_task_tag:
-                    obj = TaskTag(id=task_id, tag_id=tag[0].id)
+                    obj = TaskTag(id=task_id, tag_id=tag_id)
                     self.repo.add(obj)
                     session.commit()
             elif entity_type == "projects":
                 project_id = kwargs["id"]
-                existing_project = self.repo.list(Project,
-                                                  {"id": project_id})
+                existing_project = self.repo.list(Project, {"id": project_id})
                 if not existing_project:
                     raise ValueError(
                         f"Project with id {project_id} is not found!")
@@ -371,12 +391,16 @@ class CommandHandler:
                     tag = BaseTag(**kwargs)
                     self.repo.add(tag)
                     session.commit()
+                    tag_id = tag.id
+                else:
+                    tag_id = tag[0].id
+
                 existing_project_tag = self.repo.list(ProjectTag, {
                     "project": project_id,
-                    "tag": tag[0].id
+                    "tag": tag_id
                 })
                 if not existing_project_tag:
-                    obj = ProjectTag(id=project_id, tag_id=tag[0].id)
+                    obj = ProjectTag(id=project_id, tag_id=tag_id)
                     self.repo.add(obj)
                     session.commit()
         elif command == "comment":
@@ -410,9 +434,18 @@ class CommandHandler:
                 answer = input("Do you want to create entity anyway? [Y/n] ")
                 if answer.lower() != "y":
                     exit()
-            else:
-                self.repo.add(obj)
-                session.commit()
+            self.repo.add(obj)
+            session.commit()
+            if tag_text := kwargs.get("tags"):
+                self.execute("tag", entity_type, {
+                    "id": obj.id,
+                    "text": tag_text
+                })
+            if collaborator_name := kwargs.get("collaborators"):
+                self.execute("collaborate", entity_type, {
+                    "id": obj.id,
+                    "name": collaborator_name
+                })
             if hasattr(obj, "project") and obj.project:
                 project = services.lookup_project_name(obj.project, self.repo)
             else:
@@ -552,7 +585,8 @@ class CommandHandler:
                                 entities,
                                 self.repo,
                                 show_completed=show_completed)
-                            if entities and (commentaries := entities[0].commentaries):
+                            if entities and (commentaries :=
+                                             entities[0].commentaries):
                                 self.printer.print_commentaries(commentaries)
                             if entities and (history := entities[0].history):
                                 self.printer.print_history(history)
