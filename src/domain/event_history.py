@@ -6,6 +6,7 @@ class EventType(Enum):
     STATUS = auto()
     DUE_DATE = auto()
     NAME = auto()
+    PROJECT = auto()
     DESCRIPTION = auto()
     PRIORITY = auto()
     ASSIGNEE = auto()

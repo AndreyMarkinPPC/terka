@@ -368,9 +368,11 @@ class CommandHandler:
                 existing_task = self.repo.list(Task, {"id": task_id})
                 if not existing_task:
                     raise ValueError(f"Task with id {task_id} is not found!")
-                tag = self.repo.list(BaseTag, {"text": kwargs["text"]})
+                tag_text = kwargs.get("text") or kwargs.get("tags")
+                tag_info = {"text": tag_text}
+                tag = self.repo.list(BaseTag, tag_info)
                 if not tag:
-                    tag = BaseTag(**kwargs)
+                    tag = BaseTag(**tag_info)
                     self.repo.add(tag)
                     session.commit()
                     tag_id = tag.id

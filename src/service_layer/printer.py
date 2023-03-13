@@ -229,7 +229,7 @@ class Printer:
         if len(entities) == 1 and printable_entities == 0:
             table = Table(box=self.box)
             for column in ("id", "name", "description", "status", "priority",
-                           "project", "due_date"):
+                           "project", "due_date", "tags", "collaborators"):
                 table.add_column(column)
             for entity in entities:
                 app = TerkaTask(entity=entity,
@@ -238,9 +238,9 @@ class Printer:
                                 history=history,
                                 commentaries=comments)
                 app.run()
-                table.add_row(str(entity.id), entity_name, entity.description,
+                table.add_row(str(entity.id), entity.name, entity.description,
                               entity.status.name, priority, project,
-                              str(entity.due_date), tags, collaborator_string)
+                              str(entity.due_date), tag_string, collaborator_string)
             console.print(table)
 
     def _get_attributes(self, obj) -> List[Tuple[str, str]]:
