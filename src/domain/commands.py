@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional, Union
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -618,7 +618,8 @@ class CommandHandler:
             raise ValueError(f"Uknown command: {command}")
 
 
-def get_ids(id_string: str):
+def get_ids(ids: Union[str, int]) -> List[Union[int, str]]:
+    id_string = str(ids)
     if "," in id_string:
         ids = id_string.split(",")
     elif ".." in id_string:

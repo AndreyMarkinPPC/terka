@@ -14,18 +14,17 @@ class Printer:
 
     def __init__(self, box=rich.box.SIMPLE) -> None:
         self.box = box
+        self.console = Console()
 
     def print_new_object(self, obj, project):
-        console = Console()
         table = Table(box=self.box)
         attributes = self._get_attributes(obj)
         for column, _ in attributes:
             table.add_column(column)
         table.add_row(*list(zip(*attributes))[1])
-        console.print(table)
+        self.console.print(table)
 
     def print_history(self, entities):
-        console = Console()
         table = Table(box=self.box)
         print("History:")
         for column in ("date", "type", "old_value", "new_value"):
@@ -33,10 +32,9 @@ class Printer:
         for event in entities:
             table.add_row(event.date.strftime("%Y-%m-%d %H:%M"),
                           event.type.name, event.old_value, event.new_value)
-        console.print(table)
+        self.console.print(table)
 
     def print_commentaries(self, entities):
-        console = Console()
         table = Table(box=self.box)
         print("Comments:")
         for column in ("date", "text"):
@@ -44,7 +42,7 @@ class Printer:
         entities.sort(key=lambda c: c.date, reverse=False)
         for event in entities:
             table.add_row(event.date.strftime("%Y-%m-%d %H:%M"), event.text)
-        console.print(table)
+        self.console.print(table)
 
     def print_entities(self,
                        entities,
@@ -70,11 +68,23 @@ class Printer:
                             custom_sort=custom_sort)
         elif type == "tags":
             self.print_tag(entities=entities)
+        elif type == "users":
+            self.print_user(entities=entities)
         else:
             self.print_default_entity(self, entities)
 
+    def print_user(self, entities):
+        table = Table(box=self.box)
+        for column in ("id", "name"):
+            table.add_column(column)
+        seen_users = set()
+        for entity in entities:
+            if entity.name not in seen_users:
+                table.add_row(f"[red]{entity.id}[/red]", entity.name)
+                seen_users.add(entity.name)
+        self.console.print(table)
+
     def print_tag(self, entities):
-        console = Console()
         table = Table(box=self.box)
         for column in ("id", "text"):
             table.add_column(column)
@@ -83,30 +93,28 @@ class Printer:
             if entity.text not in seen_tags:
                 table.add_row(f"[red]{entity.id}[/red]", entity.text)
                 seen_tags.add(entity.text)
-        console.print(table)
+        self.console.print(table)
 
     def print_default_entity(self, entities):
-        console = Console()
         table = Table(box=self.box)
         for column in ("id", "date", "text"):
             table.add_column(column)
         for entity in entities:
             table.add_row(f"[red]{entity.id}[/red]",
                           entity.date.strftime("%Y-%m-%d %H:%M"), entity.text)
-        console.print(table)
+        self.console.print(table)
 
     def print_project(self,
                       entities,
                       zero_tasks: bool = False,
                       zero_tasks_only: bool = False):
-        console = Console()
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
         for column in ("id", "name", "description", "open_tasks", "overdue",
                        "backlog", "todo", "in_progress", "review", "done",
                        "median_task_age"):
             table.add_column(column)
         for entity in entities:
-            if entity.status.name == "DELETED":
+            if entity.status.name != "ACTIVE":
                 continue
             open_tasks = self._sort_open_tasks(entity)
             if open_tasks > 0:
@@ -137,7 +145,7 @@ class Printer:
                 # if zero_tasks_only and open_tasks == 0:
                 #     table.add_row(f"[red]{entity.id}[/red]", entity.name,
                 #                   entity.description, str(tasks))
-        console.print(table)
+        self.console.print(table)
 
     def print_task(self,
                    entities,
@@ -146,16 +154,16 @@ class Printer:
                    custom_sort=None,
                    history=None,
                    comments=None):
-        console = Console()
         table = Table(box=self.box)
+        default_columns = ("id", "name", "description", "status", "priority",
+                           "project", "due_date", "tags", "collaborators")
         #TODO: Add printing for only a single task
         # if (entities[0].status.name == "DONE"):
         #     console.print(f"[green]task is completed on [/green]")
         # else:
         #     active_in_days = datetime.now() - entities[0].creation_date
         #     console.print(f"[blue]task is active {active_in_days.days} days[/blue]")
-        for column in ("id", "name", "description", "status", "priority",
-                       "project", "due_date", "tags", "collaborators"):
+        for column in default_columns:
             table.add_column(column)
         entities = list(entities)
         completed_tasks = []
@@ -199,13 +207,15 @@ class Printer:
             if entity.due_date and entity.due_date <= date.today():
                 table.add_row(f"[red]{entity.id}[/red]", entity_name,
                               entity.description, entity.status.name, priority,
-                              project, str(entity.due_date), tag_string, collaborator_string)
+                              project, str(entity.due_date), tag_string,
+                              collaborator_string)
             else:
                 table.add_row(str(entity.id), entity_name, entity.description,
                               entity.status.name, priority, project,
-                              str(entity.due_date), tag_string, collaborator_string)
-        if show_completed:
-            console.print(f"[green]****OPEN TASKS*****[/green]")
+                              str(entity.due_date), tag_string,
+                              collaborator_string)
+        if show_completed and completed_tasks:
+            self.console.print(f"[green]****OPEN TASKS*****[/green]")
         if printable_entities:
             if printable_entities == 1:
                 app = TerkaTask(entity=entity,
@@ -213,23 +223,21 @@ class Printer:
                                 history=history,
                                 commentaries=comments)
                 app.run()
-            console.print(table)
-        if show_completed:
-            if show_completed:
-                console.print(f"[green]****COMPLETED TASKS*****[/green]")
+            self.console.print(table)
+        if show_completed and completed_tasks:
+            self.console.print(f"[green]****COMPLETED TASKS*****[/green]")
             table = Table(box=self.box)
-            for column in ("id", "name", "description", "status", "priority",
-                           "project", "due_date"):
+            for column in default_columns:
                 table.add_column(column)
             for entity in completed_tasks:
-                table.add_row(str(entity.id), entity_name, entity.description,
+                table.add_row(str(entity.id), entity.name, entity.description,
                               entity.status.name, priority, project,
-                              str(entity.due_date), tags, collaborator_string)
-            console.print(table)
+                              str(entity.due_date), tag_string,
+                              collaborator_string)
+            self.console.print(table)
         if len(entities) == 1 and printable_entities == 0:
             table = Table(box=self.box)
-            for column in ("id", "name", "description", "status", "priority",
-                           "project", "due_date", "tags", "collaborators"):
+            for column in default_columns:
                 table.add_column(column)
             for entity in entities:
                 app = TerkaTask(entity=entity,
@@ -240,8 +248,9 @@ class Printer:
                 app.run()
                 table.add_row(str(entity.id), entity.name, entity.description,
                               entity.status.name, priority, project,
-                              str(entity.due_date), tag_string, collaborator_string)
-            console.print(table)
+                              str(entity.due_date), tag_string,
+                              collaborator_string)
+            self.console.print(table)
 
     def _get_attributes(self, obj) -> List[Tuple[str, str]]:
         import inspect
