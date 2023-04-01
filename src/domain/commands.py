@@ -20,6 +20,7 @@ from src.domain.commentary import TaskCommentary, ProjectCommentary
 from src.domain.tag import BaseTag, TaskTag, ProjectTag
 from src.domain.collaborators import TaskCollaborator, ProjectCollaborator
 from src.domain.event_history import TaskEvent, ProjectEvent
+from src.domain.sprint import Sprint, SprintTask
 
 from src.service_layer import services, printer
 from src.service_layer.ui import TerkaTask
@@ -98,6 +99,24 @@ class TagHandler(BaseHandler):
         return super().handle(entity)
 
 
+class SprintHandler(BaseHandler):
+
+    def handle(self, entity):
+        if "sprints".startswith(entity):
+            logger.debug("Handling sprints")
+            return Sprint, "sprints"
+        return super().handle(entity)
+
+
+class SprintTaskHandler(BaseHandler):
+
+    def handle(self, entity):
+        if entity == "sprint_tasks":
+            logger.debug("Handling sprint task")
+            return SprintTask, "sprint_tasks"
+        return super().handle(entity)
+
+
 class CommandHandler:
 
     def __init__(self, repo: AbsRepository):
@@ -108,7 +127,10 @@ class CommandHandler:
 
     def _init_handlers(self):
         handler_chain = BaseHandler(None)
-        for handler in [TaskHandler, ProjectHandler, UserHandler, TagHandler]:
+        for handler in [
+                TaskHandler, ProjectHandler, UserHandler, TagHandler,
+                SprintHandler, SprintTaskHandler
+        ]:
             new_handler = handler(handler_chain)
             handler_chain = new_handler
         return handler_chain
@@ -139,6 +161,20 @@ class CommandHandler:
                     if "all" in kwargs:
                         del kwargs["all"]
                     show_completed = True
+            if entity_type == "sprints":
+                if "all" in kwargs:
+                    kwargs["status"] = "PLANNED,ACTIVE,COMPLETED"
+                    del kwargs["all"]
+                else:
+                    kwargs["status"] = "PLANNED,ACTIVE"
+            if entity_type == "projects":
+                if "all" in kwargs:
+                    kwargs["status"] = "DELETED,ACTIVE,ON_HOLD,COMPLETED"
+                    del kwargs["all"]
+                    show_completed = True
+                else:
+                    kwargs["status"] = "ACTIVE"
+
             if (custom_sort := kwargs.get("sort")):
                 del kwargs["sort"]
             else:
@@ -189,6 +225,11 @@ class CommandHandler:
                     console.print(f"[red]No tag '{tag_text}' found![/red]")
                     exit()
             entities = self.repo.list(entity, kwargs)
+            if entity_type == "sprints":
+                self.printer.print_sprint(entities=entities,
+                                          repo=self.repo,
+                                          show_tasks=False)
+                exit()
             if custom_sort == "due_date":
                 entities_with_due_date = []
                 entities_without_due_date = []
@@ -431,19 +472,52 @@ class CommandHandler:
                 obj = ProjectCommentary(**kwargs)
                 self.repo.add(obj)
                 session.commit()
+        elif command == "add":
+            if entity not in (Task, ):
+                raise ValueError("'add' operation only allowed for tasks!")
+            task_ids = get_ids(kwargs.get("id"))
+            for task_id in task_ids:
+                if not self.repo.list(Task, {"id": task_id}):
+                    exit(f"Task id {task_id} is not found")
+
+                if story_points := kwargs.get("story_points"):
+                    sprint_task = self.execute("get", "sprint_tasks",
+                                               {"task": task_id})
+                    if sprint_task:
+                        self.repo.update(SprintTask, sprint_task[0].id,
+                                         {"story_points": story_points})
+                    else:
+                        exit(f"Task id {task_id} is not part of any sprint")
+                else:
+                    if not self.repo.list(Sprint,
+                                          {"id": kwargs.get("sprint_id")}):
+                        exit(f"Sprint id {kwargs.get('id')} is not found")
+                    obj = SprintTask(task=task_id,
+                                     sprint=kwargs.get("sprint_id"),
+                                     is_active_link=True)
+                    if self.repo.list(SprintTask, {
+                            "task": obj.task,
+                            "sprint": obj.sprint
+                    }):
+                        exit("task already added to sprint")
+                    self.repo.add(obj)
+            session.commit()
         elif command == "create":
             kwargs["created_by"] = services.lookup_user_id(
                 # config.get("user"),
                 "am",
                 self.repo)
             obj = entity(**kwargs)
-            if (existing_obj := self.repo.list(entity, {"name": obj.name})):
-                print("Found existing entity\n")
-                existing_id = str(existing_obj[0].id)
-                self.execute("show", entity_type, {"id": existing_id})
-                answer = input("Do you want to create entity anyway? [Y/n] ")
-                if answer.lower() != "y":
-                    exit()
+            if entity in (Task, Project):
+                if (existing_obj := self.repo.list(entity,
+                                                   {"name": obj.name})):
+                    print("Found existing entity\n")
+                    existing_id = str(existing_obj[0].id)
+                    self.execute("show", entity_type, {"id": existing_id})
+                    answer = input(
+                        "Do you want to create entity anyway? [Y/n] ")
+                    if answer.lower() != "y":
+                        exit()
             self.repo.add(obj)
             session.commit()
             if tag_text := kwargs.get("tags"):
@@ -482,17 +556,19 @@ class CommandHandler:
                             self.repo.update(entity, task, new_kwargs)
                             logger.info("<update> %s: %s", entity_type, task)
                             now = datetime.now()
-                            for key, value in new_kwargs.items():
-                                try:
-                                    old_value = old_settings[key].name
-                                except:
-                                    old_value = old_settings[key]
-                                if entity_type == "projects":
-                                    event = ProjectEvent
-                                elif entity_type == "tasks":
-                                    event = TaskEvent
-                                self.repo.add(
-                                    event(task, key, old_value, value, now))
+                            if entity_type in ("tasks", "projects"):
+                                for key, value in new_kwargs.items():
+                                    try:
+                                        old_value = old_settings[key].name
+                                    except:
+                                        old_value = old_settings[key]
+                                    if entity_type == "projects":
+                                        event = ProjectEvent
+                                    elif entity_type == "tasks":
+                                        event = TaskEvent
+                                    self.repo.add(
+                                        event(task, key, old_value, value,
+                                              now))
                         else:
                             print(
                                 "No changes were proposed to the existing entity"
@@ -552,6 +628,19 @@ class CommandHandler:
                 }
                 self.execute("update", entity_type, new_kwargs)
                 return entities, None, None
+        elif command == "start":
+            sprint_id = kwargs.get("id")
+            kwargs.update({"status": "ACTIVE"})
+            self.execute("update", "sprints", kwargs)
+            [sprint] = self.execute("get", "sprints", {"id": sprint_id})
+            for sprint_task in sprint.sprint_tasks:
+                task = sprint_task.tasks
+                task_params = {"id": task.id}
+                if task.status.name == "BACKLOG":
+                    task_params.update({"status": "TODO"})
+                if not task.due_date or task.due_date > sprint.end_date:
+                    task_params.update({"due_date": sprint.end_date})
+                self.execute("update", "tasks", task_params)
         elif command == "show":
             show_completed = bool(kwargs.get("show_completed"))
             if (task_id := kwargs.get("id")):
@@ -566,6 +655,11 @@ class CommandHandler:
                             task_id = entities[0].id
                         else:
                             task_id = None
+                    if entity_type == "sprints":
+                        if task_id:
+                            self.printer.print_sprint(entities, self.repo)
+                        else:
+                            print(f"No entity {task} found!")
                     if entity_type == "projects":
                         if task_id:
                             self.printer.print_project(entities)
@@ -605,14 +699,21 @@ class CommandHandler:
                         logger.info("<show> %s: %s", entity_type, task_id)
                 return entities, None, None
         elif command == "done":
-            if entity_type != "tasks":
-                raise ValueError("can complete only tasks!")
-            else:
+            # TODO: IF entity_type sprint call .complete method
+            if entity_type not in ("tasks", "sprints"):
+                raise ValueError("can complete only tasks and sprints")
+            elif entity_type == "tasks":
                 kwargs.update({"status": "DONE"})
                 self.execute("update", entity_type, kwargs)
                 console = Console()
                 console.print(
                     "[green]Yay! You've just completed a task![/green]")
+            elif entity_type == "sprints":
+                kwargs.update({"status": "COMPLETED"})
+                [sprint] = self.execute("get", "sprints",
+                                        {"id": kwargs.get("id")})
+                sprint.complete(sprint.sprint_tasks)
+                self.execute("update", entity_type, kwargs)
 
         else:
             raise ValueError(f"Uknown command: {command}")

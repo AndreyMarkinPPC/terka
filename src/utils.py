@@ -59,7 +59,14 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             "overdue":
             new_dict.get("overdue"),
             "stale":
-            new_dict.get("stale")
+            new_dict.get("stale"),
+            "goal": new_dict.get("goal"),
+            "start_date":
+            convert_date(new_dict.get("start-date")),
+            "end_date":
+            convert_date(new_dict.get("end-date")),
+            "sprint_id": new_dict.get("to-sprint"),
+            "story_points": new_dict.get("story-points"),
         }
         if "--show-completed" in kwargs:
             task_dict.update({"show_completed": True})
@@ -71,6 +78,8 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             task_dict = {"overdue": "overdue"}
         elif "stale" in kwargs[0]:
             task_dict = {"stale": 7}
+        elif "all" in kwargs[0]:
+            task_dict = {"all": "all"}
         else:
             task_dict = {"id": kwargs[0]}
     else:
@@ -108,6 +117,8 @@ def convert_status(status: str):
 
 
 def convert_date(date: str):
+    if not date:
+        return date
     if date.startswith("+"):
         due_date = datetime.now().date() + timedelta(days=float(date[1:]))
         return due_date.strftime("%Y-%m-%d")
@@ -145,13 +156,19 @@ def update_task_dict(task_dict: Dict[str, str],
         task_dict["project"] = services.lookup_project_id(project, repo)
     if (assignee := task_dict.get("assignee")):
         task_dict["assignee"] = services.lookup_user_id(assignee, repo)
-    if (due_date := task_dict.get("due_date")):
-        if due_date == "None":
-            task_dict["due_date"] = None
-        elif due_date == "today":
-            task_dict["due_date"] = datetime.today()
-        else:
-            task_dict["due_date"] = datetime.strptime(due_date, "%Y-%m-%d")
+    task_dict = convert_date_in_task_dict(task_dict)
+    return task_dict
+
+
+def convert_date_in_task_dict(task_dict):
+    for key, value in task_dict.items():
+        if key.endswith("date"):
+            if value == "None":
+                task_dict[key] = None
+            elif value == "today":
+                task_dict[key] = datetime.today()
+            else:
+                task_dict[key] = datetime.strptime(value, "%Y-%m-%d")
     return task_dict
 
 

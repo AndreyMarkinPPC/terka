@@ -50,10 +50,14 @@ def main():
     Session = sessionmaker(engine)
 
     with Session() as session:
+        file_handler = logging.FileHandler(filename=f"{home_dir}/.terka/terka.log")
+        file_handler.setLevel(logging.DEBUG)
+        stdout_handler = logging.StreamHandler(stream=sys.stdout)
+        stdout_handler.setLevel(logging.WARNING)
+        handlers = [file_handler, stdout_handler]
         logging.basicConfig(
             format="[%(asctime)s][%(name)s][%(levelname)s] %(message)s",
-            # stream=sys.stdout,
-            filename = f"{home_dir}/.terka/terka.log",
+            handlers=handlers,
             level=args.loglevel.upper(),
             datefmt="%Y-%m-%d %H:%M:%S")
 

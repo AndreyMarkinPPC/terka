@@ -1,3 +1,5 @@
+from sqlalchemy.ext.declarative import declarative_base
+
 from sqlalchemy import (
     Table,
     MetaData,
@@ -6,6 +8,7 @@ from sqlalchemy import (
     String,
     Date,
     DateTime,
+    Boolean,
     Enum,
     ForeignKey,
     event,
@@ -19,7 +22,9 @@ from src.domain.event_history import TaskEvent, ProjectEvent, EventType
 from src.domain.commentary import TaskCommentary, ProjectCommentary
 from src.domain.tag import BaseTag, TaskTag, ProjectTag
 from src.domain.collaborators import TaskCollaborator, ProjectCollaborator
+from src.domain.sprint import Sprint, SprintStatus, SprintTask
 
+Base = declarative_base()
 metadata = MetaData()
 
 tasks = Table("tasks", metadata,
@@ -122,6 +127,29 @@ project_collaborators = Table(
     Column("project", ForeignKey("projects.id"), nullable=True),
     Column("collaborator", ForeignKey("users.id"), nullable=True))
 
+sprints = Table("sprints", metadata,
+                Column("id", Integer, primary_key=True, autoincrement=True),
+                Column("start_date", Date, nullable=False),
+                Column("end_date", Date, nullable=False),
+                Column("status", Enum(SprintStatus)),
+                Column("goal", String(225), nullable=True))
+
+sprint_tasks = Table(
+    "sprint_tasks",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("task", ForeignKey("tasks.id"), nullable=False),
+    Column("sprint", ForeignKey("sprints.id"), nullable=False),
+    Column("story_points", Integer, nullable=False),
+    Column("is_active_link", Boolean, nullable=False),
+)
+# class SprintTasks(Base):
+#     __tablename__ = "sprint_tasks"
+#     id = Integer(primary_key=True, autoincrement=True)
+#     task_id = Integer(nullable=False)
+#     sprint_id = Integer(nullable=False)
+#     ta
+
 
 def start_mappers():
     task_commentary_mapper = mapper(TaskCommentary, task_commentaries)
@@ -194,3 +222,14 @@ def start_mappers():
                                 relationship(project_event_mapper,
                                              collection_class=list)
                             })
+    sprint_tasks_mapper = mapper(
+        SprintTask,
+        sprint_tasks,
+        properties={"tasks": relationship(task_mapper, collection_class=list)})
+    sprint_mapper = mapper(Sprint,
+                           sprints,
+                           properties={
+                               "sprint_tasks":
+                               relationship(sprint_tasks_mapper,
+                                            collection_class=list)
+                           })
