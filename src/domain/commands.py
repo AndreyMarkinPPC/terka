@@ -489,9 +489,12 @@ class CommandHandler:
                     else:
                         exit(f"Task id {task_id} is not part of any sprint")
                 else:
-                    if not self.repo.list(Sprint,
-                                          {"id": kwargs.get("sprint_id")}):
+                    sprint = self.repo.list(Sprint,
+                                          {"id": kwargs.get("sprint_id")})
+                    if not sprint:
                         exit(f"Sprint id {kwargs.get('id')} is not found")
+                    if sprint[0].status.name == "COMPLETED":
+                        exit("Cannot add task to a finished sprint")
                     obj = SprintTask(task=task_id,
                                      sprint=kwargs.get("sprint_id"),
                                      is_active_link=True)

@@ -1,6 +1,6 @@
 class CollaboratorMixin:
     def __repr__(self):
-        return f"<Collaborator> {self.id}"
+        return str(self.users.name)
 
 
 class TaskCollaborator(CollaboratorMixin):
