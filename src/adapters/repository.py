@@ -111,7 +111,7 @@ class SqlAlchemyRepository(AbsRepository):
                 query_object = query_object.filter(
                     getattr(element,
                             "status").in_(["TODO", "IN_PROGRESS", "REVIEW"])).join(
-                                TasknEvent, (element.id == TaskEvent.task)).filter(
+                                TaskEvent, (element.id == TaskEvent.task)).filter(
                                     TaskEvent.date <= days_ago, TaskEvent.type == "STATUS")
                 return query_object.all()
             if overdue_check:

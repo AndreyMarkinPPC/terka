@@ -366,6 +366,7 @@ class Printer:
                 collaborators_texts = sorted([
                     collaborator.users.name
                     for collaborator in list(collaborators)
+                    if collaborator.users
                 ])
                 collaborator_string = ",".join(collaborators_texts)
             else:
