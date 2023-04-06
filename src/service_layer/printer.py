@@ -20,8 +20,9 @@ class Printer:
     def print_new_object(self, obj, project):
         table = Table(box=self.box)
         attributes = self._get_attributes(obj)
-        for column, _ in attributes:
-            table.add_column(column)
+        for column, value in attributes:
+            if value:
+                table.add_column(column)
         table.add_row(*list(zip(*attributes))[1])
         self.console.print(table)
 
@@ -134,7 +135,10 @@ class Printer:
                 collaborators.append(f"{user} ({story_point})")
 
             collaborators = ", ".join(collaborators)
-            open_tasks = [task for task in tasks if task.status.name not in ("DONE", "DELETED")]
+            open_tasks = [
+                task for task in tasks
+                if task.status.name not in ("DONE", "DELETED")
+            ]
             table.add_row(str(entity.id), str(entity.start_date),
                           str(entity.end_date), entity.goal,
                           entity.status.name, str(len(open_tasks)),
@@ -436,10 +440,15 @@ class Printer:
         attributes = []
         for name, value in inspect.getmembers(obj):
             if not name.startswith("_") and not inspect.ismethod(value):
-                if hasattr(value, "name"):
+                if not value:
+                    continue
+                elif hasattr(value, "name"):
                     attributes.append((name, value.name))
                 elif isinstance(value, datetime):
                     attributes.append((name, value.strftime("%Y-%m-%d %H:%M")))
+                elif isinstance(value, set):
+                    values = value.pop()
+                    attributes.append((name, str(values)))
                 else:
                     attributes.append((name, str(value)))
         return attributes

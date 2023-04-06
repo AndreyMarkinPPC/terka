@@ -9,7 +9,7 @@ class BaseTag:
 
 class TagMixin:
     def __repr__(self):
-        return f"<Tag> {self.tag}"
+        return f"{self.base_tag.text}"
 
 
 class TaskTag(TagMixin):
