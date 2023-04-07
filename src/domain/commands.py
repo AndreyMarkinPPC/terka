@@ -22,6 +22,8 @@ from src.domain.collaborators import TaskCollaborator, ProjectCollaborator
 from src.domain.event_history import TaskEvent, ProjectEvent
 from src.domain.sprint import Sprint, SprintTask
 from src.domain.time_tracker import TimeTrackerEntry
+from src.domain.epic import Epic, EpicTask
+from src.domain.story import Story, StoryTask
 
 from src.service_layer import services, printer
 from src.service_layer.ui import TerkaTask
@@ -127,19 +129,57 @@ class TimeTrackerHandler(BaseHandler):
         return super().handle(entity)
 
 
+class EpicHandler(BaseHandler):
+
+    def handle(self, entity):
+        if "epics".startswith(entity):
+            logger.debug("Handling epics")
+            return Epic, "epics"
+        return super().handle(entity)
+
+
+class EpicTaskHandler(BaseHandler):
+
+    def handle(self, entity):
+        if entity == "epic_tasks":
+            logger.debug("Handling epic task")
+            return EpicTask, "epic_tasks"
+        return super().handle(entity)
+
+
+class StoryHandler(BaseHandler):
+
+    def handle(self, entity):
+        if "stories".startswith(entity):
+            logger.debug("Handling stories")
+            return Story, "stories"
+        return super().handle(entity)
+
+
+class StoryTaskHandler(BaseHandler):
+
+    def handle(self, entity):
+        if entity == "story_tasks":
+            logger.debug("Handling epic task")
+            return StoryTask, "story_tasks"
+        return super().handle(entity)
+
+
 class CommandHandler:
 
     def __init__(self, repo: AbsRepository):
         self.repo = repo
         self.handler = self._init_handlers()
         self.home_dir = os.path.expanduser('~')
-        self.printer = printer.Printer()
+        self.printer = printer.Printer(repo)
 
     def _init_handlers(self):
         handler_chain = BaseHandler(None)
         for handler in [
                 TaskHandler, ProjectHandler, UserHandler, TagHandler,
-                SprintHandler, SprintTaskHandler, TimeTrackerHandler
+                SprintHandler, SprintTaskHandler, TimeTrackerHandler,
+                EpicHandler, StoryHandler
+
         ]:
             new_handler = handler(handler_chain)
             handler_chain = new_handler
@@ -237,6 +277,11 @@ class CommandHandler:
             entities = self.repo.list(entity, kwargs)
             if entity_type == "sprints":
                 self.printer.print_sprint(entities=entities,
+                                          repo=self.repo,
+                                          show_tasks=False)
+                exit()
+            if entity_type == "epics":
+                self.printer.print_epic(entities=entities,
                                           repo=self.repo,
                                           show_tasks=False)
                 exit()
@@ -498,15 +543,28 @@ class CommandHandler:
                                          {"story_points": story_points})
                     else:
                         exit(f"Task id {task_id} is not part of any sprint")
-                else:
+                if epic_id := kwargs.get("epic_id"):
+                    epic = self.repo.list(Epic,
+                                          {"id": epic_id})
+                    if not epic:
+                        exit(f"Epic id {epic_id} is not found")
+                    obj = EpicTask(task=task_id,
+                                     epic=epic_id)
+                    if self.repo.list(EpicTask, {
+                            "task": obj.task,
+                            "epic": obj.epic
+                    }):
+                        exit("task already added to epic")
+                    self.repo.add(obj)
+                if sprint_id := kwargs.get("sprint_id"):
                     sprint = self.repo.list(Sprint,
-                                          {"id": kwargs.get("sprint_id")})
+                                          {"id": sprint_id})
                     if not sprint:
-                        exit(f"Sprint id {kwargs.get('id')} is not found")
+                        exit(f"Sprint id {sprint_id} is not found")
                     if sprint[0].status.name == "COMPLETED":
                         exit("Cannot add task to a finished sprint")
                     obj = SprintTask(task=task_id,
-                                     sprint=kwargs.get("sprint_id"),
+                                     sprint=sprint_id,
                                      is_active_link=True)
                     if self.repo.list(SprintTask, {
                             "task": obj.task,
@@ -671,6 +729,11 @@ class CommandHandler:
                     if entity_type == "sprints":
                         if task_id:
                             self.printer.print_sprint(entities, self.repo)
+                        else:
+                            print(f"No entity {task} found!")
+                    if entity_type == "epics":
+                        if task_id:
+                            self.printer.print_epic(entities, self.repo)
                         else:
                             print(f"No entity {task} found!")
                     if entity_type == "projects":

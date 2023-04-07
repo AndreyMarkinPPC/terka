@@ -66,6 +66,8 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             "end_date":
             convert_date(new_dict.get("end-date")),
             "sprint_id": new_dict.get("to-sprint"),
+            "story_id": new_dict.get("to-story"),
+            "epic_id": new_dict.get("to-epic"),
             "story_points": new_dict.get("story-points"),
             "hours": new_dict.get("H"),
             "minutes": new_dict.get("M"),

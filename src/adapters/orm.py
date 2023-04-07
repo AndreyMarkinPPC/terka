@@ -24,6 +24,8 @@ from src.domain.tag import BaseTag, TaskTag, ProjectTag
 from src.domain.collaborators import TaskCollaborator, ProjectCollaborator
 from src.domain.sprint import Sprint, SprintStatus, SprintTask
 from src.domain.time_tracker import TimeTrackerEntry
+from src.domain.epic import Epic, EpicTask
+from src.domain.story import Story, StoryTask
 
 Base = declarative_base()
 metadata = MetaData()
@@ -153,6 +155,35 @@ time_tracker_entries = Table(
     Column("task", ForeignKey("tasks.id"), nullable=False),
     Column("time_spent_minutes", Integer, nullable=False),
 )
+
+epics = Table("epics", metadata,
+              Column("id", Integer, primary_key=True, autoincrement=True),
+              Column("name", String(255)),
+              Column("creation_date", DateTime, nullable=True),
+              Column("description", String(1000), nullable=True),
+              Column("project", ForeignKey("projects.id"), nullable=True),
+              Column("assignee", ForeignKey("users.id"), nullable=True),
+              Column("created_by", ForeignKey("users.id"), nullable=True))
+
+epic_tasks = Table("epic_tasks", metadata,
+                   Column("id", Integer, primary_key=True, autoincrement=True),
+                   Column("task", ForeignKey("tasks.id"), nullable=False),
+                   Column("epic", ForeignKey("epics.id"), nullable=False))
+
+stories = Table("stories", metadata,
+                Column("id", Integer, primary_key=True, autoincrement=True),
+                Column("name", String(255)),
+                Column("creation_date", DateTime, nullable=True),
+                Column("description", String(1000), nullable=True),
+                Column("project", ForeignKey("projects.id"), nullable=True),
+                Column("assignee", ForeignKey("users.id"), nullable=True),
+                Column("created_by", ForeignKey("users.id"), nullable=True))
+
+story_tasks = Table(
+    "story_tasks", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("task", ForeignKey("tasks.id"), nullable=False),
+    Column("story", ForeignKey("stories.id"), nullable=False))
 # class SprintTasks(Base):
 #     __tablename__ = "sprint_tasks"
 #     id = Integer(primary_key=True, autoincrement=True)
@@ -215,6 +246,28 @@ def start_mappers():
                                           collection_class=list,
                                           cascade="all, delete-orphan"),
                          })
+    epic_tasks_mapper = mapper(
+        EpicTask,
+        epic_tasks,
+        properties={"tasks": relationship(task_mapper, collection_class=list)})
+    epic_mapper = mapper(Epic,
+                         epics,
+                         properties={
+                             "epic_tasks":
+                             relationship(epic_tasks_mapper,
+                                          collection_class=list)
+                         })
+    story_tasks_mapper = mapper(
+        StoryTask,
+        story_tasks,
+        properties={"tasks": relationship(task_mapper, collection_class=list)})
+    story_mapper = mapper(Story,
+                          stories,
+                          properties={
+                              "story_tasks":
+                              relationship(story_tasks_mapper,
+                                           collection_class=list)
+                          })
     project_mapper = mapper(Project,
                             projects,
                             properties={
@@ -224,6 +277,12 @@ def start_mappers():
                                              cascade="all, delete-orphan"),
                                 "tasks":
                                 relationship(task_mapper,
+                                             collection_class=set),
+                                "epics":
+                                relationship(epic_mapper,
+                                             collection_class=set),
+                                "stories":
+                                relationship(story_mapper,
                                              collection_class=set),
                                 "tags":
                                 relationship(project_tag_mapper,
