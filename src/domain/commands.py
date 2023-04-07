@@ -21,6 +21,7 @@ from src.domain.tag import BaseTag, TaskTag, ProjectTag
 from src.domain.collaborators import TaskCollaborator, ProjectCollaborator
 from src.domain.event_history import TaskEvent, ProjectEvent
 from src.domain.sprint import Sprint, SprintTask
+from src.domain.time_tracker import TimeTrackerEntry
 
 from src.service_layer import services, printer
 from src.service_layer.ui import TerkaTask
@@ -117,6 +118,15 @@ class SprintTaskHandler(BaseHandler):
         return super().handle(entity)
 
 
+class TimeTrackerHandler(BaseHandler):
+
+    def handle(self, entity):
+        if entity == "time_entry":
+            logger.debug("Handling time entry")
+            return TimeTrackerEntry, "time_entries"
+        return super().handle(entity)
+
+
 class CommandHandler:
 
     def __init__(self, repo: AbsRepository):
@@ -129,7 +139,7 @@ class CommandHandler:
         handler_chain = BaseHandler(None)
         for handler in [
                 TaskHandler, ProjectHandler, UserHandler, TagHandler,
-                SprintHandler, SprintTaskHandler
+                SprintHandler, SprintTaskHandler, TimeTrackerHandler
         ]:
             new_handler = handler(handler_chain)
             handler_chain = new_handler
@@ -717,7 +727,23 @@ class CommandHandler:
                                         {"id": kwargs.get("id")})
                 sprint.complete(sprint.sprint_tasks)
                 self.execute("update", entity_type, kwargs)
-
+        elif command == "track":
+            if entity_type != "tasks":
+                raise ValueError("can track only tasks")
+            if "hours" in kwargs and "minutes" in kwargs:
+                exit("specify only -H (hours) or -M (minutes) value")
+            if "hours" in kwargs or "minutes" in kwargs:
+                if "hours" in kwargs:
+                    kwargs["time_spent_minutes"] = float(kwargs["hours"]) * 60
+                    del kwargs["hours"]
+                else:
+                    kwargs["time_spent_minutes"] = float(kwargs["minutes"])
+                    del kwargs["minutes"]
+                kwargs["task"] = kwargs["id"]
+                del kwargs["id"]
+                self.execute("create", "time_entry", kwargs)
+            else:
+                exit("tracking missing -H (hours) or -M (minutes) value")
         else:
             raise ValueError(f"Uknown command: {command}")
 
