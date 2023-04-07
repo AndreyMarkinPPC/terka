@@ -13,9 +13,10 @@ from src.service_layer.ui import TerkaTask
 
 class Printer:
 
-    def __init__(self, box=rich.box.SIMPLE) -> None:
-        self.box = box
+    def __init__(self, repo, box=rich.box.SIMPLE) -> None:
         self.console = Console()
+        self.box = box
+        self.repo = repo
 
     def print_new_object(self, obj, project):
         table = Table(box=self.box)
@@ -74,6 +75,10 @@ class Printer:
             self.print_user(entities=entities)
         elif type == "sprints":
             self.print_sprint(entities=entities, repo=repo)
+        elif type == "epics":
+            self.print_epic(entities=entities, repo=repo)
+        elif type == "stories":
+            self.print_story(entities=entities, repo=repo)
         else:
             self.print_default_entity(self, entities)
 
@@ -108,10 +113,33 @@ class Printer:
                           entity.date.strftime("%Y-%m-%d %H:%M"), entity.text)
         self.console.print(table)
 
+    def print_epic(self, entities, repo, show_tasks=True):
+        table = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
+        for column in ("id", "name", "description", "project",
+                       "tasks"):
+            table.add_column(column)
+        for entity in entities:
+            tasks = []
+            for epic_task in entity.epic_tasks:
+                task = epic_task.tasks
+                tasks.append(task)
+                try:
+                    project_obj = services.lookup_project_name(
+                        task.project, repo)
+                    project = project_obj.name
+                except:
+                    project = None
+            table.add_row(str(entity.id), str(entity.name),
+                          entity.description, project, str(len(tasks)))
+        self.console.print(table)
+        if show_tasks:
+            self.print_task(entities=tasks, repo=repo, show_completed=True)
+
     def print_sprint(self, entities, repo, show_tasks=True):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
         for column in ("id", "start_date", "end_date", "goal", "status",
-                       "open tasks", "tasks", "velocity", "collaborators", "time_spent"):
+                       "open tasks", "tasks", "velocity", "collaborators",
+                       "time_spent"):
             table.add_column(column)
         for entity in entities:
             story_points = []
@@ -139,8 +167,10 @@ class Printer:
                 task for task in tasks
                 if task.status.name not in ("DONE", "DELETED")
             ]
-            time_spent_sum = sum(
-                [entry.time_spent_minutes for task in tasks for entry in task.time_spent])
+            time_spent_sum = sum([
+                entry.time_spent_minutes for task in tasks
+                for entry in task.time_spent
+            ])
 
             time_spent = self._format_time_spent(time_spent_sum)
             table.add_row(str(entity.id), str(entity.start_date),
@@ -207,6 +237,9 @@ class Printer:
                                             str(open_tasks))
 
         self.console.print(table)
+        if epics := entity.epics:
+            self.console.print("[green]**EPICS**[/green]")
+            self.print_epic(epics, self.repo, show_tasks=False)
         if non_active_projects.row_count:
             self.console.print("[green]Inactive projects[/green]")
             self.console.print(non_active_projects)
