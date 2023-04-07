@@ -23,6 +23,7 @@ from src.domain.commentary import TaskCommentary, ProjectCommentary
 from src.domain.tag import BaseTag, TaskTag, ProjectTag
 from src.domain.collaborators import TaskCollaborator, ProjectCollaborator
 from src.domain.sprint import Sprint, SprintStatus, SprintTask
+from src.domain.time_tracker import TimeTrackerEntry
 
 Base = declarative_base()
 metadata = MetaData()
@@ -143,6 +144,15 @@ sprint_tasks = Table(
     Column("story_points", Integer, nullable=False),
     Column("is_active_link", Boolean, nullable=False),
 )
+
+time_tracker_entries = Table(
+    "time_tracker_entries",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("creation_date", DateTime, nullable=True),
+    Column("task", ForeignKey("tasks.id"), nullable=False),
+    Column("time_spent_minutes", Integer, nullable=False),
+)
 # class SprintTasks(Base):
 #     __tablename__ = "sprint_tasks"
 #     id = Integer(primary_key=True, autoincrement=True)
@@ -180,6 +190,7 @@ def start_mappers():
         ProjectCollaborator,
         project_collaborators,
         properties={"users": relationship(user_mapper, collection_class=list)})
+    time_tracker_mapper = mapper(TimeTrackerEntry, time_tracker_entries)
     task_mapper = mapper(Task,
                          tasks,
                          properties={
@@ -197,6 +208,10 @@ def start_mappers():
                                           cascade="all, delete-orphan"),
                              "history":
                              relationship(task_event_mapper,
+                                          collection_class=list,
+                                          cascade="all, delete-orphan"),
+                             "time_spent":
+                             relationship(time_tracker_mapper,
                                           collection_class=list,
                                           cascade="all, delete-orphan"),
                          })

@@ -111,7 +111,7 @@ class Printer:
     def print_sprint(self, entities, repo, show_tasks=True):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
         for column in ("id", "start_date", "end_date", "goal", "status",
-                       "open tasks", "tasks", "velocity", "collaborators"):
+                       "open tasks", "tasks", "velocity", "collaborators", "time_spent"):
             table.add_column(column)
         for entity in entities:
             story_points = []
@@ -139,11 +139,15 @@ class Printer:
                 task for task in tasks
                 if task.status.name not in ("DONE", "DELETED")
             ]
+            time_spent_sum = sum(
+                [entry.time_spent_minutes for task in tasks for entry in task.time_spent])
+
+            time_spent = self._format_time_spent(time_spent_sum)
             table.add_row(str(entity.id), str(entity.start_date),
                           str(entity.end_date), entity.goal,
                           entity.status.name, str(len(open_tasks)),
                           str(len(tasks)), str(sum(story_points)),
-                          collaborators)
+                          collaborators, str(time_spent))
         self.console.print(table)
         if show_tasks:
             self.print_sprint_task(entities=tasks,
@@ -217,7 +221,7 @@ class Printer:
         table = Table(box=self.box)
         default_columns = ("id", "name", "description", "story points",
                            "status", "priority", "project", "due_date", "tags",
-                           "collaborators")
+                           "collaborators", "time_spent")
         for column in default_columns:
             table.add_column(column)
         entities = list(entities)
@@ -252,6 +256,7 @@ class Printer:
                 project = None
             priority = entity.priority.name if hasattr(entity.priority,
                                                        "name") else "UNKNOWN"
+            time_spent = self._calculate_time_spent(entity)
             if entity.status.name in ("DELETED", "DONE"):
                 completed_tasks.append(entity)
                 completed_tasks_story_points.append(story_point)
@@ -263,12 +268,12 @@ class Printer:
                               entity.description, str(story_point),
                               entity.status.name, priority, project,
                               str(entity.due_date), tag_string,
-                              collaborator_string)
+                              collaborator_string, str(time_spent))
             else:
                 table.add_row(str(entity.id), entity_name, entity.description,
                               str(story_point), entity.status.name, priority,
                               project, str(entity.due_date), tag_string,
-                              collaborator_string)
+                              collaborator_string, str(time_spent))
         if show_completed and completed_tasks:
             self.console.print(f"[green]****OPEN TASKS*****[/green]")
         if printable_entities:
@@ -294,6 +299,7 @@ class Printer:
                     project = None
                 priority = entity.priority.name if hasattr(
                     entity.priority, "name") else "UNKNOWN"
+                time_spent = self._calculate_time_spent(entity)
                 if tags := entity.tags:
                     tag_texts = sorted(
                         [tag.base_tag.text for tag in list(tags)])
@@ -311,7 +317,7 @@ class Printer:
                 table.add_row(str(entity.id), entity.name, entity.description,
                               str(story_point), entity.status.name, priority,
                               project, str(entity.due_date), tag_string,
-                              collaborator_string)
+                              collaborator_string, str(time_spent))
             self.console.print(table)
         if len(entities) == 1 and printable_entities == 0:
             table = Table(box=self.box)
@@ -327,7 +333,7 @@ class Printer:
                 table.add_row(str(entity.id), entity.name, entity.description,
                               entity.status.name, priority, project,
                               str(entity.due_date), tag_string,
-                              collaborator_string)
+                              collaborator_string, str(time_spent))
             self.console.print(table)
 
     def print_task(self,
@@ -339,7 +345,8 @@ class Printer:
                    comments=None):
         table = Table(box=self.box)
         default_columns = ("id", "name", "description", "status", "priority",
-                           "project", "due_date", "tags", "collaborators")
+                           "project", "due_date", "tags", "collaborators",
+                           "time_spent")
         #TODO: Add printing for only a single task
         # if (entities[0].status.name == "DONE"):
         #     console.print(f"[green]task is completed on [/green]")
@@ -383,6 +390,7 @@ class Printer:
                 project = None
             priority = entity.priority.name if hasattr(entity.priority,
                                                        "name") else "UNKNOWN"
+            time_spent = self._calculate_time_spent(entity)
             if entity.status.name in ("DELETED", "DONE"):
                 completed_tasks.append(entity)
                 continue
@@ -392,12 +400,12 @@ class Printer:
                 table.add_row(f"[red]{entity.id}[/red]", entity_name,
                               entity.description, entity.status.name, priority,
                               project, str(entity.due_date), tag_string,
-                              collaborator_string)
+                              collaborator_string, str(time_spent))
             else:
                 table.add_row(str(entity.id), entity_name, entity.description,
                               entity.status.name, priority, project,
                               str(entity.due_date), tag_string,
-                              collaborator_string)
+                              collaborator_string, str(time_spent))
         if show_completed and completed_tasks:
             self.console.print(f"[green]****OPEN TASKS*****[/green]")
         if printable_entities:
@@ -414,10 +422,11 @@ class Printer:
             for column in default_columns:
                 table.add_column(column)
             for entity in completed_tasks:
+                time_spent = self._calculate_time_spent(entity)
                 table.add_row(str(entity.id), entity.name, entity.description,
                               entity.status.name, priority, project,
                               str(entity.due_date), tag_string,
-                              collaborator_string)
+                              collaborator_string, str(time_spent))
             self.console.print(table)
         if len(entities) == 1 and printable_entities == 0:
             table = Table(box=self.box)
@@ -430,10 +439,11 @@ class Printer:
                                 history=history,
                                 commentaries=comments)
                 app.run()
+                time_spent = self._calculate_time_spent(entity)
                 table.add_row(str(entity.id), entity.name, entity.description,
                               entity.status.name, priority, project,
                               str(entity.due_date), tag_string,
-                              collaborator_string)
+                              collaborator_string, str(time_spent))
             self.console.print(table)
 
     def _get_attributes(self, obj) -> List[Tuple[str, str]]:
@@ -462,3 +472,21 @@ class Printer:
 
     def _count_task_status(self, tasks, status: str) -> int:
         return len([task for task in tasks if task.status.name == status])
+
+    def _calculate_time_spent(self, entity) -> str:
+        time_spent_sum = sum(
+            [entry.time_spent_minutes for entry in entity.time_spent])
+        return self._format_time_spent(time_spent_sum)
+
+    def _format_time_spent(self, time_spent: int) -> str:
+        time_spent_hours = time_spent // 60
+        time_spent_minutes = time_spent % 60
+        if time_spent_hours and time_spent_minutes:
+            time_spent = f"{time_spent_hours}H:{time_spent_minutes}M"
+        elif time_spent_hours:
+            time_spent = f"{time_spent_hours}H"
+        elif time_spent_minutes:
+            time_spent = f"{time_spent_minutes}M"
+        else:
+            time_spent = ""
+        return time_spent
