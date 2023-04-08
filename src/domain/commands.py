@@ -150,7 +150,7 @@ class EpicTaskHandler(BaseHandler):
 class StoryHandler(BaseHandler):
 
     def handle(self, entity):
-        if "stories".startswith(entity):
+        if entity in ("story", "stories"):
             logger.debug("Handling stories")
             return Story, "stories"
         return super().handle(entity)
@@ -172,6 +172,7 @@ class CommandHandler:
         self.handler = self._init_handlers()
         self.home_dir = os.path.expanduser('~')
         self.printer = printer.Printer(repo)
+        self.console = Console()
 
     def _init_handlers(self):
         handler_chain = BaseHandler(None)
@@ -179,7 +180,6 @@ class CommandHandler:
                 TaskHandler, ProjectHandler, UserHandler, TagHandler,
                 SprintHandler, SprintTaskHandler, TimeTrackerHandler,
                 EpicHandler, StoryHandler
-
         ]:
             new_handler = handler(handler_chain)
             handler_chain = new_handler
@@ -191,8 +191,8 @@ class CommandHandler:
     def execute(self,
                 command,
                 entity_type=None,
-                kwargs: Dict[str, Any] = None,
-                show_history=False):
+                kwargs: Dict[str, Any] = None
+                ):
         session = self.repo.session
         if entity_type:
             entity, entity_type = self.handle(entity_type)
@@ -245,14 +245,12 @@ class CommandHandler:
                         ])
                         del kwargs["collaborators"]
                     else:
-                        console = Console()
-                        console.print(
+                        self.console.print(
                             f"[red]No task with collaborator '{colaborator_name}' found![/red]"
                         )
                         exit()
                 else:
-                    console = Console()
-                    console.print(
+                    self.console.print(
                         f"[red]No user '{collaborator_name}' found![/red]")
                     exit()
             if "tags" in kwargs:
@@ -265,14 +263,12 @@ class CommandHandler:
                             [str(task_tag.task) for task_tag in task_tags])
                         del kwargs["tags"]
                     else:
-                        console = Console()
-                        console.print(
+                        self.console.print(
                             f"[red]No tasks with tag '{tag_text}' found![/red]"
                         )
                         exit()
                 else:
-                    console = Console()
-                    console.print(f"[red]No tag '{tag_text}' found![/red]")
+                    self.console.print(f"[red]No tag '{tag_text}' found![/red]")
                     exit()
             entities = self.repo.list(entity, kwargs)
             if entity_type == "sprints":
@@ -282,8 +278,8 @@ class CommandHandler:
                 exit()
             if entity_type == "epics":
                 self.printer.print_epic(entities=entities,
-                                          repo=self.repo,
-                                          show_tasks=False)
+                                        repo=self.repo,
+                                        show_tasks=False)
                 exit()
             if custom_sort == "due_date":
                 entities_with_due_date = []
@@ -358,7 +354,6 @@ class CommandHandler:
             kwargs["sort"] = "due_date"
             self.execute("list", "tasks", kwargs)
         elif command == "log":
-            console = Console()
             table = Table(box=rich.box.SIMPLE)
             with open(f"{self.home_dir}/.terka/terka.log", "r") as f:
                 head = f.readlines()
@@ -369,7 +364,7 @@ class CommandHandler:
                 info, message = row.split("] ")
                 date, source, level = info.split("][")
                 table.add_row(re.sub("\[", "", date), source, level, message)
-            console.print(table)
+            self.console.print(table)
         elif command == "focus":
             with open(f"{self.home_dir}/.terka/config.yaml",
                       "r",
@@ -544,21 +539,29 @@ class CommandHandler:
                     else:
                         exit(f"Task id {task_id} is not part of any sprint")
                 if epic_id := kwargs.get("epic_id"):
-                    epic = self.repo.list(Epic,
-                                          {"id": epic_id})
+                    epic = self.repo.list(Epic, {"id": epic_id})
                     if not epic:
                         exit(f"Epic id {epic_id} is not found")
-                    obj = EpicTask(task=task_id,
-                                     epic=epic_id)
+                    obj = EpicTask(task=task_id, epic=epic_id)
                     if self.repo.list(EpicTask, {
                             "task": obj.task,
                             "epic": obj.epic
                     }):
                         exit("task already added to epic")
                     self.repo.add(obj)
+                if story_id := kwargs.get("story_id"):
+                    story = self.repo.list(Story, {"id": story_id})
+                    if not story:
+                        exit(f"Story id {story_id} is not found")
+                    obj = StoryTask(task=task_id, story=story_id)
+                    if self.repo.list(StoryTask, {
+                            "task": obj.task,
+                            "story": obj.story
+                    }):
+                        exit("task already added to story")
+                    self.repo.add(obj)
                 if sprint_id := kwargs.get("sprint_id"):
-                    sprint = self.repo.list(Sprint,
-                                          {"id": sprint_id})
+                    sprint = self.repo.list(Sprint, {"id": sprint_id})
                     if not sprint:
                         exit(f"Sprint id {sprint_id} is not found")
                     if sprint[0].status.name == "COMPLETED":
@@ -719,70 +722,19 @@ class CommandHandler:
                 for task in tasks:
                     if task.isdigit():
                         entities = self.repo.list(entity, {"id": task})
-                        task_id = task
                     else:
                         entities = self.repo.list(entity, {"name": task})
-                        if entities:
-                            task_id = entities[0].id
-                        else:
-                            task_id = None
-                    if entity_type == "sprints":
-                        if task_id:
-                            self.printer.print_sprint(entities, self.repo)
-                        else:
-                            print(f"No entity {task} found!")
-                    if entity_type == "epics":
-                        if task_id:
-                            self.printer.print_epic(entities, self.repo)
-                        else:
-                            print(f"No entity {task} found!")
-                    if entity_type == "projects":
-                        if task_id:
-                            self.printer.print_project(entities)
-                        else:
-                            print(f"No entity {task} found!")
-                        for entity_ in entities:
-                            self.printer.print_task(
-                                entity_.tasks,
-                                self.repo,
-                                show_completed=show_completed)
-                            logger.info("<show> %s: %s", entity_type,
-                                        entity_.id)
-                        if commentaries := entities[0].commentaries:
-                            self.printer.print_commentaries(commentaries)
-                        if history := entities[0].history:
-                            self.printer.print_history(history)
-                    #TODO: show completed tasks as well
-                    if entity_type == "tasks":
-                        # if kwargs.get("description"):
-                        #     print(entities[0].description)
-                        #     return
-                        # if kwargs.get("name"):
-                        #     print(entities[0].name)
-                        #     return
-                        if task_id:
-                            self.printer.print_task(
-                                entities,
-                                self.repo,
-                                show_completed=show_completed)
-                            if entities and (commentaries :=
-                                             entities[0].commentaries):
-                                self.printer.print_commentaries(commentaries)
-                            if entities and (history := entities[0].history):
-                                self.printer.print_history(history)
-                        else:
-                            print(f"No entity {task} found!")
-                        logger.info("<show> %s: %s", entity_type, task_id)
+                    self.printer.print_entity(entity_type, entities, self.repo,
+                                              show_completed)
+                    logger.info("<show> %s: %s", entity_type, task_id)
                 return entities, None, None
         elif command == "done":
-            # TODO: IF entity_type sprint call .complete method
             if entity_type not in ("tasks", "sprints"):
                 raise ValueError("can complete only tasks and sprints")
             elif entity_type == "tasks":
                 kwargs.update({"status": "DONE"})
                 self.execute("update", entity_type, kwargs)
-                console = Console()
-                console.print(
+                self.console.print(
                     "[green]Yay! You've just completed a task![/green]")
             elif entity_type == "sprints":
                 kwargs.update({"status": "COMPLETED"})

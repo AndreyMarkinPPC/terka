@@ -38,9 +38,17 @@ def main():
                         "--loglevel",
                         dest="loglevel",
                         default="info")
+    parser.add_argument("-v",
+                        "--version",
+                        dest="version",
+                        action="store_true")
     args = parser.parse_known_args()
     args, kwargs = args
-
+    if args.version:
+        import pkg_resources
+        version = pkg_resources.require("terka")[0].version
+        print(f"terka version {version}")
+        exit()
     home_dir = os.path.expanduser('~')
     logger = logging.getLogger(__name__)
     console = Console()
