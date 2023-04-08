@@ -6,7 +6,7 @@ README = (HERE / "README.md").read_text()
 
 setup(
     name="terka",
-    version="1.2.1",
+    version="1.3.0",
     description="CLI utility for creating and managing tasks in a terminal",
     long_description=README,
     long_description_content_type="text/markdown",

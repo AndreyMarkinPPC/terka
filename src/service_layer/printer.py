@@ -47,6 +47,37 @@ class Printer:
             table.add_row(event.date.strftime("%Y-%m-%d %H:%M"), event.text)
         self.console.print(table)
 
+    def print_entity(self, entity_type, entities, repo, show_completed):
+        if entity_type == "sprints":
+            if entities:
+                self.print_sprint(entities, repo)
+            else:
+                exit(f"No sprint with id '{task}' found!")
+        if entity_type == "epics":
+            if entities:
+                self.print_epic(entities, repo)
+            else:
+                exit(f"No epic with id '{task}' found!")
+        if entity_type == "stories":
+            if entities:
+                self.print_story(entities, repo)
+            else:
+                exit(f"No story with id '{task}' found!")
+        if entity_type == "projects":
+            if entities:
+                self.print_project(
+                    entities, show_completed_tasks=show_completed)
+            else:
+                exit(f"No project '{task}' found!")
+        if entity_type == "tasks":
+            if entities:
+                self.print_task(
+                    entities,
+                    repo,
+                    show_completed=show_completed)
+            else:
+                print(f"No task with id '{task}' found!")
+
     def print_entities(self,
                        entities,
                        type,
@@ -55,7 +86,7 @@ class Printer:
                        show_completed=False):
         if type == "projects":
             entities.sort(key=self._sort_open_tasks, reverse=True)
-            self.print_project(entities)
+            self.print_project(entities, show_tasks=False)
         elif type == "tasks":
             if custom_sort:
                 entities.sort(key=lambda c: getattr(c, custom_sort),
@@ -114,26 +145,52 @@ class Printer:
         self.console.print(table)
 
     def print_epic(self, entities, repo, show_tasks=True):
-        table = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
-        for column in ("id", "name", "description", "project",
-                       "tasks"):
-            table.add_column(column)
+        table = Table(box=self.box, title="EPICS", expand=True)
+        for column in ("id", "name", "description", "project", "tasks"):
+            table.add_column(column, style="bold")
+        tasks = []
         for entity in entities:
-            tasks = []
             for epic_task in entity.epic_tasks:
                 task = epic_task.tasks
                 tasks.append(task)
-                try:
-                    project_obj = services.lookup_project_name(
-                        task.project, repo)
-                    project = project_obj.name
-                except:
-                    project = None
-            table.add_row(str(entity.id), str(entity.name),
+            try:
+                project_obj = services.lookup_project_name(
+                    entity.project, repo)
+                project = project_obj.name
+            except:
+                project = None
+            table.add_row(f"E{entity.id}", str(entity.name),
                           entity.description, project, str(len(tasks)))
         self.console.print(table)
         if show_tasks:
-            self.print_task(entities=tasks, repo=repo, show_completed=True)
+            self.print_task(entities=tasks,
+                            repo=repo,
+                            show_completed=True,
+                            show_window=False)
+
+    def print_story(self, entities, repo, show_tasks=True):
+        table = Table(box=self.box, title="STORIES", expand=True)
+        for column in ("id", "name", "description", "project", "tasks"):
+            table.add_column(column, style="bold")
+        tasks = []
+        for entity in entities:
+            for story_task in entity.story_tasks:
+                task = story_task.tasks
+                tasks.append(task)
+            try:
+                project_obj = services.lookup_project_name(
+                    entity.project, repo)
+                project = project_obj.name
+            except:
+                project = None
+            table.add_row(f"S{entity.id}", str(entity.name),
+                          entity.description, project, str(len(tasks)))
+        self.console.print(table)
+        if show_tasks and tasks:
+            self.print_task(entities=tasks,
+                            repo=repo,
+                            show_completed=True,
+                            show_window=False)
 
     def print_sprint(self, entities, repo, show_tasks=True):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
@@ -141,10 +198,10 @@ class Printer:
                        "open tasks", "tasks", "velocity", "collaborators",
                        "time_spent"):
             table.add_column(column)
+        story_points = []
+        tasks = []
+        collaborators = []
         for entity in entities:
-            story_points = []
-            tasks = []
-            collaborators = []
             collaborators_dict = defaultdict(int)
             for sprint_task in entity.sprint_tasks:
                 story_points.append(sprint_task.story_points)
@@ -188,8 +245,10 @@ class Printer:
     def print_project(self,
                       entities,
                       zero_tasks: bool = False,
-                      zero_tasks_only: bool = False):
-        table = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
+                      zero_tasks_only: bool = False,
+                      show_tasks: bool = True,
+                      show_completed_tasks: bool = False):
+        table = Table(box=rich.box.SQUARE_DOUBLE_HEAD, expand=True)
         non_active_projects = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
         for column in ("id", "name", "description", "status", "open_tasks",
                        "overdue", "backlog", "todo", "in_progress", "review",
@@ -227,9 +286,6 @@ class Printer:
                               str(len(overdue_tasks)), str(backlog), str(todo),
                               str(in_progress), str(review), str(done),
                               str(median_task_age))
-                # if zero_tasks_only and open_tasks == 0:
-                #     table.add_row(f"[red]{entity.id}[/red]", entity.name,
-                #                   entity.description, str(tasks))
             else:
                 non_active_projects.add_row(str(entity.id), entity.name,
                                             entity.description,
@@ -237,12 +293,26 @@ class Printer:
                                             str(open_tasks))
 
         self.console.print(table)
-        if epics := entity.epics:
-            self.console.print("[green]**EPICS**[/green]")
-            self.print_epic(epics, self.repo, show_tasks=False)
         if non_active_projects.row_count:
             self.console.print("[green]Inactive projects[/green]")
             self.console.print(non_active_projects)
+        if show_tasks:
+            if epics := entity.epics:
+                self.console.print("")
+                self.print_epic(epics, self.repo, show_tasks=False)
+            if stories := entity.stories:
+                self.console.print("")
+                self.print_story(stories, self.repo, show_tasks=False)
+            if tasks := entity.tasks:
+                self.print_task(entities=tasks,
+                                repo=self.repo,
+                                show_completed=show_completed_tasks,
+                                show_window=False,
+                                show_history_comments=False)
+        if commentaries := entity.commentaries:
+            self.print_commentaries(commentaries)
+        if history := entity.history:
+            self.print_history(history)
 
     def print_sprint_task(self,
                           entities,
@@ -307,8 +377,6 @@ class Printer:
                               str(story_point), entity.status.name, priority,
                               project, str(entity.due_date), tag_string,
                               collaborator_string, str(time_spent))
-        if show_completed and completed_tasks:
-            self.console.print(f"[green]****OPEN TASKS*****[/green]")
         if printable_entities:
             if printable_entities == 1:
                 app = TerkaTask(entity=entity,
@@ -318,10 +386,10 @@ class Printer:
                 app.run()
             self.console.print(table)
         if show_completed and completed_tasks:
-            self.console.print(f"[green]****COMPLETED TASKS*****[/green]")
             table = Table(box=self.box)
             for column in default_columns:
                 table.add_column(column)
+            self.console.print(f"[green]****COMPLETED TASKS*****[/green]")
             for entity, story_point in zip(completed_tasks,
                                            completed_tasks_story_points):
                 try:
@@ -374,9 +442,9 @@ class Printer:
                    repo,
                    show_completed=False,
                    custom_sort=None,
-                   history=None,
-                   comments=None):
-        table = Table(box=self.box)
+                   show_window=True,
+                   show_history_comments=True):
+        table = Table(box=self.box, title="TASKS")
         default_columns = ("id", "name", "description", "status", "priority",
                            "project", "due_date", "tags", "collaborators",
                            "time_spent")
@@ -439,10 +507,8 @@ class Printer:
                               entity.status.name, priority, project,
                               str(entity.due_date), tag_string,
                               collaborator_string, str(time_spent))
-        if show_completed and completed_tasks:
-            self.console.print(f"[green]****OPEN TASKS*****[/green]")
         if printable_entities:
-            if printable_entities == 1:
+            if printable_entities == 1 and show_window:
                 app = TerkaTask(entity=entity,
                                 project=project,
                                 history=history,
@@ -450,10 +516,10 @@ class Printer:
                 app.run()
             self.console.print(table)
         if show_completed and completed_tasks:
-            self.console.print(f"[green]****COMPLETED TASKS*****[/green]")
             table = Table(box=self.box)
             for column in default_columns:
                 table.add_column(column)
+            self.console.print(f"[green]****COMPLETED TASKS*****[/green]")
             for entity in completed_tasks:
                 time_spent = self._calculate_time_spent(entity)
                 table.add_row(str(entity.id), entity.name, entity.description,
@@ -463,21 +529,18 @@ class Printer:
             self.console.print(table)
         if len(entities) == 1 and printable_entities == 0:
             table = Table(box=self.box)
-            for column in default_columns:
-                table.add_column(column)
-            for entity in entities:
-                app = TerkaTask(entity=entity,
-                                project=project,
-                                is_completed=True,
-                                history=history,
-                                commentaries=comments)
-                app.run()
-                time_spent = self._calculate_time_spent(entity)
-                table.add_row(str(entity.id), entity.name, entity.description,
-                              entity.status.name, priority, project,
-                              str(entity.due_date), tag_string,
-                              collaborator_string, str(time_spent))
-            self.console.print(table)
+            app = TerkaTask(entity=entities[0],
+                            project=project,
+                            is_completed=True,
+                            history=history,
+                            commentaries=comments)
+            app.run()
+            exit()
+        if show_history_comments:
+            if commentaries := entity.commentaries:
+                self.print_commentaries(commentaries)
+            if history := entity.history:
+                self.print_history(history)
 
     def _get_attributes(self, obj) -> List[Tuple[str, str]]:
         import inspect
