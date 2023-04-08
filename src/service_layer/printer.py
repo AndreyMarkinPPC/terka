@@ -148,8 +148,8 @@ class Printer:
         table = Table(box=self.box, title="EPICS", expand=True)
         for column in ("id", "name", "description", "project", "tasks"):
             table.add_column(column, style="bold")
-        tasks = []
         for entity in entities:
+            tasks = []
             for epic_task in entity.epic_tasks:
                 task = epic_task.tasks
                 tasks.append(task)
@@ -172,8 +172,8 @@ class Printer:
         table = Table(box=self.box, title="STORIES", expand=True)
         for column in ("id", "name", "description", "project", "tasks"):
             table.add_column(column, style="bold")
-        tasks = []
         for entity in entities:
+            tasks = []
             for story_task in entity.story_tasks:
                 task = story_task.tasks
                 tasks.append(task)
