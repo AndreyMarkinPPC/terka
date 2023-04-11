@@ -65,16 +65,13 @@ class Printer:
                 exit(f"No story with id '{task}' found!")
         if entity_type == "projects":
             if entities:
-                self.print_project(
-                    entities, show_completed_tasks=show_completed)
+                self.print_project(entities,
+                                   show_completed_tasks=show_completed)
             else:
                 exit(f"No project '{task}' found!")
         if entity_type == "tasks":
             if entities:
-                self.print_task(
-                    entities,
-                    repo,
-                    show_completed=show_completed)
+                self.print_task(entities, repo, show_completed=show_completed)
             else:
                 print(f"No task with id '{task}' found!")
 
@@ -549,6 +546,12 @@ class Printer:
             if not name.startswith("_") and not inspect.ismethod(value):
                 if not value:
                     continue
+                elif name in ("created_by", "assignee"):
+                    attributes.append(
+                        (name, services.lookup_user_name(value, self.repo)))
+                elif name == "project":
+                    attributes.append(
+                        (name, services.lookup_project_name(value, self.repo)))
                 elif hasattr(value, "name"):
                     attributes.append((name, value.name))
                 elif isinstance(value, datetime):

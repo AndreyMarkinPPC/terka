@@ -28,7 +28,7 @@ from src.domain.story import Story, StoryTask
 from src.service_layer import services, printer
 from src.service_layer.ui import TerkaTask
 from src.adapters.repository import AbsRepository
-from src.utils import format_command
+from src.utils import format_command, format_task_dict
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +173,7 @@ class CommandHandler:
         self.home_dir = os.path.expanduser('~')
         self.printer = printer.Printer(repo)
         self.console = Console()
+        self.config = self._read_config()
 
     def _init_handlers(self):
         handler_chain = BaseHandler(None)
@@ -366,36 +367,28 @@ class CommandHandler:
                 table.add_row(re.sub("\[", "", date), source, level, message)
             self.console.print(table)
         elif command == "focus":
-            with open(f"{self.home_dir}/.terka/config.yaml",
-                      "r",
-                      encoding="utf-8") as f:
-                config = yaml.safe_load(f)
             if entity_type == "tasks":
-                config["task_id"] = kwargs["id"]
-                if "project_name" in config.keys():
-                    del config["project_name"]
+                self.config["task_id"] = kwargs["id"]
+                if "project_name" in self.config.keys():
+                    del self.config["project_name"]
             if entity_type == "projects":
-                config["project_name"] = kwargs["id"]
-                if "task_id" in config.keys():
-                    del config["task_id"]
+                self.config["project_name"] = kwargs["id"]
+                if "task_id" in self.config.keys():
+                    del self.config["task_id"]
             with open(f"{self.home_dir}/.terka/config.yaml",
                       "w",
                       encoding="utf-8") as f:
-                yaml.dump(config, f)
+                yaml.dump(self.config, f)
             logger.info("<focus> %s: %s", entity_type, "")
         elif command == "unfocus":
-            with open(f"{self.home_dir}/.terka/config.yaml",
-                      "r",
-                      encoding="utf-8") as f:
-                config = yaml.safe_load(f)
-            if "task_id" in config.keys():
-                del config["task_id"]
-            if "project_name" in config.keys():
-                del config["project_name"]
+            if "task_id" in self.config.keys():
+                del self.config["task_id"]
+            if "project_name" in self.config.keys():
+                del self.config["project_name"]
             with open(f"{self.home_dir}/.terka/config.yaml",
                       "w",
                       encoding="utf-8") as f:
-                yaml.dump(config, f)
+                yaml.dump(self.config, f)
             logger.info("<unfocus> %s: %s", entity_type, "")
         elif command == "count":
             entities = self.repo.list(entity, kwargs)
@@ -578,8 +571,7 @@ class CommandHandler:
             session.commit()
         elif command == "create":
             kwargs["created_by"] = services.lookup_user_id(
-                # config.get("user"),
-                "am",
+                self.config.get("user"),
                 self.repo)
             obj = entity(**kwargs)
             if entity in (Task, Project):
@@ -761,6 +753,13 @@ class CommandHandler:
                 exit("tracking missing -H (hours) or -M (minutes) value")
         else:
             raise ValueError(f"Uknown command: {command}")
+
+    def _read_config(self) -> Dict[str, Any]:
+        with open(f"{self.home_dir}/.terka/config.yaml",
+                  "r",
+                  encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+        return config
 
 
 def get_ids(ids: Union[str, int]) -> List[Union[int, str]]:

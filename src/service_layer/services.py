@@ -1,6 +1,25 @@
+from typing import Any, Dict, Optional
+import os
+import yaml
+
 from src.adapters.repository import AbsRepository
 from src.domain.project import Project
 from src.domain.user import User
+
+
+def update_config(update_pair: Dict[str, Any]):
+    config = get_config()
+    config.update(update_pair)
+    with open(f"{home_dir}/.terka/config.yaml", "w") as f:
+        yaml.dump(config, f)
+
+def get_config():
+    home_dir = os.path.expanduser('~')
+    with open(f"{home_dir}/.terka/config.yaml",
+              "r",
+              encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    return config
 
 
 def lookup_project_id(project_name: str, repo: AbsRepository) -> int:
@@ -51,15 +70,22 @@ def lookup_project_id(project_name: str, repo: AbsRepository) -> int:
     return returned_projects
 
 
-def lookup_user_id(user_name: str, repo: AbsRepository) -> int:
-    if not (user := repo.list(User, user_name)):
-        user = User(user_name)
-        repo.add(user)
-    repo.session.commit()
-    return user.id
+def lookup_user_id(user_name: str, repo: AbsRepository) -> Optional[int]:
+    user = repo.list(User, {"name": user_name})
+    if user:
+        return user[0].id
+    return None
 
 
-def lookup_project_name(project_id: int, repo: AbsRepository) -> str:
+def lookup_user_name(user_id: str, repo: AbsRepository) -> Optional[str]:
+    user = repo.list(User, {"id": user_id})
+    if user:
+        return user[0].name
+    return None
+
+
+def lookup_project_name(project_id: int, repo: AbsRepository) -> Optional[str]:
     project = repo.list(Project, {"id": project_id})
-    repo.session.commit()
-    return project[0]
+    if project:
+        return project[0]
+    return None

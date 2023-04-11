@@ -7,6 +7,7 @@ from operator import attrgetter
 import sys
 import yaml
 import logging
+from pprint import pprint
 
 import rich
 from rich.console import Console
@@ -18,7 +19,8 @@ from src.adapters.orm import metadata, start_mappers
 from src.adapters.repository import SqlAlchemyRepository
 
 from src.domain.commands import CommandHandler
-from src.utils import format_task_dict, process_command, update_task_dict
+from src.utils import format_task_dict, process_command, update_task_dict, create_task_dict
+from src.service_layer import services
 
 
 def init_db(home_dir):
@@ -48,6 +50,12 @@ def main():
         import pkg_resources
         version = pkg_resources.require("terka")[0].version
         print(f"terka version {version}")
+        exit()
+    if args.command == "config":
+        if "--show" in kwargs:
+            pprint(services.get_config())
+        else:
+            services.update_config(create_task_dict(kwargs))
         exit()
     home_dir = os.path.expanduser('~')
     logger = logging.getLogger(__name__)
