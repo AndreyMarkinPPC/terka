@@ -551,7 +551,8 @@ class Printer:
                         (name, services.lookup_user_name(value, self.repo)))
                 elif name == "project":
                     attributes.append(
-                        (name, services.lookup_project_name(value, self.repo)))
+                        (name,
+                         str(services.lookup_project_name(value, self.repo))))
                 elif hasattr(value, "name"):
                     attributes.append((name, value.name))
                 elif isinstance(value, datetime):
