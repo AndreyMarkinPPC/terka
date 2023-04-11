@@ -214,7 +214,7 @@ class Printer:
             for user, story_point in sorted(collaborators_dict.items(),
                                             key=lambda x: x[1],
                                             reverse=True):
-                collaborators.append(f"{user} ({story_point})")
+                collaborators.append(f"{user} ({round(story_point, 2)})")
 
             collaborators_string = ", ".join(collaborators)
             open_tasks = [
@@ -230,7 +230,7 @@ class Printer:
             table.add_row(str(entity.id), str(entity.start_date),
                           str(entity.end_date), entity.goal,
                           entity.status.name, str(len(open_tasks)),
-                          str(len(tasks)), str(sum(story_points)),
+                          str(len(tasks)), str(round(sum(story_points), 2)),
                           collaborators_string, str(time_spent))
         self.console.print(table)
         if show_tasks:
