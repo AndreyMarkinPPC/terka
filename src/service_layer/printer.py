@@ -195,10 +195,10 @@ class Printer:
                        "open tasks", "tasks", "velocity", "collaborators",
                        "time_spent"):
             table.add_column(column)
-        story_points = []
-        tasks = []
-        collaborators = []
         for entity in entities:
+            story_points = []
+            tasks = []
+            collaborators = []
             collaborators_dict = defaultdict(int)
             for sprint_task in entity.sprint_tasks:
                 story_points.append(sprint_task.story_points)
@@ -216,7 +216,7 @@ class Printer:
                                             reverse=True):
                 collaborators.append(f"{user} ({story_point})")
 
-            collaborators = ", ".join(collaborators)
+            collaborators_string = ", ".join(collaborators)
             open_tasks = [
                 task for task in tasks
                 if task.status.name not in ("DONE", "DELETED")
@@ -231,7 +231,7 @@ class Printer:
                           str(entity.end_date), entity.goal,
                           entity.status.name, str(len(open_tasks)),
                           str(len(tasks)), str(sum(story_points)),
-                          collaborators, str(time_spent))
+                          collaborators_string, str(time_spent))
         self.console.print(table)
         if show_tasks:
             self.print_sprint_task(entities=tasks,
