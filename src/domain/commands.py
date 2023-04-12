@@ -16,7 +16,7 @@ from rich.table import Table
 from src.domain.task import Task
 from src.domain.project import Project
 from src.domain.user import User
-from src.domain.commentary import TaskCommentary, ProjectCommentary
+from src.domain.commentary import TaskCommentary, ProjectCommentary, EpicCommentary, StoryCommentary, SprintCommentary
 from src.domain.tag import BaseTag, TaskTag, ProjectTag
 from src.domain.collaborators import TaskCollaborator, ProjectCollaborator
 from src.domain.event_history import TaskEvent, ProjectEvent
@@ -192,8 +192,7 @@ class CommandHandler:
     def execute(self,
                 command,
                 entity_type=None,
-                kwargs: Dict[str, Any] = None
-                ):
+                kwargs: Dict[str, Any] = None):
         session = self.repo.session
         if entity_type:
             entity, entity_type = self.handle(entity_type)
@@ -269,7 +268,8 @@ class CommandHandler:
                         )
                         exit()
                 else:
-                    self.console.print(f"[red]No tag '{tag_text}' found![/red]")
+                    self.console.print(
+                        f"[red]No tag '{tag_text}' found![/red]")
                     exit()
             entities = self.repo.list(entity, kwargs)
             if entity_type == "sprints":
@@ -515,6 +515,73 @@ class CommandHandler:
                 obj = ProjectCommentary(**kwargs)
                 self.repo.add(obj)
                 session.commit()
+            elif entity_type == "epics":
+                epic = self.repo.list(Epic, {"id": kwargs["id"]})
+                if not epic:
+                    raise ValueError(
+                        f"Epic with id {kwargs['id']} is not found!")
+                obj = EpicCommentary(**kwargs)
+                self.repo.add(obj)
+                session.commit()
+            elif entity_type == "stories":
+                epic = self.repo.list(Story, {"id": kwargs["id"]})
+                if not epic:
+                    raise ValueError(
+                        f"Story with id {kwargs['id']} is not found!")
+                obj = StoryCommentary(**kwargs)
+                self.repo.add(obj)
+                session.commit()
+            elif entity_type == "sprints":
+                sprint = self.repo.list(Sprint, {"id": kwargs["id"]})
+                if not sprint:
+                    raise ValueError(
+                        f"Sprint with id {kwargs['id']} is not found!")
+                obj = SprintCommentary(**kwargs)
+                self.repo.add(obj)
+                session.commit()
+        elif command == "delete":
+            if entity not in (Task, ):
+                raise ValueError("'delete' operation only allowed for tasks!")
+            task_ids = get_ids(kwargs.get("id"))
+            for task_id in task_ids:
+                if not self.repo.list(Task, {"id": task_id}):
+                    exit(f"Task id {task_id} is not found")
+                if epic_id := kwargs.get("epic_id"):
+                    epic = self.repo.list(Epic, {"id": epic_id})
+                    if not epic:
+                        exit(f"Epic id {epic_id} is not found")
+                    if not (epic_task := self.repo.list(
+                            EpicTask, {
+                                "task": task_id,
+                                "epic": epic_id
+                            })):
+                        exit("task is not in epic")
+                    self.repo.delete(EpicTask, epic_task[0].id)
+                if story_id := kwargs.get("story_id"):
+                    story = self.repo.list(Story, {"id": story_id})
+                    if not story:
+                        exit(f"Story id {story_id} is not found")
+                    if not (story_task := self.repo.list(
+                            StoryTask, {
+                                "task": task_id,
+                                "story": story_id
+                            })):
+                        exit("task is not in story")
+                    self.repo.delete(StoryTask, story_task[0].id)
+                if sprint_id := kwargs.get("sprint_id"):
+                    sprint = self.repo.list(Sprint, {"id": sprint_id})
+                    if not sprint:
+                        exit(f"Sprint id {sprint_id} is not found")
+                    if sprint[0].status.name == "COMPLETED":
+                        exit("Cannot add task to a finished sprint")
+                    if not (sprint_task := self.repo.list(
+                            SprintTask, {
+                                "task": task_id,
+                                "sprint": sprint_id
+                            })):
+                        exit("task is not in sprint")
+                    self.repo.delete(SprintTask, sprint_task[0].id)
+            session.commit()
         elif command == "add":
             if entity not in (Task, ):
                 raise ValueError("'add' operation only allowed for tasks!")
@@ -523,14 +590,6 @@ class CommandHandler:
                 if not self.repo.list(Task, {"id": task_id}):
                     exit(f"Task id {task_id} is not found")
 
-                if story_points := kwargs.get("story_points"):
-                    sprint_task = self.execute("get", "sprint_tasks",
-                                               {"task": task_id})
-                    if sprint_task:
-                        self.repo.update(SprintTask, sprint_task[0].id,
-                                         {"story_points": story_points})
-                    else:
-                        exit(f"Task id {task_id} is not part of any sprint")
                 if epic_id := kwargs.get("epic_id"):
                     epic = self.repo.list(Epic, {"id": epic_id})
                     if not epic:
@@ -568,11 +627,23 @@ class CommandHandler:
                     }):
                         exit("task already added to sprint")
                     self.repo.add(obj)
+                    sprint_task_id = obj.id
+                else:
+                    sprint_task_id = None
+                if story_points := kwargs.get("story_points"):
+                    if not sprint_task_id:
+                        sprint_task = self.execute("get", "sprint_tasks",
+                                                   {"task": task_id})
+                        if not sprint_task:
+                            exit(f"Task id {task_id} is not part of any sprint")
+                        else:
+                            sprint_task_id = sprint_task[0].id
+                    self.repo.update(SprintTask, sprint_task_id,
+                                         {"story_points": story_points})
             session.commit()
         elif command == "create":
             kwargs["created_by"] = services.lookup_user_id(
-                self.config.get("user"),
-                self.repo)
+                self.config.get("user"), self.repo)
             obj = entity(**kwargs)
             if entity in (Task, Project):
                 if (existing_obj := self.repo.list(entity,
@@ -755,8 +826,7 @@ class CommandHandler:
             raise ValueError(f"Uknown command: {command}")
 
     def _read_config(self) -> Dict[str, Any]:
-        with open(f"{self.home_dir}/.terka/config.yaml",
-                  "r",
+        with open(f"{self.home_dir}/.terka/config.yaml", "r",
                   encoding="utf-8") as f:
             config = yaml.safe_load(f)
         return config

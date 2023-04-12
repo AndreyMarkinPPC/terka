@@ -19,7 +19,7 @@ from src.domain.task import Task, TaskStatus, TaskPriority
 from src.domain.user import User
 from src.domain.project import Project, ProjectStatus
 from src.domain.event_history import TaskEvent, ProjectEvent, EventType
-from src.domain.commentary import TaskCommentary, ProjectCommentary
+from src.domain.commentary import TaskCommentary, ProjectCommentary, EpicCommentary, StoryCommentary, SprintCommentary
 from src.domain.tag import BaseTag, TaskTag, ProjectTag
 from src.domain.collaborators import TaskCollaborator, ProjectCollaborator
 from src.domain.sprint import Sprint, SprintStatus, SprintTask
@@ -95,6 +95,33 @@ project_commentaries = Table(
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("project", ForeignKey("projects.id"), nullable=True),
+    Column("date", DateTime, nullable=False),
+    Column("text", String(225)),
+)
+
+epic_commentaries = Table(
+    "epic_commentaries",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("epic", ForeignKey("epics.id"), nullable=True),
+    Column("date", DateTime, nullable=False),
+    Column("text", String(225)),
+)
+
+story_commentaries = Table(
+    "story_commentaries",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("story", ForeignKey("stories.id"), nullable=True),
+    Column("date", DateTime, nullable=False),
+    Column("text", String(225)),
+)
+
+sprint_commentaries = Table(
+    "sprint_commentaries",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("sprint", ForeignKey("sprints.id"), nullable=True),
     Column("date", DateTime, nullable=False),
     Column("text", String(225)),
 )
@@ -195,6 +222,9 @@ story_tasks = Table(
 def start_mappers():
     task_commentary_mapper = mapper(TaskCommentary, task_commentaries)
     project_commentary_mapper = mapper(ProjectCommentary, project_commentaries)
+    epic_commentary_mapper = mapper(EpicCommentary, epic_commentaries)
+    story_commentary_mapper = mapper(StoryCommentary, story_commentaries)
+    sprint_commentary_mapper = mapper(SprintCommentary, sprint_commentaries)
     task_event_mapper = mapper(TaskEvent, task_events)
     project_event_mapper = mapper(ProjectEvent, project_events)
     user_mapper = mapper(User, users)
@@ -253,6 +283,10 @@ def start_mappers():
     epic_mapper = mapper(Epic,
                          epics,
                          properties={
+                             "commentaries":
+                             relationship(epic_commentary_mapper,
+                                          collection_class=list,
+                                          cascade="all, delete-orphan"),
                              "epic_tasks":
                              relationship(epic_tasks_mapper,
                                           collection_class=list)
@@ -264,6 +298,10 @@ def start_mappers():
     story_mapper = mapper(Story,
                           stories,
                           properties={
+                             "commentaries":
+                             relationship(story_commentary_mapper,
+                                          collection_class=list,
+                                          cascade="all, delete-orphan"),
                               "story_tasks":
                               relationship(story_tasks_mapper,
                                            collection_class=list)
@@ -303,6 +341,10 @@ def start_mappers():
     sprint_mapper = mapper(Sprint,
                            sprints,
                            properties={
+                               "commentaries":
+                               relationship(sprint_commentary_mapper,
+                                            collection_class=list,
+                                        cascade="all, delete-orphan"),
                                "sprint_tasks":
                                relationship(sprint_tasks_mapper,
                                             collection_class=list)

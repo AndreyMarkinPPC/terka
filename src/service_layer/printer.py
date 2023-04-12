@@ -145,7 +145,7 @@ class Printer:
         table = Table(box=self.box, title="EPICS", expand=True)
         for column in ("id", "name", "description", "project", "tasks"):
             table.add_column(column, style="bold")
-        for entity in entities:
+        for i, entity in enumerate(entities):
             tasks = []
             for epic_task in entity.epic_tasks:
                 task = epic_task.tasks
@@ -163,13 +163,16 @@ class Printer:
             self.print_task(entities=tasks,
                             repo=repo,
                             show_completed=True,
-                            show_window=False)
+                            show_window=False,
+                            show_history_comments=False)
+        if i == 0 and (commentaries := entity.commentaries):
+            self.print_commentaries(commentaries)
 
     def print_story(self, entities, repo, show_tasks=True):
         table = Table(box=self.box, title="STORIES", expand=True)
         for column in ("id", "name", "description", "project", "tasks"):
             table.add_column(column, style="bold")
-        for entity in entities:
+        for i, entity in enumerate(entities):
             tasks = []
             for story_task in entity.story_tasks:
                 task = story_task.tasks
@@ -187,7 +190,10 @@ class Printer:
             self.print_task(entities=tasks,
                             repo=repo,
                             show_completed=True,
-                            show_window=False)
+                            show_window=False,
+                            show_history_comments=False)
+        if i == 0 and (commentaries := entity.commentaries):
+            self.print_commentaries(commentaries)
 
     def print_sprint(self, entities, repo, show_tasks=True):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
@@ -195,7 +201,7 @@ class Printer:
                        "open tasks", "tasks", "velocity", "collaborators",
                        "time_spent"):
             table.add_column(column)
-        for entity in entities:
+        for i, entity in enumerate(entities):
             story_points = []
             tasks = []
             collaborators = []
@@ -238,6 +244,8 @@ class Printer:
                                    repo=repo,
                                    show_completed=True,
                                    story_points=story_points)
+        if i == 0 and (commentaries := entity.commentaries):
+            self.print_commentaries(commentaries)
 
     def print_project(self,
                       entities,
