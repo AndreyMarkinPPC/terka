@@ -71,6 +71,8 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             "story_points": new_dict.get("story-points"),
             "hours": new_dict.get("H"),
             "minutes": new_dict.get("M"),
+            "show_history": new_dict.get("show-history"),
+            "show_commentaries": new_dict.get("show-commentaries") or new_dict.get("show-comments"),
         }
         if "--show-completed" in kwargs:
             task_dict.update({"show_completed": True})

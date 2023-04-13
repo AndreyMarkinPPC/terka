@@ -203,7 +203,12 @@ class CommandHandler:
             raise ValueError(f"Entity *{entity_type}* is not a valid entity")
         command = format_command(command)
         if command == "list":
-            show_completed = False
+            print_options = printer.PrintOptions(
+                show_tasks=False,
+                show_history=bool(kwargs.get("show_history")),
+                show_commentaries=bool(kwargs.get("show_commentaries")),
+                show_completed=bool(kwargs.get("show_completed"))
+            )
             if entity_type == "tasks":
                 if "status" not in kwargs and "all" not in kwargs:
                     kwargs["status"] = "BACKLOG,TODO,IN_PROGRESS,REVIEW"
@@ -272,16 +277,16 @@ class CommandHandler:
                         f"[red]No tag '{tag_text}' found![/red]")
                     exit()
             entities = self.repo.list(entity, kwargs)
-            if entity_type == "sprints":
-                self.printer.print_sprint(entities=entities,
-                                          repo=self.repo,
-                                          show_tasks=False)
-                exit()
-            if entity_type == "epics":
-                self.printer.print_epic(entities=entities,
-                                        repo=self.repo,
-                                        show_tasks=False)
-                exit()
+            # if entity_type == "sprints":
+            #     self.printer.print_sprint(entities=entities,
+            #                               repo=self.repo,
+            #                               show_tasks=False)
+            #     exit()
+            # if entity_type == "epics":
+            #     self.printer.print_epic(entities=entities,
+            #                             repo=self.repo,
+            #                             show_tasks=False)
+            #     exit()
             if custom_sort == "due_date":
                 entities_with_due_date = []
                 entities_without_due_date = []
@@ -296,7 +301,7 @@ class CommandHandler:
                                         entity_type,
                                         self.repo,
                                         custom_sort,
-                                        show_completed=show_completed)
+                                        print_options=print_options)
             logger.info("<list> %s", entity_type)
             return entities, None, None
         elif command == "help":
@@ -635,11 +640,12 @@ class CommandHandler:
                         sprint_task = self.execute("get", "sprint_tasks",
                                                    {"task": task_id})
                         if not sprint_task:
-                            exit(f"Task id {task_id} is not part of any sprint")
+                            exit(
+                                f"Task id {task_id} is not part of any sprint")
                         else:
                             sprint_task_id = sprint_task[0].id
                     self.repo.update(SprintTask, sprint_task_id,
-                                         {"story_points": story_points})
+                                     {"story_points": story_points})
             session.commit()
         elif command == "create":
             kwargs["created_by"] = services.lookup_user_id(
@@ -779,7 +785,11 @@ class CommandHandler:
                     task_params.update({"due_date": sprint.end_date})
                 self.execute("update", "tasks", task_params)
         elif command == "show":
-            show_completed = bool(kwargs.get("show_completed"))
+            print_options = printer.PrintOptions(
+                show_history=bool(kwargs.get("show_history")),
+                show_commentaries=bool(kwargs.get("show_commentaries")),
+                show_completed=bool(kwargs.get("show_completed"))
+            )
             if (task_id := kwargs.get("id")):
                 tasks = get_ids(task_id)
                 for task in tasks:
@@ -787,8 +797,8 @@ class CommandHandler:
                         entities = self.repo.list(entity, {"id": task})
                     else:
                         entities = self.repo.list(entity, {"name": task})
-                    self.printer.print_entity(entity_type, entities, self.repo,
-                                              show_completed)
+                    self.printer.print_entity(
+                        entity_type, entities, self.repo, print_options)
                     logger.info("<show> %s: %s", entity_type, task_id)
                 return entities, None, None
         elif command == "done":

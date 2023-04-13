@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Tuple
+from dataclasses import dataclass
 
 from collections import defaultdict
 from datetime import datetime, date, timedelta
@@ -9,6 +10,14 @@ from statistics import mean, median
 
 from src.service_layer import services
 from src.service_layer.ui import TerkaTask
+
+
+@dataclass
+class PrintOptions:
+    show_tasks: bool = True
+    show_history: bool = False
+    show_commentaries: bool = False
+    show_completed: bool = False
 
 
 class Printer:
@@ -47,43 +56,41 @@ class Printer:
             table.add_row(event.date.strftime("%Y-%m-%d %H:%M"), event.text)
         self.console.print(table)
 
-    def print_entity(self, entity_type, entities, repo, show_completed):
+    def print_entity(self,
+                     entity_type,
+                     entities,
+                     repo,
+                     print_options: PrintOptions = PrintOptions()):
         if entity_type == "sprints":
             if entities:
-                self.print_sprint(entities, repo, show_completed=show_completed)
+                self.print_sprint(entities, repo, print_options)
             else:
                 exit(f"No sprint with id '{task}' found!")
         if entity_type == "epics":
             if entities:
-                self.print_epic(entities, repo, show_completed=show_completed)
+                self.print_epic(entities, repo, print_options)
             else:
                 exit(f"No epic with id '{task}' found!")
         if entity_type == "stories":
             if entities:
-                self.print_story(entities, repo, show_completed=show_completed)
+                self.print_story(entities, repo, print_options)
             else:
                 exit(f"No story with id '{task}' found!")
         if entity_type == "projects":
             if entities:
-                self.print_project(entities,
-                                   show_completed_tasks=show_completed)
+                self.print_project(entities, print_options)
             else:
                 exit(f"No project '{task}' found!")
         if entity_type == "tasks":
             if entities:
-                self.print_task(entities, repo, show_completed=show_completed)
+                self.print_task(entities, repo, print_options)
             else:
                 print(f"No task with id '{task}' found!")
 
-    def print_entities(self,
-                       entities,
-                       type,
-                       repo,
-                       custom_sort,
-                       show_completed=False):
+    def print_entities(self, entities, type, repo, custom_sort, print_options):
         if type == "projects":
             entities.sort(key=self._sort_open_tasks, reverse=True)
-            self.print_project(entities, show_tasks=False)
+            self.print_project(entities, print_options)
         elif type == "tasks":
             if custom_sort:
                 entities.sort(key=lambda c: getattr(c, custom_sort),
@@ -95,18 +102,24 @@ class Printer:
                               reverse=True)
             self.print_task(entities=entities,
                             repo=repo,
-                            show_completed=show_completed,
+                            print_options=print_options,
                             custom_sort=custom_sort)
         elif type == "tags":
             self.print_tag(entities=entities)
         elif type == "users":
             self.print_user(entities=entities)
         elif type == "sprints":
-            self.print_sprint(entities=entities, repo=repo, show_completed=show_completed)
+            self.print_sprint(entities=entities,
+                              repo=repo,
+                              print_options=print_options)
         elif type == "epics":
-            self.print_epic(entities=entities, repo=repo, show_completed=show_completed)
+            self.print_epic(entities=entities,
+                            repo=repo,
+                            print_options=print_options)
         elif type == "stories":
-            self.print_story(entities=entities, repo=repo, show_completed=show_completed)
+            self.print_story(entities=entities,
+                             repo=repo,
+                             print_options=print_options)
         else:
             self.print_default_entity(self, entities)
 
@@ -141,7 +154,10 @@ class Printer:
                           entity.date.strftime("%Y-%m-%d %H:%M"), entity.text)
         self.console.print(table)
 
-    def print_epic(self, entities, repo, show_tasks=True, show_completed=False):
+    def print_epic(self,
+                   entities,
+                   repo,
+                   print_options):
         table = Table(box=self.box, title="EPICS", expand=True)
         for column in ("id", "name", "description", "project", "tasks"):
             table.add_column(column, style="bold")
@@ -159,16 +175,18 @@ class Printer:
             table.add_row(f"E{entity.id}", str(entity.name),
                           entity.description, project, str(len(tasks)))
         self.console.print(table)
-        if show_tasks:
+        if print_options.show_tasks:
             self.print_task(entities=tasks,
                             repo=repo,
-                            show_completed=show_completed,
-                            show_window=False,
-                            show_history_comments=False)
-        if i == 0 and (commentaries := entity.commentaries):
+                            print_options=print_options,
+                            show_window=False)
+        if i == 0 and print_options.show_commentaries and (commentaries := entity.commentaries):
             self.print_commentaries(commentaries)
 
-    def print_story(self, entities, repo, show_tasks=True, show_completed=False):
+    def print_story(self,
+                    entities,
+                    repo,
+                    print_options):
         table = Table(box=self.box, title="STORIES", expand=True)
         for column in ("id", "name", "description", "project", "tasks"):
             table.add_column(column, style="bold")
@@ -186,16 +204,15 @@ class Printer:
             table.add_row(f"S{entity.id}", str(entity.name),
                           entity.description, project, str(len(tasks)))
         self.console.print(table)
-        if show_tasks and tasks:
+        if print_options.show_tasks and tasks:
             self.print_task(entities=tasks,
                             repo=repo,
-                            show_completed=show_completed,
-                            show_window=False,
-                            show_history_comments=False)
-        if i == 0 and (commentaries := entity.commentaries):
+                            print_options=print_options,
+                            show_window=False)
+        if i == 0 and print_options.show_commentaries and (commentaries := entity.commentaries):
             self.print_commentaries(commentaries)
 
-    def print_sprint(self, entities, repo, show_tasks=True, show_completed=False):
+    def print_sprint(self, entities, repo, print_options):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
         for column in ("id", "start_date", "end_date", "goal", "status",
                        "open tasks", "tasks", "velocity", "collaborators",
@@ -236,23 +253,24 @@ class Printer:
             table.add_row(str(entity.id), str(entity.start_date),
                           str(entity.end_date), entity.goal,
                           entity.status.name, str(len(open_tasks)),
-                          str(len(tasks)), str(round(sum(story_points), 2)),
-                          collaborators_string, str(time_spent))
+                          str(len(tasks)), str(round(sum(story_points),
+                                                     2)), collaborators_string,
+                          str(time_spent))
         self.console.print(table)
-        if show_tasks:
+        if print_options.show_tasks:
             self.print_sprint_task(entities=tasks,
                                    repo=repo,
-                                   show_completed=show_completed,
+                                   show_completed=print_options.show_completed,
                                    story_points=story_points)
-        if i == 0 and (commentaries := entity.commentaries):
+        if i == 0 and print_options.show_commentaries and (commentaries := entity.commentaries):
             self.print_commentaries(commentaries)
 
-    def print_project(self,
-                      entities,
-                      zero_tasks: bool = False,
-                      zero_tasks_only: bool = False,
-                      show_tasks: bool = True,
-                      show_completed_tasks: bool = False):
+    def print_project(
+        self,
+        entities,
+        # zero_tasks: bool = False,
+        # zero_tasks_only: bool = False,
+        print_options):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD, expand=True)
         non_active_projects = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
         for column in ("id", "name", "description", "status", "open_tasks",
@@ -282,7 +300,7 @@ class Printer:
                 review = self._count_task_status(entity.tasks, "REVIEW")
                 done = self._count_task_status(entity.tasks, "DONE")
 
-                if zero_tasks or len(overdue_tasks) > 0:
+                if overdue_tasks:
                     entity_id = f"[red]{entity.id}[/red]"
                 else:
                     entity_id = f"[green]{entity.id}[/green]"
@@ -301,7 +319,7 @@ class Printer:
         if non_active_projects.row_count:
             self.console.print("[green]Inactive projects[/green]")
             self.console.print(non_active_projects)
-        if show_tasks:
+        if print_options.show_tasks:
             if epics := entity.epics:
                 self.console.print("")
                 self.print_epic(epics, self.repo, show_tasks=False)
@@ -311,12 +329,11 @@ class Printer:
             if tasks := entity.tasks:
                 self.print_task(entities=tasks,
                                 repo=self.repo,
-                                show_completed=show_completed_tasks,
-                                show_window=False,
-                                show_history_comments=False)
-        if commentaries := entity.commentaries:
+                                print_options=print_options,
+                                show_window=False)
+        if print_options.show_commentaries and (commentaries := entity.commentaries):
             self.print_commentaries(commentaries)
-        if history := entity.history:
+        if print_options.show_history and (history := entity.history):
             self.print_history(history)
 
     def print_sprint_task(self,
@@ -445,10 +462,9 @@ class Printer:
     def print_task(self,
                    entities,
                    repo,
-                   show_completed=False,
+                   print_options,
                    custom_sort=None,
-                   show_window=True,
-                   show_history_comments=True):
+                   show_window=True):
         table = Table(box=self.box, title="TASKS")
         default_columns = ("id", "name", "description", "status", "priority",
                            "project", "due_date", "tags", "collaborators",
@@ -520,7 +536,7 @@ class Printer:
                                 commentaries=comments)
                 app.run()
             self.console.print(table)
-        if show_completed and completed_tasks:
+        if print_options.show_completed and completed_tasks:
             table = Table(box=self.box)
             for column in default_columns:
                 table.add_column(column)
@@ -541,11 +557,11 @@ class Printer:
                             commentaries=comments)
             app.run()
             exit()
-        if show_history_comments:
-            if commentaries := entity.commentaries:
-                self.print_commentaries(commentaries)
-            if history := entity.history:
-                self.print_history(history)
+        if print_options.show_commentaries and (commentaries :=
+                                                entity.commentaries):
+            self.print_commentaries(commentaries)
+        if print_options.show_history and (history := entity.history):
+            self.print_history(history)
 
     def _get_attributes(self, obj) -> List[Tuple[str, str]]:
         import inspect
