@@ -798,7 +798,7 @@ class CommandHandler:
                     else:
                         entities = self.repo.list(entity, {"name": task})
                     self.printer.print_entity(
-                        entity_type, entities, self.repo, print_options)
+                        task, entity_type, entities, self.repo, print_options)
                     logger.info("<show> %s: %s", entity_type, task_id)
                 return entities, None, None
         elif command == "done":

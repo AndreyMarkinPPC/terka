@@ -57,6 +57,7 @@ class Printer:
         self.console.print(table)
 
     def print_entity(self,
+                     task,
                      entity_type,
                      entities,
                      repo,
@@ -154,10 +155,7 @@ class Printer:
                           entity.date.strftime("%Y-%m-%d %H:%M"), entity.text)
         self.console.print(table)
 
-    def print_epic(self,
-                   entities,
-                   repo,
-                   print_options):
+    def print_epic(self, entities, repo, print_options):
         table = Table(box=self.box, title="EPICS", expand=True)
         for column in ("id", "name", "description", "project", "tasks"):
             table.add_column(column, style="bold")
@@ -180,13 +178,11 @@ class Printer:
                             repo=repo,
                             print_options=print_options,
                             show_window=False)
-        if i == 0 and print_options.show_commentaries and (commentaries := entity.commentaries):
+        if i == 0 and print_options.show_commentaries and (
+                commentaries := entity.commentaries):
             self.print_commentaries(commentaries)
 
-    def print_story(self,
-                    entities,
-                    repo,
-                    print_options):
+    def print_story(self, entities, repo, print_options):
         table = Table(box=self.box, title="STORIES", expand=True)
         for column in ("id", "name", "description", "project", "tasks"):
             table.add_column(column, style="bold")
@@ -209,7 +205,8 @@ class Printer:
                             repo=repo,
                             print_options=print_options,
                             show_window=False)
-        if i == 0 and print_options.show_commentaries and (commentaries := entity.commentaries):
+        if i == 0 and print_options.show_commentaries and (
+                commentaries := entity.commentaries):
             self.print_commentaries(commentaries)
 
     def print_sprint(self, entities, repo, print_options):
@@ -262,7 +259,8 @@ class Printer:
                                    repo=repo,
                                    show_completed=print_options.show_completed,
                                    story_points=story_points)
-        if i == 0 and print_options.show_commentaries and (commentaries := entity.commentaries):
+        if i == 0 and print_options.show_commentaries and (
+                commentaries := entity.commentaries):
             self.print_commentaries(commentaries)
 
     def print_project(
@@ -322,16 +320,17 @@ class Printer:
         if print_options.show_tasks:
             if epics := entity.epics:
                 self.console.print("")
-                self.print_epic(epics, self.repo, show_tasks=False)
+                self.print_epic(epics, self.repo, print_options)
             if stories := entity.stories:
                 self.console.print("")
-                self.print_story(stories, self.repo, show_tasks=False)
+                self.print_story(stories, self.repo, print_options)
             if tasks := entity.tasks:
                 self.print_task(entities=tasks,
                                 repo=self.repo,
                                 print_options=print_options,
                                 show_window=False)
-        if print_options.show_commentaries and (commentaries := entity.commentaries):
+        if print_options.show_commentaries and (commentaries :=
+                                                entity.commentaries):
             self.print_commentaries(commentaries)
         if print_options.show_history and (history := entity.history):
             self.print_history(history)
@@ -517,17 +516,19 @@ class Printer:
                 completed_tasks.append(entity)
                 continue
             printable_entities += 1
-            entity_name = f"{entity.name}"
+            entity_name = f"{entity.name}" if not comments else f"{entity.name} [blue][{len(comments)}][/blue]"
             if entity.due_date and entity.due_date <= date.today():
-                table.add_row(f"[red]{entity.id}[/red]", entity_name,
-                              entity.description, entity.status.name, priority,
-                              project, str(entity.due_date), tag_string,
-                              collaborator_string, str(time_spent))
+                entity_id = f"[red]{entity.id}[/red]"
+            elif (event_history := entity.history) and entity.status.name in (
+                    "TODO", "IN_PROGRESS", "REVIEW"):
+                if max([event.date for event in event_history]) < (datetime.today() - timedelta(days=5)):
+                    entity_id = f"[yellow]{entity.id}[/yellow]"
             else:
-                table.add_row(str(entity.id), entity_name, entity.description,
-                              entity.status.name, priority, project,
-                              str(entity.due_date), tag_string,
-                              collaborator_string, str(time_spent))
+                entity_id = str(entity.id)
+            table.add_row(entity_id, entity_name, entity.description,
+                          entity.status.name, priority, project,
+                          str(entity.due_date), tag_string,
+                          collaborator_string, str(time_spent))
         if printable_entities:
             if printable_entities == 1 and show_window:
                 app = TerkaTask(entity=entity,
