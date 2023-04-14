@@ -318,12 +318,13 @@ class Printer:
             self.console.print("[green]Inactive projects[/green]")
             self.console.print(non_active_projects)
         if print_options.show_tasks:
+            not_tasks_print_options = PrintOptions(show_tasks=False)
             if epics := entity.epics:
                 self.console.print("")
-                self.print_epic(epics, self.repo, print_options)
+                self.print_epic(epics, self.repo, not_tasks_print_options)
             if stories := entity.stories:
                 self.console.print("")
-                self.print_story(stories, self.repo, print_options)
+                self.print_story(stories, self.repo, not_tasks_print_options)
             if tasks := entity.tasks:
                 self.print_task(entities=tasks,
                                 repo=self.repo,
@@ -386,18 +387,21 @@ class Printer:
                 completed_tasks_story_points.append(story_point)
                 continue
             printable_entities += 1
-            entity_name = f"{entity.name}"
+            entity_name = f"{entity.name}" if not comments else f"{entity.name} [blue][{len(comments)}][/blue]"
             if entity.due_date and entity.due_date <= date.today():
-                table.add_row(f"[red]{entity.id}[/red]", entity_name,
-                              entity.description, str(story_point),
-                              entity.status.name, priority, project,
-                              str(entity.due_date), tag_string,
-                              collaborator_string, str(time_spent))
+                entity_id = f"[red]{entity.id}[/red]"
+            elif (event_history := entity.history) and entity.status.name in (
+                    "TODO", "IN_PROGRESS", "REVIEW"):
+                if max([event.date for event in event_history]) < (datetime.today() - timedelta(days=5)):
+                    entity_id = f"[yellow]{entity.id}[/yellow]"
+                else:
+                    entity_id = str(entity.id)
             else:
-                table.add_row(str(entity.id), entity_name, entity.description,
-                              str(story_point), entity.status.name, priority,
-                              project, str(entity.due_date), tag_string,
-                              collaborator_string, str(time_spent))
+                entity_id = str(entity.id)
+            table.add_row(str(entity_id), entity_name, entity.description,
+                          str(story_point), entity.status.name, priority,
+                          project, str(entity.due_date), tag_string,
+                          collaborator_string, str(time_spent))
         if printable_entities:
             if printable_entities == 1:
                 app = TerkaTask(entity=entity,
@@ -523,6 +527,8 @@ class Printer:
                     "TODO", "IN_PROGRESS", "REVIEW"):
                 if max([event.date for event in event_history]) < (datetime.today() - timedelta(days=5)):
                     entity_id = f"[yellow]{entity.id}[/yellow]"
+                else:
+                    entity_id = str(entity.id)
             else:
                 entity_id = str(entity.id)
             table.add_row(entity_id, entity_name, entity.description,
