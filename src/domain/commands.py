@@ -790,17 +790,23 @@ class CommandHandler:
                 show_commentaries=bool(kwargs.get("show_commentaries")),
                 show_completed=bool(kwargs.get("show_completed"))
             )
-            if (task_id := kwargs.get("id")):
-                tasks = get_ids(task_id)
-                for task in tasks:
-                    if task.isdigit():
-                        entities = self.repo.list(entity, {"id": task})
+            if not (task_id := kwargs.get("id")):
+                if entity_type == "sprints":
+                    active_sprint = self.repo.list(Sprint, {"status": "ACTIVE"})
+                    if len(active_sprint) == 1:
+                        task_id = active_sprint[0].id
                     else:
-                        entities = self.repo.list(entity, {"name": task})
-                    self.printer.print_entity(
-                        task, entity_type, entities, self.repo, print_options)
-                    logger.info("<show> %s: %s", entity_type, task_id)
-                return entities, None, None
+                        exit("More than 1 active sprint, please specify the sprint_id")
+            tasks = get_ids(task_id)
+            for task in tasks:
+                if task.isdigit():
+                    entities = self.repo.list(entity, {"id": task})
+                else:
+                    entities = self.repo.list(entity, {"name": task})
+                self.printer.print_entity(
+                    task, entity_type, entities, self.repo, print_options)
+                logger.info("<show> %s: %s", entity_type, task_id)
+            return entities, None, None
         elif command == "done":
             if entity_type not in ("tasks", "sprints"):
                 raise ValueError("can complete only tasks and sprints")

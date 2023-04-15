@@ -402,14 +402,7 @@ class Printer:
                           str(story_point), entity.status.name, priority,
                           project, str(entity.due_date), tag_string,
                           collaborator_string, str(time_spent))
-        if printable_entities:
-            if printable_entities == 1:
-                app = TerkaTask(entity=entity,
-                                project=project,
-                                history=history,
-                                commentaries=comments)
-                app.run()
-            self.console.print(table)
+        self.console.print(table)
         if show_completed and completed_tasks:
             table = Table(box=self.box)
             for column in default_columns:
@@ -450,12 +443,6 @@ class Printer:
             for column in default_columns:
                 table.add_column(column)
             for entity in entities:
-                app = TerkaTask(entity=entity,
-                                project=project,
-                                is_completed=True,
-                                history=history,
-                                commentaries=comments)
-                app.run()
                 table.add_row(str(entity.id), entity.name, entity.description,
                               entity.status.name, priority, project,
                               str(entity.due_date), tag_string,
