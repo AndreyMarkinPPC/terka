@@ -207,8 +207,7 @@ class CommandHandler:
                 show_tasks=False,
                 show_history=bool(kwargs.get("show_history")),
                 show_commentaries=bool(kwargs.get("show_commentaries")),
-                show_completed=bool(kwargs.get("show_completed"))
-            )
+                show_completed=bool(kwargs.get("show_completed")))
             if entity_type == "tasks":
                 if "status" not in kwargs and "all" not in kwargs:
                     kwargs["status"] = "BACKLOG,TODO,IN_PROGRESS,REVIEW"
@@ -236,7 +235,7 @@ class CommandHandler:
                 custom_sort = None
             if entity_type == "projects" and "project_id" in kwargs:
                 kwargs["id"] = kwargs.pop("project_id")
-            if "collaborators" in kwargs:
+            if has_collaborators := "collaborators" in kwargs:
                 collaborator_name = kwargs["collaborators"]
                 collaborator = self.repo.list(User,
                                               {"name": collaborator_name})
@@ -244,8 +243,8 @@ class CommandHandler:
                     task_collaborators = self.repo.list(
                         TaskCollaborator, {"collaborator": collaborator[0].id})
                     if task_collaborators:
-                        kwargs["id"] = ",".join([
-                            str(task_collaborator.task)
+                        tasks_with_collaborators = set([
+                            task_collaborator.task
                             for task_collaborator in task_collaborators
                         ])
                         del kwargs["collaborators"]
@@ -258,14 +257,16 @@ class CommandHandler:
                     self.console.print(
                         f"[red]No user '{collaborator_name}' found![/red]")
                     exit()
-            if "tags" in kwargs:
+            else:
+                tasks_with_collaborators = None
+            if has_tags := "tags" in kwargs:
                 tag_text = kwargs["tags"]
                 tag = self.repo.list(BaseTag, {"text": tag_text})
                 if tag:
                     task_tags = self.repo.list(TaskTag, {"tag": tag[0].id})
                     if task_tags:
-                        kwargs["id"] = ",".join(
-                            [str(task_tag.task) for task_tag in task_tags])
+                        tasks_with_tag = set(
+                            [task_tag.task for task_tag in task_tags])
                         del kwargs["tags"]
                     else:
                         self.console.print(
@@ -276,17 +277,23 @@ class CommandHandler:
                     self.console.print(
                         f"[red]No tag '{tag_text}' found![/red]")
                     exit()
+            else:
+                tasks_with_tag = None
+            if tasks_with_tag and tasks_with_collaborators:
+                filtered_tasks = tasks_with_tag.intersection(
+                    tasks_with_collaborators)
+            elif tasks_with_tag:
+                filtered_tasks = tasks_with_tag
+            elif tasks_with_collaborators:
+                filtered_tasks = tasks_with_collaborators
+            else:
+                filtered_tasks = None
+            if filtered_tasks:
+                kwargs["id"] = ",".join(
+                    [str(task_id) for task_id in list(filtered_tasks)])
+            elif has_tags or has_collaborators:
+                exit("No tasks found")
             entities = self.repo.list(entity, kwargs)
-            # if entity_type == "sprints":
-            #     self.printer.print_sprint(entities=entities,
-            #                               repo=self.repo,
-            #                               show_tasks=False)
-            #     exit()
-            # if entity_type == "epics":
-            #     self.printer.print_epic(entities=entities,
-            #                             repo=self.repo,
-            #                             show_tasks=False)
-            #     exit()
             if custom_sort == "due_date":
                 entities_with_due_date = []
                 entities_without_due_date = []
@@ -788,23 +795,25 @@ class CommandHandler:
             print_options = printer.PrintOptions(
                 show_history=bool(kwargs.get("show_history")),
                 show_commentaries=bool(kwargs.get("show_commentaries")),
-                show_completed=bool(kwargs.get("show_completed"))
-            )
+                show_completed=bool(kwargs.get("show_completed")))
             if not (task_id := kwargs.get("id")):
                 if entity_type == "sprints":
-                    active_sprint = self.repo.list(Sprint, {"status": "ACTIVE"})
+                    active_sprint = self.repo.list(Sprint,
+                                                   {"status": "ACTIVE"})
                     if len(active_sprint) == 1:
                         task_id = active_sprint[0].id
                     else:
-                        exit("More than 1 active sprint, please specify the sprint_id")
+                        exit(
+                            "More than 1 active sprint, please specify the sprint_id"
+                        )
             tasks = get_ids(task_id)
             for task in tasks:
                 if task.isdigit():
                     entities = self.repo.list(entity, {"id": task})
                 else:
                     entities = self.repo.list(entity, {"name": task})
-                self.printer.print_entity(
-                    task, entity_type, entities, self.repo, print_options)
+                self.printer.print_entity(task, entity_type, entities,
+                                          self.repo, print_options)
                 logger.info("<show> %s: %s", entity_type, task_id)
             return entities, None, None
         elif command == "done":

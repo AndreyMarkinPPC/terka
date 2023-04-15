@@ -86,6 +86,8 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             task_dict = {"stale": 7}
         elif "all" in kwargs[0]:
             task_dict = {"all": "all"}
+        elif "show-completed" in kwargs[0]:
+            task_dict = {"show_completed": True}
         else:
             task_dict = {"id": kwargs[0]}
     else:
