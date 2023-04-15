@@ -34,7 +34,8 @@ class Printer:
             if value:
                 table.add_column(column)
         table.add_row(*list(zip(*attributes))[1])
-        self.console.print(table)
+        if table.row_count:
+            self.console.print(table)
 
     def print_history(self, entities):
         table = Table(box=self.box)
@@ -44,7 +45,8 @@ class Printer:
         for event in entities:
             table.add_row(event.date.strftime("%Y-%m-%d %H:%M"),
                           event.type.name, event.old_value, event.new_value)
-        self.console.print(table)
+        if table.row_count:
+            self.console.print(table)
 
     def print_commentaries(self, entities):
         table = Table(box=self.box)
@@ -54,7 +56,8 @@ class Printer:
         entities.sort(key=lambda c: c.date, reverse=False)
         for event in entities:
             table.add_row(event.date.strftime("%Y-%m-%d %H:%M"), event.text)
-        self.console.print(table)
+        if table.row_count:
+            self.console.print(table)
 
     def print_entity(self,
                      task,
@@ -133,7 +136,8 @@ class Printer:
             if entity.name not in seen_users:
                 table.add_row(f"[red]{entity.id}[/red]", entity.name)
                 seen_users.add(entity.name)
-        self.console.print(table)
+        if table.row_count:
+            self.console.print(table)
 
     def print_tag(self, entities):
         table = Table(box=self.box)
@@ -144,7 +148,8 @@ class Printer:
             if entity.text not in seen_tags:
                 table.add_row(f"[red]{entity.id}[/red]", entity.text)
                 seen_tags.add(entity.text)
-        self.console.print(table)
+        if table.row_count:
+            self.console.print(table)
 
     def print_default_entity(self, entities):
         table = Table(box=self.box)
@@ -153,7 +158,8 @@ class Printer:
         for entity in entities:
             table.add_row(f"[red]{entity.id}[/red]",
                           entity.date.strftime("%Y-%m-%d %H:%M"), entity.text)
-        self.console.print(table)
+        if table.row_count:
+            self.console.print(table)
 
     def print_epic(self, entities, repo, print_options):
         table = Table(box=self.box, title="EPICS", expand=True)
@@ -172,7 +178,8 @@ class Printer:
                 project = None
             table.add_row(f"E{entity.id}", str(entity.name),
                           entity.description, project, str(len(tasks)))
-        self.console.print(table)
+        if table.row_count:
+            self.console.print(table)
         if print_options.show_tasks:
             self.print_task(entities=tasks,
                             repo=repo,
@@ -199,7 +206,8 @@ class Printer:
                 project = None
             table.add_row(f"S{entity.id}", str(entity.name),
                           entity.description, project, str(len(tasks)))
-        self.console.print(table)
+        if table.row_count:
+            self.console.print(table)
         if print_options.show_tasks and tasks:
             self.print_task(entities=tasks,
                             repo=repo,
@@ -253,7 +261,8 @@ class Printer:
                           str(len(tasks)), str(round(sum(story_points),
                                                      2)), collaborators_string,
                           str(time_spent))
-        self.console.print(table)
+        if table.row_count:
+            self.console.print(table)
         if print_options.show_tasks:
             self.print_sprint_task(entities=tasks,
                                    repo=repo,
@@ -313,7 +322,8 @@ class Printer:
                                             entity.status.name,
                                             str(open_tasks))
 
-        self.console.print(table)
+        if table.row_count:
+            self.console.print(table)
         if non_active_projects.row_count:
             self.console.print("[green]Inactive projects[/green]")
             self.console.print(non_active_projects)
@@ -402,7 +412,8 @@ class Printer:
                           str(story_point), entity.status.name, priority,
                           project, str(entity.due_date), tag_string,
                           collaborator_string, str(time_spent))
-        self.console.print(table)
+        if table.row_count:
+            self.console.print(table)
         if show_completed and completed_tasks:
             table = Table(box=self.box)
             for column in default_columns:
@@ -437,7 +448,8 @@ class Printer:
                               str(story_point), entity.status.name, priority,
                               project, str(entity.due_date), tag_string,
                               collaborator_string, str(time_spent))
-            self.console.print(table)
+            if table.row_count:
+                self.console.print(table)
         if len(entities) == 1 and printable_entities == 0:
             table = Table(box=self.box)
             for column in default_columns:
@@ -447,7 +459,8 @@ class Printer:
                               entity.status.name, priority, project,
                               str(entity.due_date), tag_string,
                               collaborator_string, str(time_spent))
-            self.console.print(table)
+            if table.row_count:
+                self.console.print(table)
 
     def print_task(self,
                    entities,
@@ -529,7 +542,8 @@ class Printer:
                                 history=history,
                                 commentaries=comments)
                 app.run()
-            self.console.print(table)
+            if table.row_count:
+                self.console.print(table)
         if print_options.show_completed and completed_tasks:
             table = Table(box=self.box)
             for column in default_columns:
@@ -541,7 +555,8 @@ class Printer:
                               entity.status.name, priority, project,
                               str(entity.due_date), tag_string,
                               collaborator_string, str(time_spent))
-            self.console.print(table)
+            if table.row_count:
+                self.console.print(table)
         if len(entities) == 1 and printable_entities == 0:
             table = Table(box=self.box)
             app = TerkaTask(entity=entities[0],
