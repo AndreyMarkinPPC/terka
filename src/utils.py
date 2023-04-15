@@ -36,6 +36,7 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             new_dict.get("id") if entity == "commentaries" else None,
             "name":
             new_dict.get("n") or new_dict.get("name"),
+            "num_log_entries": new_dict.get("L") or new_dict.get("lines"),
             "status":
             new_dict.get("s") or new_dict.get("status"),
             "project":

@@ -372,7 +372,8 @@ class CommandHandler:
                 head = f.readlines()
             for column in ("date", "source", "level", "message"):
                 table.add_column(column)
-            tail = head[-10:]
+            num_log_entries = int(kwargs.get("num_log_entries", 10))
+            tail = head[-num_log_entries:]
             for row in tail[::-1]:
                 info, message = row.split("] ")
                 date, source, level = info.split("][")
