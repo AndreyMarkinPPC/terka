@@ -82,11 +82,7 @@ def main():
         if args.command == "init":
             command_handler.execute("init")
 
-        try:
-            with open(f"{home_dir}/.terka/config.yaml", encoding="utf-8") as f:
-                config = yaml.safe_load(f)
-        except FileNotFoundError:
-            raise TerkaInitError("call `terka init` to initialize terka")
+        config = load_config(home_dir)
 
         task_id = config.get("task_id")
         project_name = config.get("project_name")
@@ -103,7 +99,10 @@ def main():
         is_interactive = False
         if not command and not entity:
             is_interactive = True
-            console.print(f"[green]>>> Running terka in an interactive mode[/green]")
+            interactive_message = f"[green]>>> Running terka in an interactive mode[/green]"
+            if task_id:
+                interactive_message = f"{interactive_message} (focus task {task_id})"
+            console.print(interactive_message)
             command = input("enter command: ")
             command, entity, task_dict = process_command(command, config, repo)
         try:
@@ -112,12 +111,25 @@ def main():
             console.print(f"[red]{e}[/red]")
 
         while is_interactive:
-            console.print(f"[green]>>> Running terka in an interactive mode[/green]")
+            interactive_message = f"[green]>>> Running terka in an interactive mode[/green]"
+            config = load_config(home_dir)
+            task_id = config.get("task_id")
+            if task_id:
+                interactive_message = f"{interactive_message} (focus task {task_id})"
+            console.print(interactive_message)
             command = input("enter command: ")
             command, entity, task_dict = process_command(command, config, repo)
             if command[0] == "q":
                 exit()
             command_handler.execute(command, entity, task_dict)
+
+def load_config(home_dir):
+        try:
+            with open(f"{home_dir}/.terka/config.yaml", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+            return config
+        except FileNotFoundError:
+            raise TerkaInitError("call `terka init` to initialize terka")
 
 
 if __name__ == "__main__":

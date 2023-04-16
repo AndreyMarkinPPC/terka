@@ -33,7 +33,7 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             "id":
             new_dict.get("id") if entity != "commentaries" else None,
             "task_id":
-            new_dict.get("id") if entity == "commentaries" else None,
+            new_dict.get("id") or new_dict.get("task_id") if entity == "commentaries" else None,
             "name":
             new_dict.get("n") or new_dict.get("name"),
             "num_log_entries": new_dict.get("L") or new_dict.get("lines"),
@@ -145,6 +145,7 @@ def convert_date(date: str):
 def process_command(command: str, config: Dict[str, Any],
                     repo: AbsRepository) -> Tuple[str, str, Dict[Any, Any]]:
     task_dict = {}
+    task_list = []
     entity = None
     command, *rest = command.split(" ", maxsplit=2)
     if command[0] == "q":
@@ -157,9 +158,9 @@ def process_command(command: str, config: Dict[str, Any],
             task_list = [
                 re.sub("['|\"]", "", element) for element in task_list
             ]
-            task_dict = format_task_dict(config, entity, task_list)
-        else:
-            task_dict = {}
+        task_dict = format_task_dict(config, entity, task_list)
+    else:
+        task_dict = {}
     task_dict = update_task_dict(task_dict, repo)
     return command, entity, task_dict
 
