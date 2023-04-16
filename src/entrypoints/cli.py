@@ -102,6 +102,8 @@ def main():
             interactive_message = f"[green]>>> Running terka in an interactive mode[/green]"
             if task_id:
                 interactive_message = f"{interactive_message} (focus task {task_id})"
+            elif project_name:
+                interactive_message = f"{interactive_message} (focus project {project_name})"
             console.print(interactive_message)
             command = input("enter command: ")
             command, entity, task_dict = process_command(command, config, repo)
@@ -114,8 +116,11 @@ def main():
             interactive_message = f"[green]>>> Running terka in an interactive mode[/green]"
             config = load_config(home_dir)
             task_id = config.get("task_id")
+            project_name = config.get("project_name")
             if task_id:
                 interactive_message = f"{interactive_message} (focus task {task_id})"
+            elif project_name:
+                interactive_message = f"{interactive_message} (focus project {project_name})"
             console.print(interactive_message)
             command = input("enter command: ")
             command, entity, task_dict = process_command(command, config, repo)

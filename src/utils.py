@@ -40,7 +40,7 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             "status":
             new_dict.get("s") or new_dict.get("status"),
             "project":
-            new_dict.get("p") or new_dict.get("project"),
+            new_dict.get("p") or new_dict.get("project") or new_dict.get("project_name"),
             "assignee":
             new_dict.get("a") or new_dict.get("assignee"),
             "due_date":
@@ -168,7 +168,8 @@ def process_command(command: str, config: Dict[str, Any],
 def update_task_dict(task_dict: Dict[str, str],
                      repo: AbsRepository) -> Dict[str, str]:
     if (project := task_dict.get("project")):
-        task_dict["project"] = services.lookup_project_id(project, repo)
+        project_id = services.lookup_project_id(project, repo)
+        task_dict["project"] = project_id
     if (assignee := task_dict.get("assignee")):
         task_dict["assignee"] = services.lookup_user_id(assignee, repo)
     task_dict = convert_date_in_task_dict(task_dict)

@@ -793,6 +793,9 @@ class CommandHandler:
                     task_params.update({"due_date": sprint.end_date})
                 self.execute("update", "tasks", task_params)
         elif command == "show":
+            if len(kwargs) == 1 and "project" in kwargs:
+                kwargs["id"] = kwargs["project"]
+                del kwargs["project"]
             print_options = printer.PrintOptions(
                 show_history=bool(kwargs.get("show_history")),
                 show_commentaries=bool(kwargs.get("show_commentaries")),
