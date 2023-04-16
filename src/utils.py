@@ -74,6 +74,9 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             "minutes": new_dict.get("M"),
             "show_history": new_dict.get("show-history"),
             "show_commentaries": new_dict.get("show-commentaries") or new_dict.get("show-comments"),
+            "epics": new_dict.get("epics"),
+            "stories": new_dict.get("stories"),
+            "tasks": new_dict.get("tasks"),
         }
         if "--show-completed" in kwargs:
             task_dict.update({"show_completed": True})
@@ -110,6 +113,8 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
 
     if not task_dict.get("project") and config.get("project_name"):
         task_dict["project"] = config.get("project_name")
+    if any(key in task_dict.keys() for key in ("epics", "stories", "tasks")):
+        task_dict["partial_project_view"] = True
     return task_dict
 
 

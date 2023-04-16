@@ -18,6 +18,8 @@ class PrintOptions:
     show_history: bool = False
     show_commentaries: bool = False
     show_completed: bool = False
+    show_epics: bool = True
+    show_stories: bool = True
 
 
 class Printer:
@@ -275,8 +277,6 @@ class Printer:
     def print_project(
         self,
         entities,
-        # zero_tasks: bool = False,
-        # zero_tasks_only: bool = False,
         print_options):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD, expand=True)
         non_active_projects = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
@@ -327,19 +327,18 @@ class Printer:
         if non_active_projects.row_count:
             self.console.print("[green]Inactive projects[/green]")
             self.console.print(non_active_projects)
-        if print_options.show_tasks:
-            not_tasks_print_options = PrintOptions(show_tasks=False)
-            if epics := entity.epics:
-                self.console.print("")
-                self.print_epic(epics, self.repo, not_tasks_print_options)
-            if stories := entity.stories:
-                self.console.print("")
-                self.print_story(stories, self.repo, not_tasks_print_options)
-            if tasks := entity.tasks:
-                self.print_task(entities=tasks,
-                                repo=self.repo,
-                                print_options=print_options,
-                                show_window=False)
+        if print_options.show_epics and (epics := entity.epics):
+            self.console.print("")
+            self.print_epic(epics, self.repo, print_options)
+        if print_options.show_stories and (stories := entity.stories):
+            self.console.print("")
+            self.print_story(stories, self.repo, print_options)
+        if print_options.show_tasks and (tasks := entity.tasks):
+            self.console.print("")
+            self.print_task(entities=tasks,
+                            repo=self.repo,
+                            print_options=print_options,
+                            show_window=False)
         if print_options.show_commentaries and (commentaries :=
                                                 entity.commentaries):
             self.print_commentaries(commentaries)

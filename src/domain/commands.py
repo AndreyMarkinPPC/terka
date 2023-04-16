@@ -797,6 +797,10 @@ class CommandHandler:
                 show_history=bool(kwargs.get("show_history")),
                 show_commentaries=bool(kwargs.get("show_commentaries")),
                 show_completed=bool(kwargs.get("show_completed")))
+            if kwargs.get("partial_project_view"):
+                print_options.show_epics = bool(kwargs.get("epics"))
+                print_options.show_tasks = bool(kwargs.get("tasks"))
+                print_options.show_stories = bool(kwargs.get("stories"))
             if not (task_id := kwargs.get("id")):
                 if entity_type == "sprints":
                     active_sprint = self.repo.list(Sprint,
