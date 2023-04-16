@@ -1,5 +1,8 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass
+from operator import attrgetter
+import inspect
+from copy import deepcopy
 
 from collections import defaultdict
 from datetime import datetime, date, timedelta
@@ -66,10 +69,11 @@ class Printer:
                      entity_type,
                      entities,
                      repo,
-                     print_options: PrintOptions = PrintOptions()):
+                     print_options: PrintOptions = PrintOptions(),
+                     kwargs: Optional[Dict[str, Any]] = None):
         if entity_type == "sprints":
             if entities:
-                self.print_sprint(entities, repo, print_options)
+                self.print_sprint(entities, repo, print_options, kwargs)
             else:
                 exit(f"No sprint with id '{task}' found!")
         if entity_type == "epics":
@@ -84,7 +88,7 @@ class Printer:
                 exit(f"No story with id '{task}' found!")
         if entity_type == "projects":
             if entities:
-                self.print_project(entities, print_options)
+                self.print_project(entities, print_options, kwargs)
             else:
                 exit(f"No project '{task}' found!")
         if entity_type == "tasks":
@@ -219,7 +223,7 @@ class Printer:
                 commentaries := entity.commentaries):
             self.print_commentaries(commentaries)
 
-    def print_sprint(self, entities, repo, print_options):
+    def print_sprint(self, entities, repo, print_options, kwargs=None):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
         for column in ("id", "start_date", "end_date", "goal", "status",
                        "open tasks", "tasks", "velocity", "collaborators",
@@ -269,15 +273,13 @@ class Printer:
             self.print_sprint_task(entities=tasks,
                                    repo=repo,
                                    show_completed=print_options.show_completed,
-                                   story_points=story_points)
+                                   story_points=story_points,
+                                   kwargs=kwargs)
         if i == 0 and print_options.show_commentaries and (
                 commentaries := entity.commentaries):
             self.print_commentaries(commentaries)
 
-    def print_project(
-        self,
-        entities,
-        print_options):
+    def print_project(self, entities, print_options, kwargs=None):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD, expand=True)
         non_active_projects = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
         for column in ("id", "name", "description", "status", "open_tasks",
@@ -327,18 +329,21 @@ class Printer:
         if non_active_projects.row_count:
             self.console.print("[green]Inactive projects[/green]")
             self.console.print(non_active_projects)
+        non_task_view_options = deepcopy(print_options)
+        non_task_view_options.show_tasks = False
         if print_options.show_epics and (epics := entity.epics):
             self.console.print("")
-            self.print_epic(epics, self.repo, print_options)
+            self.print_epic(epics, self.repo, non_task_view_options)
         if print_options.show_stories and (stories := entity.stories):
             self.console.print("")
-            self.print_story(stories, self.repo, print_options)
+            self.print_story(stories, self.repo, non_task_view_options)
         if print_options.show_tasks and (tasks := entity.tasks):
             self.console.print("")
             self.print_task(entities=tasks,
                             repo=self.repo,
                             print_options=print_options,
-                            show_window=False)
+                            show_window=False,
+                            kwargs=kwargs)
         if print_options.show_commentaries and (commentaries :=
                                                 entity.commentaries):
             self.print_commentaries(commentaries)
@@ -351,7 +356,8 @@ class Printer:
                           show_completed=False,
                           history=None,
                           comments=None,
-                          story_points=None):
+                          story_points=None,
+                          kwargs=None):
         table = Table(box=self.box)
         default_columns = ("id", "name", "description", "story points",
                            "status", "priority", "project", "due_date", "tags",
@@ -359,6 +365,8 @@ class Printer:
         for column in default_columns:
             table.add_column(column)
         entities = list(entities)
+        if kwargs:
+            entities = self._get_filtered_entities(entities, kwargs)
         completed_tasks = []
         completed_tasks_story_points = []
         printable_entities = 0
@@ -401,7 +409,8 @@ class Printer:
                 entity_id = f"[red]{entity.id}[/red]"
             elif (event_history := entity.history) and entity.status.name in (
                     "TODO", "IN_PROGRESS", "REVIEW"):
-                if max([event.date for event in event_history]) < (datetime.today() - timedelta(days=5)):
+                if max([event.date for event in event_history
+                        ]) < (datetime.today() - timedelta(days=5)):
                     entity_id = f"[yellow]{entity.id}[/yellow]"
                 else:
                     entity_id = str(entity.id)
@@ -466,7 +475,8 @@ class Printer:
                    repo,
                    print_options,
                    custom_sort=None,
-                   show_window=True):
+                   show_window=True,
+                   kwargs=None):
         table = Table(box=self.box, title="TASKS")
         default_columns = ("id", "name", "description", "status", "priority",
                            "project", "due_date", "tags", "collaborators",
@@ -480,6 +490,8 @@ class Printer:
         for column in default_columns:
             table.add_column(column)
         entities = list(entities)
+        if kwargs:
+            entities = self._get_filtered_entities(entities, kwargs)
         completed_tasks = []
         if custom_sort:
             entities.sort(key=lambda c: getattr(c, custom_sort), reverse=False)
@@ -524,7 +536,8 @@ class Printer:
                 entity_id = f"[red]{entity.id}[/red]"
             elif (event_history := entity.history) and entity.status.name in (
                     "TODO", "IN_PROGRESS", "REVIEW"):
-                if max([event.date for event in event_history]) < (datetime.today() - timedelta(days=5)):
+                if max([event.date for event in event_history
+                        ]) < (datetime.today() - timedelta(days=5)):
                     entity_id = f"[yellow]{entity.id}[/yellow]"
                 else:
                     entity_id = str(entity.id)
@@ -621,3 +634,37 @@ class Printer:
         else:
             time_spent = ""
         return time_spent
+
+    def _get_filtered_entities(self, entities, kwargs):
+        if kwargs:
+            filtering_attributes = set(list(kwargs))
+            temp_entities = []
+            attributes = [
+                name for name, value in inspect.getmembers(entities[0])
+                if not name.startswith("_") and not inspect.ismethod(value)
+            ]
+            filtering_attributes = filtering_attributes.intersection(set(attributes))
+            attribute_getter = attrgetter(*filtering_attributes)
+            filtered_entities = []
+            for entity in entities:
+                should_add = False
+                for key, value in kwargs.items():
+                    if key in filtering_attributes:
+                        attribute_value = getattr(entity, key)
+                        if hasattr(attribute_value, "name"):
+                            if attribute_value.name != value:
+                                should_add = False
+                                break
+                            else:
+                                should_add = True
+                                continue
+                        elif attribute_value != value:
+                            should_add = False
+                            break
+                        else:
+                            should_add = True
+                            continue
+                if should_add:
+                    filtered_entities.append(entity)
+            entities = list(filtered_entities)
+        return entities

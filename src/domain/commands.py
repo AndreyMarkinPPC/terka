@@ -800,10 +800,10 @@ class CommandHandler:
                 show_history=bool(kwargs.get("show_history")),
                 show_commentaries=bool(kwargs.get("show_commentaries")),
                 show_completed=bool(kwargs.get("show_completed")))
-            if kwargs.get("partial_project_view"):
-                print_options.show_epics = bool(kwargs.get("epics"))
-                print_options.show_tasks = bool(kwargs.get("tasks"))
-                print_options.show_stories = bool(kwargs.get("stories"))
+            if kwargs.pop("partial_project_view", False):
+                print_options.show_epics = bool(kwargs.pop("epics", False))
+                print_options.show_tasks = bool(kwargs.pop("tasks", False))
+                print_options.show_stories = bool(kwargs.pop("stories", False))
             if not (task_id := kwargs.get("id")):
                 if entity_type == "sprints":
                     active_sprint = self.repo.list(Sprint,
@@ -815,13 +815,15 @@ class CommandHandler:
                             "More than 1 active sprint, please specify the sprint_id"
                         )
             tasks = get_ids(task_id)
+            if "id" in kwargs:
+                kwargs.pop("id")
             for task in tasks:
                 if task.isdigit():
                     entities = self.repo.list(entity, {"id": task})
                 else:
                     entities = self.repo.list(entity, {"name": task})
                 self.printer.print_entity(task, entity_type, entities,
-                                          self.repo, print_options)
+                                          self.repo, print_options, kwargs)
                 logger.info("<show> %s: %s", entity_type, task_id)
             return entities, None, None
         elif command == "done":
