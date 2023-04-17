@@ -6,12 +6,13 @@ from copy import deepcopy
 
 from collections import defaultdict
 from datetime import datetime, date, timedelta
+import plotext as plt
 import rich
 from rich.console import Console
 from rich.table import Table
 from statistics import mean, median
 
-from src.service_layer import services
+from src.service_layer import services, views
 from src.service_layer.ui import TerkaTask
 
 
@@ -269,6 +270,7 @@ class Printer:
                           str(time_spent))
         if table.row_count:
             self.console.print(table)
+
         if print_options.show_tasks:
             task_print_options = deepcopy(print_options)
             task_print_options.show_commentaries = False
@@ -276,10 +278,20 @@ class Printer:
                             repo=repo,
                             print_options=task_print_options,
                             story_points=story_points,
-                            kwargs=kwargs)
+                            kwargs=kwargs,
+                            show_window=False)
         if i == 0 and print_options.show_commentaries and (
                 commentaries := entities[0].commentaries):
             self.print_commentaries(commentaries)
+        time_entries = views.time_spent(repo.session, entity.start_date,
+                                        entity.end_date)
+        dates = [entry.get("date") for entry in time_entries]
+        times = [entry.get("time_spent_hours") for entry in time_entries]
+        plt.date_form('Y-m-d')
+        plt.plot_size(100, 15)
+        plt.title("Time tracker")
+        plt.bar(dates, times)
+        plt.show()
 
     def print_project(self, entities, print_options, kwargs=None):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD, expand=True)
@@ -398,16 +410,16 @@ class Printer:
             self.console.print(table)
         if print_options.show_completed and completed_tasks:
             table = Table(box=self.box)
-            table, *rest = self._print_task(table=table,
-                                            entities=completed_tasks,
-                                            default_columns=default_columns,
-                                            repo=repo,
-                                            story_points=completed_story_points,
-                                            show_window=show_window,
-                                            all_tasks=False)
+            table, *rest = self._print_task(
+                table=table,
+                entities=completed_tasks,
+                default_columns=default_columns,
+                repo=repo,
+                story_points=completed_story_points,
+                show_window=show_window,
+                all_tasks=False)
             if table.row_count:
-                self.console.print(
-                    f"[green]****COMPLETED TASKS*****[/green]")
+                self.console.print(f"[green]****COMPLETED TASKS*****[/green]")
                 self.console.print(table)
         # TODO: not working
         if print_options.show_commentaries and (commentaries :=
@@ -564,7 +576,9 @@ class Printer:
                     completed_story_points.append(story_point)
                 continue
             entity_name = f"{entity.name}" if not comments else f"{entity.name} [blue][{len(comments)}][/blue]"
-            if entity.due_date and entity.due_date <= date.today():
+            if not all_tasks:
+                entity_id = str(entity.id)
+            elif entity.due_date and entity.due_date <= date.today():
                 entity_id = f"[red]{entity.id}[/red]"
             elif (event_history := entity.history) and entity.status.name in (
                     "TODO", "IN_PROGRESS", "REVIEW"):
@@ -586,7 +600,7 @@ class Printer:
                               str(entity.due_date), tag_string,
                               collaborator_string, str(time_spent))
         if table.row_count == 1 and show_window:
-            app = TerkaTask(entity=entities[0],
+            app = TerkaTask(entity=entity,
                             project=project,
                             history=history,
                             commentaries=comments)
