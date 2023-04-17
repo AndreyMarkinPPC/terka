@@ -797,13 +797,15 @@ class CommandHandler:
                 kwargs["id"] = kwargs["project"]
                 del kwargs["project"]
             print_options = printer.PrintOptions(
-                show_history=bool(kwargs.get("show_history")),
-                show_commentaries=bool(kwargs.get("show_commentaries")),
-                show_completed=bool(kwargs.get("show_completed")))
+                show_history=bool(kwargs.pop("show_history", False)),
+                show_commentaries=bool(kwargs.pop("show_commentaries", False)),
+                show_completed=bool(kwargs.pop("show_completed", False)))
             if kwargs.pop("partial_project_view", False):
                 print_options.show_epics = bool(kwargs.pop("epics", False))
                 print_options.show_tasks = bool(kwargs.pop("tasks", False))
                 print_options.show_stories = bool(kwargs.pop("stories", False))
+            if entity_type == "tasks":
+                print_options.show_completed = True
             if not (task_id := kwargs.get("id")):
                 if entity_type == "sprints":
                     active_sprint = self.repo.list(Sprint,

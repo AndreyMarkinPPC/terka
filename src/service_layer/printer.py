@@ -270,13 +270,15 @@ class Printer:
         if table.row_count:
             self.console.print(table)
         if print_options.show_tasks:
-            self.print_sprint_task(entities=tasks,
-                                   repo=repo,
-                                   show_completed=print_options.show_completed,
-                                   story_points=story_points,
-                                   kwargs=kwargs)
+            task_print_options = deepcopy(print_options)
+            task_print_options.show_commentaries = False
+            self.print_task(entities=tasks,
+                            repo=repo,
+                            print_options=task_print_options,
+                            story_points=story_points,
+                            kwargs=kwargs)
         if i == 0 and print_options.show_commentaries and (
-                commentaries := entity.commentaries):
+                commentaries := entities[0].commentaries):
             self.print_commentaries(commentaries)
 
     def print_project(self, entities, print_options, kwargs=None):
@@ -338,10 +340,12 @@ class Printer:
             self.console.print("")
             self.print_story(stories, self.repo, non_task_view_options)
         if print_options.show_tasks and (tasks := entity.tasks):
+            task_print_options = deepcopy(print_options)
+            task_print_options.show_commentaries = False
             self.console.print("")
             self.print_task(entities=tasks,
                             repo=self.repo,
-                            print_options=print_options,
+                            print_options=task_print_options,
                             show_window=False,
                             kwargs=kwargs)
         if print_options.show_commentaries and (commentaries :=
@@ -350,234 +354,62 @@ class Printer:
         if print_options.show_history and (history := entity.history):
             self.print_history(history)
 
-    def print_sprint_task(self,
-                          entities,
-                          repo,
-                          show_completed=False,
-                          history=None,
-                          comments=None,
-                          story_points=None,
-                          kwargs=None):
-        table = Table(box=self.box)
-        default_columns = ("id", "name", "description", "story points",
-                           "status", "priority", "project", "due_date", "tags",
-                           "collaborators", "time_spent")
-        for column in default_columns:
-            table.add_column(column)
-        entities = list(entities)
-        if kwargs:
-            entities = self._get_filtered_entities(entities, kwargs)
-        completed_tasks = []
-        completed_tasks_story_points = []
-        printable_entities = 0
-        for entity, story_point in sorted(zip(entities, story_points),
-                                          key=lambda x: x[0].status.value,
-                                          reverse=True):
-            if tags := entity.tags:
-                tag_texts = sorted([tag.base_tag.text for tag in list(tags)])
-                tag_string = ",".join(tag_texts)
-            else:
-                tag_string = ""
-            if collaborators := entity.collaborators:
-                collaborators_texts = sorted([
-                    collaborator.users.name
-                    for collaborator in list(collaborators)
-                ])
-                collaborator_string = ",".join(collaborators_texts)
-            else:
-                collaborator_string = ""
-            if comments := entity.commentaries:
-                comments.sort(key=lambda c: c.date, reverse=False)
-            if history := entity.history:
-                history.sort(key=lambda c: c.date, reverse=False)
-            try:
-                project_obj = services.lookup_project_name(
-                    entity.project, repo)
-                project = project_obj.name
-            except:
-                project = None
-            priority = entity.priority.name if hasattr(entity.priority,
-                                                       "name") else "UNKNOWN"
-            time_spent = self._calculate_time_spent(entity)
-            if entity.status.name in ("DELETED", "DONE"):
-                completed_tasks.append(entity)
-                completed_tasks_story_points.append(story_point)
-                continue
-            printable_entities += 1
-            entity_name = f"{entity.name}" if not comments else f"{entity.name} [blue][{len(comments)}][/blue]"
-            if entity.due_date and entity.due_date <= date.today():
-                entity_id = f"[red]{entity.id}[/red]"
-            elif (event_history := entity.history) and entity.status.name in (
-                    "TODO", "IN_PROGRESS", "REVIEW"):
-                if max([event.date for event in event_history
-                        ]) < (datetime.today() - timedelta(days=5)):
-                    entity_id = f"[yellow]{entity.id}[/yellow]"
-                else:
-                    entity_id = str(entity.id)
-            else:
-                entity_id = str(entity.id)
-            table.add_row(str(entity_id), entity_name, entity.description,
-                          str(story_point), entity.status.name, priority,
-                          project, str(entity.due_date), tag_string,
-                          collaborator_string, str(time_spent))
-        if table.row_count:
-            self.console.print(table)
-        if show_completed and completed_tasks:
-            table = Table(box=self.box)
-            for column in default_columns:
-                table.add_column(column)
-            self.console.print(f"[green]****COMPLETED TASKS*****[/green]")
-            for entity, story_point in zip(completed_tasks,
-                                           completed_tasks_story_points):
-                try:
-                    project_obj = services.lookup_project_name(
-                        entity.project, repo)
-                    project = project_obj.name
-                except:
-                    project = None
-                priority = entity.priority.name if hasattr(
-                    entity.priority, "name") else "UNKNOWN"
-                time_spent = self._calculate_time_spent(entity)
-                if tags := entity.tags:
-                    tag_texts = sorted(
-                        [tag.base_tag.text for tag in list(tags)])
-                    tag_string = ",".join(tag_texts)
-                else:
-                    tag_string = ""
-                if collaborators := entity.collaborators:
-                    collaborators_texts = sorted([
-                        collaborator.users.name
-                        for collaborator in list(collaborators)
-                    ])
-                    collaborator_string = ",".join(collaborators_texts)
-                else:
-                    collaborator_string = ""
-                table.add_row(str(entity.id), entity.name, entity.description,
-                              str(story_point), entity.status.name, priority,
-                              project, str(entity.due_date), tag_string,
-                              collaborator_string, str(time_spent))
-            if table.row_count:
-                self.console.print(table)
-        if len(entities) == 1 and printable_entities == 0:
-            table = Table(box=self.box)
-            for column in default_columns:
-                table.add_column(column)
-            for entity in entities:
-                table.add_row(str(entity.id), entity.name, entity.description,
-                              entity.status.name, priority, project,
-                              str(entity.due_date), tag_string,
-                              collaborator_string, str(time_spent))
-            if table.row_count:
-                self.console.print(table)
-
     def print_task(self,
                    entities,
                    repo,
                    print_options,
                    custom_sort=None,
                    show_window=True,
+                   story_points=None,
                    kwargs=None):
         table = Table(box=self.box, title="TASKS")
-        default_columns = ("id", "name", "description", "status", "priority",
-                           "project", "due_date", "tags", "collaborators",
-                           "time_spent")
+        if story_points:
+            default_columns = ("id", "name", "description", "story points",
+                               "status", "priority", "project", "due_date",
+                               "tags", "collaborators", "time_spent")
+        else:
+            default_columns = ("id", "name", "description", "status",
+                               "priority", "project", "due_date", "tags",
+                               "collaborators", "time_spent")
         #TODO: Add printing for only a single task
         # if (entities[0].status.name == "DONE"):
         #     console.print(f"[green]task is completed on [/green]")
         # else:
         #     active_in_days = datetime.now() - entities[0].creation_date
         #     console.print(f"[blue]task is active {active_in_days.days} days[/blue]")
-        for column in default_columns:
-            table.add_column(column)
         entities = list(entities)
         if kwargs:
             entities = self._get_filtered_entities(entities, kwargs)
-        completed_tasks = []
-        if custom_sort:
-            entities.sort(key=lambda c: getattr(c, custom_sort), reverse=False)
-        else:
-            entities.sort(key=lambda c: (c.status.value, c.priority.value),
-                          reverse=True)
-        printable_entities = 0
-        for entity in entities:
-            if tags := entity.tags:
-                tag_texts = sorted([tag.base_tag.text for tag in list(tags)])
-                tag_string = ",".join(tag_texts)
+        if not story_points:
+            if custom_sort:
+                entities.sort(key=lambda c: getattr(c, custom_sort),
+                              reverse=False)
             else:
-                tag_string = ""
-            if collaborators := entity.collaborators:
-                collaborators_texts = sorted([
-                    collaborator.users.name
-                    for collaborator in list(collaborators)
-                    if collaborator.users
-                ])
-                collaborator_string = ",".join(collaborators_texts)
-            else:
-                collaborator_string = ""
-            if comments := entity.commentaries:
-                comments.sort(key=lambda c: c.date, reverse=False)
-            if history := entity.history:
-                history.sort(key=lambda c: c.date, reverse=False)
-            try:
-                project_obj = services.lookup_project_name(
-                    entity.project, repo)
-                project = project_obj.name
-            except:
-                project = None
-            priority = entity.priority.name if hasattr(entity.priority,
-                                                       "name") else "UNKNOWN"
-            time_spent = self._calculate_time_spent(entity)
-            if entity.status.name in ("DELETED", "DONE"):
-                completed_tasks.append(entity)
-                continue
-            printable_entities += 1
-            entity_name = f"{entity.name}" if not comments else f"{entity.name} [blue][{len(comments)}][/blue]"
-            if entity.due_date and entity.due_date <= date.today():
-                entity_id = f"[red]{entity.id}[/red]"
-            elif (event_history := entity.history) and entity.status.name in (
-                    "TODO", "IN_PROGRESS", "REVIEW"):
-                if max([event.date for event in event_history
-                        ]) < (datetime.today() - timedelta(days=5)):
-                    entity_id = f"[yellow]{entity.id}[/yellow]"
-                else:
-                    entity_id = str(entity.id)
-            else:
-                entity_id = str(entity.id)
-            table.add_row(entity_id, entity_name, entity.description,
-                          entity.status.name, priority, project,
-                          str(entity.due_date), tag_string,
-                          collaborator_string, str(time_spent))
-        if printable_entities:
-            if printable_entities == 1 and show_window:
-                app = TerkaTask(entity=entity,
-                                project=project,
-                                history=history,
-                                commentaries=comments)
-                app.run()
-            if table.row_count:
-                self.console.print(table)
+                entities.sort(key=lambda c: (c.status.value, c.priority.value),
+                              reverse=True)
+        table, completed_tasks, completed_story_points = self._print_task(
+            table=table,
+            entities=entities,
+            default_columns=default_columns,
+            repo=repo,
+            story_points=story_points,
+            show_window=show_window)
+        if table.row_count:
+            self.console.print(table)
         if print_options.show_completed and completed_tasks:
             table = Table(box=self.box)
-            for column in default_columns:
-                table.add_column(column)
-            self.console.print(f"[green]****COMPLETED TASKS*****[/green]")
-            for entity in completed_tasks:
-                time_spent = self._calculate_time_spent(entity)
-                table.add_row(str(entity.id), entity.name, entity.description,
-                              entity.status.name, priority, project,
-                              str(entity.due_date), tag_string,
-                              collaborator_string, str(time_spent))
+            table, *rest = self._print_task(table=table,
+                                            entities=completed_tasks,
+                                            default_columns=default_columns,
+                                            repo=repo,
+                                            story_points=completed_story_points,
+                                            show_window=show_window,
+                                            all_tasks=False)
             if table.row_count:
+                self.console.print(
+                    f"[green]****COMPLETED TASKS*****[/green]")
                 self.console.print(table)
-        if len(entities) == 1 and printable_entities == 0:
-            table = Table(box=self.box)
-            app = TerkaTask(entity=entities[0],
-                            project=project,
-                            is_completed=True,
-                            history=history,
-                            commentaries=comments)
-            app.run()
-            exit()
+        # TODO: not working
         if print_options.show_commentaries and (commentaries :=
                                                 entity.commentaries):
             self.print_commentaries(commentaries)
@@ -643,7 +475,8 @@ class Printer:
                 name for name, value in inspect.getmembers(entities[0])
                 if not name.startswith("_") and not inspect.ismethod(value)
             ]
-            filtering_attributes = filtering_attributes.intersection(set(attributes))
+            filtering_attributes = filtering_attributes.intersection(
+                set(attributes))
             attribute_getter = attrgetter(*filtering_attributes)
             filtered_entities = []
             for entity in entities:
@@ -668,3 +501,94 @@ class Printer:
                     filtered_entities.append(entity)
             entities = list(filtered_entities)
         return entities
+
+    def _print_task(self,
+                    table,
+                    entities,
+                    default_columns,
+                    repo,
+                    story_points=None,
+                    all_tasks=True,
+                    show_window=True):
+        if all_tasks:
+            completed_tasks = []
+        else:
+            completed_tasks = None
+            completed_story_points = None
+        if story_points:
+            completed_story_points = []
+            entities = [(entity, story_point) for entity, story_point in
+                        sorted(zip(entities, story_points),
+                               key=lambda x: x[0].status.value,
+                               reverse=True)]
+        else:
+            completed_story_points = None
+        for column in default_columns:
+            table.add_column(column)
+        for entity in entities:
+            if story_points:
+                story_point = entity[1]
+                entity = entity[0]
+            else:
+                story_point = None
+            if tags := entity.tags:
+                tag_texts = sorted([tag.base_tag.text for tag in list(tags)])
+                tag_string = ",".join(tag_texts)
+            else:
+                tag_string = ""
+            if collaborators := entity.collaborators:
+                collaborators_texts = sorted([
+                    collaborator.users.name
+                    for collaborator in list(collaborators)
+                    if collaborator.users
+                ])
+                collaborator_string = ",".join(collaborators_texts)
+            else:
+                collaborator_string = ""
+            if comments := entity.commentaries:
+                comments.sort(key=lambda c: c.date, reverse=False)
+            if history := entity.history:
+                history.sort(key=lambda c: c.date, reverse=False)
+            try:
+                project_obj = services.lookup_project_name(
+                    entity.project, repo)
+                project = project_obj.name
+            except:
+                project = None
+            priority = entity.priority.name if hasattr(entity.priority,
+                                                       "name") else "UNKNOWN"
+            time_spent = self._calculate_time_spent(entity)
+            if entity.status.name in ("DELETED", "DONE") and all_tasks:
+                completed_tasks.append(entity)
+                if story_points:
+                    completed_story_points.append(story_point)
+                continue
+            entity_name = f"{entity.name}" if not comments else f"{entity.name} [blue][{len(comments)}][/blue]"
+            if entity.due_date and entity.due_date <= date.today():
+                entity_id = f"[red]{entity.id}[/red]"
+            elif (event_history := entity.history) and entity.status.name in (
+                    "TODO", "IN_PROGRESS", "REVIEW"):
+                if max([event.date for event in event_history
+                        ]) < (datetime.today() - timedelta(days=5)):
+                    entity_id = f"[yellow]{entity.id}[/yellow]"
+                else:
+                    entity_id = str(entity.id)
+            else:
+                entity_id = str(entity.id)
+            if story_points:
+                table.add_row(entity_id, entity_name, entity.description,
+                              str(story_point), entity.status.name, priority,
+                              project, str(entity.due_date), tag_string,
+                              collaborator_string, str(time_spent))
+            else:
+                table.add_row(entity_id, entity_name, entity.description,
+                              entity.status.name, priority, project,
+                              str(entity.due_date), tag_string,
+                              collaborator_string, str(time_spent))
+        if table.row_count == 1 and show_window:
+            app = TerkaTask(entity=entities[0],
+                            project=project,
+                            history=history,
+                            commentaries=comments)
+            app.run()
+        return table, completed_tasks, completed_story_points
