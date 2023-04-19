@@ -297,8 +297,8 @@ class Printer:
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD, expand=True)
         non_active_projects = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
         for column in ("id", "name", "description", "status", "open_tasks",
-                       "overdue", "backlog", "todo", "in_progress", "review",
-                       "done", "median_task_age"):
+                       "overdue", "stale", "backlog", "todo", "in_progress",
+                       "review", "done", "median_task_age"):
             table.add_column(column)
         for column in ("id", "name", "description", "status", "open_tasks"):
             non_active_projects.add_column(column)
@@ -312,6 +312,17 @@ class Printer:
                     if task.due_date and task.due_date <= datetime.now().date(
                     ) and task.status.name not in ("DELETED", "DONE")
                 ]
+                stale_tasks = []
+                for task in entity.tasks:
+                    if (event_history :=
+                            task.history) and task.status.name in (
+                                "TODO", "IN_PROGRESS", "REVIEW"):
+                        for event in event_history:
+                            if max([
+                                    event.date for event in event_history
+                            ]) < (datetime.today() - timedelta(days=5)):
+                                stale_tasks.append(task)
+                stale_tasks = list(set(stale_tasks))
                 median_task_age = round(
                     median([(datetime.now() - task.creation_date).days
                             for task in entity.tasks
@@ -329,9 +340,9 @@ class Printer:
                     entity_id = f"[green]{entity.id}[/green]"
                 table.add_row(f"{entity_id}", entity.name, entity.description,
                               entity.status.name, str(open_tasks),
-                              str(len(overdue_tasks)), str(backlog), str(todo),
-                              str(in_progress), str(review), str(done),
-                              str(median_task_age))
+                              str(len(overdue_tasks)), str(len(stale_tasks)),
+                              str(backlog), str(todo), str(in_progress),
+                              str(review), str(done), str(median_task_age))
             else:
                 non_active_projects.add_row(str(entity.id), entity.name,
                                             entity.description,
