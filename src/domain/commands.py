@@ -37,21 +37,36 @@ logger = logging.getLogger(__name__)
 class CurrentEntry:
     value: str
     type: str
+    source: str = None
 
 
 def generate_message_template(current_entry: CurrentEntry, task: Task,
                               repo) -> str:
-    project = services.lookup_project_name(task.project, repo)
-    message_template = f"""
-    # You are editing {current_entry.type}, enter below:
-    {current_entry.value}
-    ---
-    Task context:
-    id: {task.id}
-    name: {task.name}
-    description: {task.description}
-    project: {project.name}
-    """
+    if isinstance(task, (Task, Story, Epic)):
+        project = services.lookup_project_name(task.project, repo)
+        project_name = project.name
+    elif isinstance(task, Project):
+        project_name = task.name
+    if current_entry.source == "sprints":
+        message_template = f"""
+        # You are editing {current_entry.type}, enter below:
+        {current_entry.value}
+        ---
+        {current_entry.source} context:
+        id: {task.id}
+        goal: {task.goal}
+        """
+    else:
+        message_template = f"""
+        # You are editing {current_entry.type}, enter below:
+        {current_entry.value}
+        ---
+        {current_entry.source} context:
+        id: {task.id}
+        name: {task.name}
+        description: {task.description}
+        project: {project_name}
+        """
     return re.sub("\n +", "\n", message_template.lstrip())
 
 
@@ -557,8 +572,20 @@ class CommandHandler:
                 raise ValueError("'delete' operation only allowed for tasks!")
             task_ids = get_ids(kwargs.get("id"))
             for task_id in task_ids:
-                if not self.repo.list(Task, {"id": task_id}):
+                if not (task := self.repo.get_by_id(Task, task_id)):
                     exit(f"Task id {task_id} is not found")
+                else:
+                    if all(key == "id" for key in kwargs.keys()):
+                        deletion_reason = input(
+                            f"Provide brief explanation why you're deleting task <{task_id}>: "
+                        )
+                        if deletion_reason:
+                            self.execute("comment", "tasks", {
+                                "id": task_id,
+                                "text": deletion_reason
+                            })
+                        kwargs.update({"status": "DELETED"})
+                        self.execute("update", entity_type, kwargs)
                 if epic_id := kwargs.get("epic_id"):
                     epic = self.repo.list(Epic, {"id": epic_id})
                     if not epic:
@@ -600,7 +627,7 @@ class CommandHandler:
                 raise ValueError("'add' operation only allowed for tasks!")
             task_ids = get_ids(kwargs.get("id"))
             for task_id in task_ids:
-                if not self.repo.list(Task, {"id": task_id}):
+                if not (added_task := self.repo.get_by_id(Task, task_id)):
                     exit(f"Task id {task_id} is not found")
 
                 if epic_id := kwargs.get("epic_id"):
@@ -626,10 +653,10 @@ class CommandHandler:
                         exit("task already added to story")
                     self.repo.add(obj)
                 if sprint_id := kwargs.get("sprint_id"):
-                    sprint = self.repo.list(Sprint, {"id": sprint_id})
+                    sprint = self.repo.get_by_id(Sprint, sprint_id)
                     if not sprint:
                         exit(f"Sprint id {sprint_id} is not found")
-                    if sprint[0].status.name == "COMPLETED":
+                    if sprint.status.name == "COMPLETED":
                         exit("Cannot add task to a finished sprint")
                     obj = SprintTask(task=task_id,
                                      sprint=sprint_id,
@@ -643,6 +670,13 @@ class CommandHandler:
                     sprint_task_id = obj.id
                 else:
                     sprint_task_id = None
+                # Update task status and due date
+                task_params = {"id": added_task.id}
+                if added_task.status.name == "BACKLOG":
+                    task_params.update({"status": "TODO"})
+                if not added_task.due_date or added_task.due_date > sprint.end_date:
+                    task_params.update({"due_date": sprint.end_date})
+                self.execute("update", "tasks", task_params)
                 if story_points := kwargs.get("story_points"):
                     if not sprint_task_id:
                         sprint_task = self.execute("get", "sprint_tasks",
@@ -728,36 +762,34 @@ class CommandHandler:
                 return entity, None
             else:
                 raise ValueError("No task_id is provided")
-        elif command == "delete":
-            kwargs.update({"status": "DELETED"})
-            self.execute("update", entity_type, kwargs)
-            logger.info("<delete> %s", entity_type)
-            return entity, None
         elif command == "edit":
             if (task_id := kwargs.get("id")):
                 tasks = get_ids(task_id)
                 for task in tasks:
                     if task.isdigit():
-                        entities = self.repo.list(entity, {"id": task})
+                        entities = self.repo.get_by_id(entity, task)
                         task_id = task
                     else:
-                        entities = self.repo.list(entity, {"name": task})
-                        task_id = entities[0].id
-                    if entity_type == "tasks":
-                        task = entities[0]
+                        entities = self.repo.get(entity, task)
+                        task_id = entities.id
+                    if entity_type in ("tasks", "projects", "sprints", "epics", "stories"):
+                        task = entities
                         if kwargs.get("description"):
                             current_entry = task.description
                             current_type = "description"
                         elif kwargs.get("name"):
                             current_entry = task.name
                             current_type = "name"
+                        elif kwargs.get("goal"):
+                            current_entry = task.goal
+                            current_type = "goal"
                         else:
                             raise ValueError(
                                 "Either name or description should be specified!"
                             )
 
                     message_template = generate_message_template(
-                        CurrentEntry(current_entry, current_type), task,
+                        CurrentEntry(current_entry, current_type, entity_type), task,
                         self.repo)
                     with tempfile.NamedTemporaryFile(suffix=".tmp") as tf:
                         tf.write(message_template.encode("utf-8"))
