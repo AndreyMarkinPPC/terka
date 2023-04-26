@@ -231,6 +231,13 @@ class CommandHandler:
                     if "all" in kwargs:
                         del kwargs["all"]
                     show_completed = True
+            if entity_type in ("stories", "epics"):
+                if "all" in kwargs:
+                    kwargs["status"] = "ACTIVE,COMPLETED"
+                    del kwargs["all"]
+                    print_options.show_completed = True
+                else:
+                    kwargs["status"] = "ACTIVE"
             if entity_type == "sprints":
                 if "all" in kwargs:
                     kwargs["status"] = "PLANNED,ACTIVE,COMPLETED"
@@ -695,12 +702,13 @@ class CommandHandler:
                 else:
                     sprint_task_id = None
                 # Update task status and due date
-                task_params = {"id": added_task.id}
-                if added_task.status.name == "BACKLOG":
-                    task_params.update({"status": "TODO"})
-                if not added_task.due_date or added_task.due_date > sprint.end_date:
-                    task_params.update({"due_date": sprint.end_date})
-                self.execute("update", "tasks", task_params)
+                if sprint_task_id:
+                    task_params = {"id": added_task.id}
+                    if added_task.status.name == "BACKLOG":
+                        task_params.update({"status": "TODO"})
+                    if not added_task.due_date or added_task.due_date > sprint.end_date:
+                        task_params.update({"due_date": sprint.end_date})
+                    self.execute("update", "tasks", task_params)
                 if story_points := kwargs.get("story_points"):
                     if not sprint_task_id:
                         sprint_task = self.execute("get", "sprint_tasks",
@@ -778,7 +786,8 @@ class CommandHandler:
                                     self.repo.add(
                                         event(task, key, old_value, value,
                                               now))
-                            self.repo.update(entity, task, {"modification_date": now})
+                            if hasattr(entity, "modification_date"):
+                                self.repo.update(entity, task, {"modification_date": now})
                         else:
                             print(
                                 "No changes were proposed to the existing entity"
@@ -841,7 +850,7 @@ class CommandHandler:
             kwargs.update({"status": "ACTIVE"})
             self.execute("update", "sprints", kwargs)
             [sprint] = self.execute("get", "sprints", {"id": sprint_id})
-            for sprint_task in sprint.sprint_tasks:
+            for sprint_task in sprint.tasks:
                 task = sprint_task.tasks
                 task_params = {"id": task.id}
                 if task.status.name == "BACKLOG":
@@ -886,18 +895,24 @@ class CommandHandler:
                 logger.info("<show> %s: %s", entity_type, task_id)
             return entities, None, None
         elif command == "done":
-            if entity_type not in ("tasks", "sprints"):
+            if entity_type not in ("tasks", "sprints", "stories", "epics"):
                 raise ValueError("can complete only tasks and sprints")
             elif entity_type == "tasks":
                 kwargs.update({"status": "DONE"})
                 self.execute("update", entity_type, kwargs)
                 self.console.print(
                     "[green]Yay! You've just completed a task![/green]")
-            elif entity_type == "sprints":
+            elif entity_type in ("sprints", "epics", "stories"):
                 kwargs.update({"status": "COMPLETED"})
-                [sprint] = self.execute("get", "sprints",
+                [entity] = self.execute("get", entity_type,
                                         {"id": kwargs.get("id")})
-                sprint.complete(sprint.sprint_tasks)
+
+                if entity_type == "sprints":
+                    entity.complete(entity.tasks)
+                else:
+                    entity.complete(entity.tasks)
+                    for entity_task in entity.tasks:
+                        self.execute("update", "tasks", {"id": entity_task.task, "status": "DONE"})
                 self.execute("update", entity_type, kwargs)
         elif command == "track":
             if entity_type != "tasks":

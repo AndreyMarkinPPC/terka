@@ -24,8 +24,8 @@ from terka.domain.tag import BaseTag, TaskTag, ProjectTag
 from terka.domain.collaborators import TaskCollaborator, ProjectCollaborator
 from terka.domain.sprint import Sprint, SprintStatus, SprintTask
 from terka.domain.time_tracker import TimeTrackerEntry
-from terka.domain.epic import Epic, EpicTask
-from terka.domain.story import Story, StoryTask
+from terka.domain.epic import Epic, EpicTask, EpicStatus
+from terka.domain.story import Story, StoryTask, StoryStatus
 
 from terka.domain.external_connectors.asana import AsanaTask, AsanaProject
 
@@ -193,6 +193,7 @@ epics = Table("epics", metadata,
               Column("description", String(1000), nullable=True),
               Column("project", ForeignKey("projects.id"), nullable=True),
               Column("assignee", ForeignKey("users.id"), nullable=True),
+              Column("status", Enum(EpicStatus)),
               Column("created_by", ForeignKey("users.id"), nullable=True))
 
 epic_tasks = Table("epic_tasks", metadata,
@@ -207,6 +208,7 @@ stories = Table("stories", metadata,
                 Column("description", String(1000), nullable=True),
                 Column("project", ForeignKey("projects.id"), nullable=True),
                 Column("assignee", ForeignKey("users.id"), nullable=True),
+                Column("status", Enum(StoryStatus)),
                 Column("created_by", ForeignKey("users.id"), nullable=True))
 
 story_tasks = Table(
@@ -226,13 +228,15 @@ asana_tasks = Table(
     # Column("id", Integer, primary_key=True, autoincrement=True),
     Column("project", ForeignKey("projects.id")),
     Column("id", ForeignKey("tasks.id"), nullable=False, primary_key=True),
-    Column("asana_task_id", String(20)))
+    Column("asana_task_id", String(20)),
+    Column("sync_date", DateTime, nullable=True))
 
 asana_projects = Table(
     "external_connectors.asana.projects", metadata,
     # Column("id", Integer, primary_key=True, autoincrement=True),
     Column("id", ForeignKey("projects.id"), nullable=False, primary_key=True),
-    Column("asana_project_id", String(20)))
+    Column("asana_project_id", String(20)),
+    Column("sync_date", DateTime, nullable=True))
 
 def start_mappers():
     asana_task_mapper = mapper(AsanaTask, asana_tasks)
@@ -304,7 +308,7 @@ def start_mappers():
                              relationship(epic_commentary_mapper,
                                           collection_class=list,
                                           cascade="all, delete-orphan"),
-                             "epic_tasks":
+                             "tasks":
                              relationship(epic_tasks_mapper,
                                           collection_class=list)
                          })
@@ -319,7 +323,7 @@ def start_mappers():
                              relationship(story_commentary_mapper,
                                           collection_class=list,
                                           cascade="all, delete-orphan"),
-                              "story_tasks":
+                              "tasks":
                               relationship(story_tasks_mapper,
                                            collection_class=list)
                           })
@@ -362,7 +366,7 @@ def start_mappers():
                                relationship(sprint_commentary_mapper,
                                             collection_class=list,
                                         cascade="all, delete-orphan"),
-                               "sprint_tasks":
+                               "tasks":
                                relationship(sprint_tasks_mapper,
                                             collection_class=list)
                            })

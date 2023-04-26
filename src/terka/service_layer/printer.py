@@ -77,16 +77,11 @@ class Printer:
                 self.print_sprint(entities, repo, print_options, kwargs)
             else:
                 exit(f"No sprint with id '{task}' found!")
-        if entity_type == "epics":
+        if entity_type in ("epics", "stories"):
             if entities:
-                self.print_epic(entities, repo, print_options)
+                self.print_composite(entities, repo, print_options, entity_type)
             else:
-                exit(f"No epic with id '{task}' found!")
-        if entity_type == "stories":
-            if entities:
-                self.print_story(entities, repo, print_options)
-            else:
-                exit(f"No story with id '{task}' found!")
+                exit(f"No {entity_type} with id '{task}' found!")
         if entity_type == "projects":
             if entities:
                 self.print_project(entities, print_options, kwargs)
@@ -123,14 +118,11 @@ class Printer:
             self.print_sprint(entities=entities,
                               repo=repo,
                               print_options=print_options)
-        elif type == "epics":
-            self.print_epic(entities=entities,
+        elif type in ("epics", "stories"):
+            self.print_composite(entities=entities,
                             repo=repo,
-                            print_options=print_options)
-        elif type == "stories":
-            self.print_story(entities=entities,
-                             repo=repo,
-                             print_options=print_options)
+                            print_options=print_options,
+                            composite_type=type)
         else:
             self.print_default_entity(self, entities)
 
@@ -168,55 +160,37 @@ class Printer:
         if table.row_count:
             self.console.print(table)
 
-    def print_epic(self, entities, repo, print_options):
-        table = Table(box=self.box, title="EPICS", expand=True)
+    def print_composite(self, entities, repo, print_options, composite_type):
+        table = Table(box=self.box, title=composite_type.upper(), expand=True)
         for column in ("id", "name", "description", "project", "tasks"):
             table.add_column(column, style="bold")
         for i, entity in enumerate(entities):
             tasks = []
-            for epic_task in entity.epic_tasks:
-                task = epic_task.tasks
-                tasks.append(task)
+            completed_tasks = []
+            for entity_task in entity.tasks:
+                task = entity_task.tasks
+                if task.status.name not in ("DONE", "DELETED"):
+                    tasks.append(task)
+                else:
+                    completed_tasks.append(task)
             try:
                 project_obj = services.lookup_project_name(
                     entity.project, repo)
                 project = project_obj.name
             except:
                 project = None
-            table.add_row(f"E{entity.id}", str(entity.name),
-                          entity.description, project, str(len(tasks)))
-        if table.row_count:
-            self.console.print(table)
-        if print_options.show_tasks:
-            self.print_task(entities=tasks,
-                            repo=repo,
-                            print_options=print_options,
-                            show_window=False)
-        if i == 0 and print_options.show_commentaries and (
-                commentaries := entity.commentaries):
-            self.print_commentaries(commentaries)
-
-    def print_story(self, entities, repo, print_options):
-        table = Table(box=self.box, title="STORIES", expand=True)
-        for column in ("id", "name", "description", "project", "tasks"):
-            table.add_column(column, style="bold")
-        for i, entity in enumerate(entities):
-            tasks = []
-            for story_task in entity.story_tasks:
-                task = story_task.tasks
-                tasks.append(task)
-            try:
-                project_obj = services.lookup_project_name(
-                    entity.project, repo)
-                project = project_obj.name
-            except:
-                project = None
-            table.add_row(f"S{entity.id}", str(entity.name),
-                          entity.description, project, str(len(tasks)))
+            if i == 0 or tasks or print_options.show_completed:
+                table.add_row(f"E{entity.id}", str(entity.name),
+                              entity.description, project, str(len(tasks)))
         if table.row_count:
             self.console.print(table)
         if print_options.show_tasks and tasks:
             self.print_task(entities=tasks,
+                            repo=repo,
+                            print_options=print_options,
+                            show_window=False)
+        if print_options.show_tasks and completed_tasks:
+            self.print_task(entities=completed_tasks,
                             repo=repo,
                             print_options=print_options,
                             show_window=False)
@@ -235,7 +209,7 @@ class Printer:
             tasks = []
             collaborators = []
             collaborators_dict = defaultdict(int)
-            for sprint_task in entity.sprint_tasks:
+            for sprint_task in entity.tasks:
                 story_points.append(sprint_task.story_points)
                 task = sprint_task.tasks
                 tasks.append(task)
@@ -358,10 +332,10 @@ class Printer:
         non_task_view_options.show_tasks = False
         if print_options.show_epics and (epics := entity.epics):
             self.console.print("")
-            self.print_epic(epics, self.repo, non_task_view_options)
+            self.print_composite(epics, self.repo, non_task_view_options, "epics")
         if print_options.show_stories and (stories := entity.stories):
             self.console.print("")
-            self.print_story(stories, self.repo, non_task_view_options)
+            self.print_composite(stories, self.repo, non_task_view_options, "stories")
         if print_options.show_tasks and (tasks := entity.tasks):
             task_print_options = deepcopy(print_options)
             task_print_options.show_commentaries = False

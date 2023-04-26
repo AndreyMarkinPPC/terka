@@ -1,8 +1,14 @@
 from dataclasses import dataclass
 from datetime import datetime
+import logging
+from enum import Enum
 
 from terka.domain.task import Task
 
+
+class EpicStatus(Enum):
+    ACTIVE = 1
+    COMPLETED = 2
 
 class Epic:
 
@@ -12,6 +18,7 @@ class Epic:
                  creation_date: datetime = datetime.now(),
                  project: int = None,
                  assignee: int = None,
+                 status: str = "ACTIVE",
                  created_by: int = None,
                  **kwargs) -> None:
         if not name:
@@ -25,7 +32,19 @@ class Epic:
         self.project = project
         self.assignee = assignee
         self.created_by = created_by
+        self.status = status
         self.tasks: Set[Task, ...] = set()
+        self.is_completed = False
+
+    def complete(self, tasks) -> None:
+        incompleted_tasks = list()
+        for task in tasks:
+            if task.tasks.status.name != "DONE":
+                incompleted_tasks.append(task)
+        if incompleted_tasks:
+            logging.warning("[Epic %d]: %d tasks haven't been completed",
+                            self.id, len(incompleted_tasks))
+        self.is_completed = True
 
 
 @dataclass

@@ -2,13 +2,13 @@ import pathlib
 from setuptools import setup, find_packages
 
 HERE = pathlib.Path(__file__).parent
-README = (HERE / "README.md").read_text()
+# README = (HERE.parent / "README.md").read_text()
 
 setup(
     name="terka",
-    version="1.6.4.1",
+    version="1.6.5",
     description="CLI utility for creating and managing tasks in a terminal",
-    long_description=README,
+    # long_description=README,
     long_description_content_type="text/markdown",
     author="Andrei Markin",
     author_email="andrey.markin.ppc@gmail.com",
@@ -24,7 +24,7 @@ setup(
     tests_requires=["pytest"],
     entry_points={
         "console_scripts": [
-            "terka=src.entrypoints.cli:main"
+            "terka=terka.entrypoints.cli:main"
         ]
     }
 )
