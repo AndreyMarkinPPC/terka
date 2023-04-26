@@ -13,22 +13,23 @@ import rich
 from rich.console import Console
 from rich.table import Table
 
-from src.domain.task import Task
-from src.domain.project import Project
-from src.domain.user import User
-from src.domain.commentary import TaskCommentary, ProjectCommentary, EpicCommentary, StoryCommentary, SprintCommentary
-from src.domain.tag import BaseTag, TaskTag, ProjectTag
-from src.domain.collaborators import TaskCollaborator, ProjectCollaborator
-from src.domain.event_history import TaskEvent, ProjectEvent
-from src.domain.sprint import Sprint, SprintTask
-from src.domain.time_tracker import TimeTrackerEntry
-from src.domain.epic import Epic, EpicTask
-from src.domain.story import Story, StoryTask
+from terka.domain.task import Task
+from terka.domain.project import Project
+from terka.domain.user import User
+from terka.domain.commentary import TaskCommentary, ProjectCommentary, EpicCommentary, StoryCommentary, SprintCommentary
+from terka.domain.tag import BaseTag, TaskTag, ProjectTag
+from terka.domain.collaborators import TaskCollaborator, ProjectCollaborator
+from terka.domain.event_history import TaskEvent, ProjectEvent
+from terka.domain.sprint import Sprint, SprintTask
+from terka.domain.time_tracker import TimeTrackerEntry
+from terka.domain.epic import Epic, EpicTask
+from terka.domain.story import Story, StoryTask
+from terka.domain.external_connectors.asana import AsanaTask, AsanaProject
 
-from src.service_layer import services, printer
-from src.service_layer.ui import TerkaTask
-from src.adapters.repository import AbsRepository
-from src.utils import format_command, format_task_dict
+from terka.service_layer import services, printer
+from terka.service_layer.ui import TerkaTask
+from terka.adapters.repository import AbsRepository
+from terka.utils import format_command, format_task_dict
 
 logger = logging.getLogger(__name__)
 
@@ -533,6 +534,7 @@ class CommandHandler:
                         f"Task with id {kwargs['id']} is not found!")
                 obj = TaskCommentary(**kwargs)
                 self.repo.add(obj)
+                self.repo.update(Task, kwargs["id"], {"modification_date": datetime.now()})
                 session.commit()
             elif entity_type == "projects":
                 existing_project = self.repo.list(Project,
@@ -622,6 +624,28 @@ class CommandHandler:
                         exit("task is not in sprint")
                     self.repo.delete(SprintTask, sprint_task[0].id)
             session.commit()
+        elif command == "connect":
+            if entity not in (Task, Project):
+                raise ValueError("'connect' operation only allowed for tasks and project!")
+            task_ids = get_ids(kwargs.get("id"))
+            for task_id in task_ids:
+                if entity_type == "projects":
+                    asana_project_id = kwargs.get("external_project")
+                    asana_project = self.repo.get_by_id(AsanaProject, task_id)
+                    if not asana_project:
+                        obj = AsanaProject(id=task_id, asana_project_id=asana_project_id)
+                        self.repo.add(obj)
+                    else:
+                        self.repo.update(AsanaProject, task_id, {"asana_project_id": asana_project_id})
+                elif entity_type == "tasks":
+                    asana_task_id = kwargs.get("external_task")
+                    asana_task = self.repo.get_by_id(AsanaProject, task_id)
+                    if not asana_task:
+                        obj = AsanaTask(project=task.project, id=task_id, asana_task_id=kwargs.get("external_task"))
+                        self.repo.add(obj)
+                    else:
+                        self.repo.update(AsanaTask, task_id, {"asana_task_id": asana_task_id})
+            self.repo.session.commit()
         elif command == "add":
             if entity not in (Task, ):
                 raise ValueError("'add' operation only allowed for tasks!")
@@ -754,6 +778,7 @@ class CommandHandler:
                                     self.repo.add(
                                         event(task, key, old_value, value,
                                               now))
+                            self.repo.update(entity, task, {"modification_date": now})
                         else:
                             print(
                                 "No changes were proposed to the existing entity"

@@ -2,9 +2,9 @@ from typing import Any, Dict, Optional
 import os
 import yaml
 
-from src.adapters.repository import AbsRepository
-from src.domain.project import Project
-from src.domain.user import User
+from terka.adapters.repository import AbsRepository
+from terka.domain.project import Project
+from terka.domain.user import User
 
 
 def update_config(update_pair: Dict[str, Any]):

@@ -15,12 +15,12 @@ from rich.table import Table
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, clear_mappers
 
-from src.adapters.orm import metadata, start_mappers
-from src.adapters.repository import SqlAlchemyRepository
+from terka.adapters.orm import metadata, start_mappers
+from terka.adapters.repository import SqlAlchemyRepository
 
-from src.domain.commands import CommandHandler
-from src.utils import format_task_dict, process_command, update_task_dict, create_task_dict
-from src.service_layer import services
+from terka.domain.commands import CommandHandler
+from terka.utils import format_task_dict, process_command, update_task_dict, create_task_dict
+from terka.service_layer import services
 
 
 def init_db(home_dir):

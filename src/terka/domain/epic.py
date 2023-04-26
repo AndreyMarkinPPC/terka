@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from src.domain.task import Task
+from terka.domain.task import Task
 
 
-class Story:
+class Epic:
 
     def __init__(self,
                  name: str,
@@ -29,9 +29,6 @@ class Story:
 
 
 @dataclass
-class StoryTask:
-    story: int
+class EpicTask:
+    epic: int
     task: int
-
-
-

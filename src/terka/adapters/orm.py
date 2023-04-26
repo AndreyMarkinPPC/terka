@@ -15,17 +15,19 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import mapper, registry, relationship, validates, declarative_base
 
-from src.domain.task import Task, TaskStatus, TaskPriority
-from src.domain.user import User
-from src.domain.project import Project, ProjectStatus
-from src.domain.event_history import TaskEvent, ProjectEvent, EventType
-from src.domain.commentary import TaskCommentary, ProjectCommentary, EpicCommentary, StoryCommentary, SprintCommentary
-from src.domain.tag import BaseTag, TaskTag, ProjectTag
-from src.domain.collaborators import TaskCollaborator, ProjectCollaborator
-from src.domain.sprint import Sprint, SprintStatus, SprintTask
-from src.domain.time_tracker import TimeTrackerEntry
-from src.domain.epic import Epic, EpicTask
-from src.domain.story import Story, StoryTask
+from terka.domain.task import Task, TaskStatus, TaskPriority
+from terka.domain.user import User
+from terka.domain.project import Project, ProjectStatus
+from terka.domain.event_history import TaskEvent, ProjectEvent, EventType
+from terka.domain.commentary import TaskCommentary, ProjectCommentary, EpicCommentary, StoryCommentary, SprintCommentary
+from terka.domain.tag import BaseTag, TaskTag, ProjectTag
+from terka.domain.collaborators import TaskCollaborator, ProjectCollaborator
+from terka.domain.sprint import Sprint, SprintStatus, SprintTask
+from terka.domain.time_tracker import TimeTrackerEntry
+from terka.domain.epic import Epic, EpicTask
+from terka.domain.story import Story, StoryTask
+
+from terka.domain.external_connectors.asana import AsanaTask, AsanaProject
 
 Base = declarative_base()
 metadata = MetaData()
@@ -34,6 +36,7 @@ tasks = Table("tasks", metadata,
               Column("id", Integer, primary_key=True, autoincrement=True),
               Column("name", String(255)),
               Column("creation_date", DateTime, nullable=True),
+              Column("modification_date", DateTime, nullable=True),
               Column("description", String(1000), nullable=True),
               Column("project", ForeignKey("projects.id"), nullable=True),
               Column("assignee", ForeignKey("users.id"), nullable=True),
@@ -218,8 +221,22 @@ story_tasks = Table(
 #     sprint_id = Integer(nullable=False)
 #     ta
 
+asana_tasks = Table(
+    "external_connectors.asana.tasks", metadata,
+    # Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("project", ForeignKey("projects.id")),
+    Column("id", ForeignKey("tasks.id"), nullable=False, primary_key=True),
+    Column("asana_task_id", String(20)))
+
+asana_projects = Table(
+    "external_connectors.asana.projects", metadata,
+    # Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("id", ForeignKey("projects.id"), nullable=False, primary_key=True),
+    Column("asana_project_id", String(20)))
 
 def start_mappers():
+    asana_task_mapper = mapper(AsanaTask, asana_tasks)
+    asana_project_mapper = mapper(AsanaProject, asana_projects)
     task_commentary_mapper = mapper(TaskCommentary, task_commentaries)
     project_commentary_mapper = mapper(ProjectCommentary, project_commentaries)
     epic_commentary_mapper = mapper(EpicCommentary, epic_commentaries)

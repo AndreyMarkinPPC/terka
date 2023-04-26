@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from dataclasses import dataclass
 
-from src.domain.task import Task
+from .task import Task
 
 logger = logging.getLogger(__name__)
 

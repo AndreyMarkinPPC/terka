@@ -12,7 +12,6 @@ def time_spent(session, start_date: str,
     WHERE
         creation_date >= :start_date
         AND creation_date <= :end_date
-
     GROUP BY 1
     """, dict(start_date=start_date, end_date=end_date))
     return [dict(r) for r in results]
@@ -26,6 +25,27 @@ def sprint_task_ids(session,
         task, sprint
     FROM sprint_tasks
     WHERE
-        sprint >= :sprint_id
+        sprint = :sprint_id
     """, dict(sprint_id=sprint_id))
+    return [dict(r) for r in results]
+
+
+def external_connectors_asana_projects(session) -> List[Dict[int, str]]:
+    results = session.execute(
+        """
+    SELECT
+        id, asana_project_id
+    FROM 'external_connectors.asana.projects'
+    """)
+    return [dict(r) for r in results]
+
+
+def external_connectors_asana_tasks(session, project_id: str) -> List[Dict[int, str]]:
+    results = session.execute(
+        """
+    SELECT
+        id, asana_task_id
+    FROM 'external_connectors.asana.tasks'
+    WHERE project = :project_id
+    """, dict(project_id=project_id))
     return [dict(r) for r in results]

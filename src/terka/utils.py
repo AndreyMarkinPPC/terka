@@ -2,8 +2,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from datetime import datetime, timedelta
 import re
-from src.service_layer import services
-from src.adapters.repository import AbsRepository
+from terka.service_layer import services
+from terka.adapters.repository import AbsRepository
 
 
 def create_task_dict(kwargs: List[str]) -> Dict[str, str]:
@@ -77,6 +77,8 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             "epics": new_dict.get("epics"),
             "stories": new_dict.get("stories"),
             "tasks": new_dict.get("tasks"),
+            "external_project": new_dict.get("external-project"),
+            "external_task": new_dict.get("external-task"),
         }
         if "--show-completed" in kwargs:
             task_dict.update({"show_completed": True})

@@ -2,13 +2,14 @@ from typing import Dict, Optional
 
 import abc
 from datetime import datetime, timedelta
-from . import orm
-from src.domain.element import Element
-from src.domain.task import Task
-from src.domain.project import Project
-from src.domain.user import User
-from src.domain.event_history import TaskEvent
 from sqlalchemy import and_, or_, not_
+
+from terka.domain.element import Element
+from terka.domain.task import Task
+from terka.domain.project import Project
+from terka.domain.user import User
+from terka.domain.event_history import TaskEvent
+from . import orm
 
 
 class AbsRepository(abc.ABC):

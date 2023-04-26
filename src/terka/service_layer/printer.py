@@ -12,8 +12,8 @@ from rich.console import Console
 from rich.table import Table
 from statistics import mean, median
 
-from src.service_layer import services, views
-from src.service_layer.ui import TerkaTask
+from terka.service_layer import services, views
+from terka.service_layer.ui import TerkaTask
 
 
 @dataclass
@@ -432,12 +432,6 @@ class Printer:
             if table.row_count:
                 self.console.print(f"[green]****COMPLETED TASKS*****[/green]")
                 self.console.print(table)
-        # TODO: not working
-        if print_options.show_commentaries and (commentaries :=
-                                                entity.commentaries):
-            self.print_commentaries(commentaries)
-        if print_options.show_history and (history := entity.history):
-            self.print_history(history)
 
     def _get_attributes(self, obj) -> List[Tuple[str, str]]:
         import inspect
@@ -616,4 +610,11 @@ class Printer:
                             history=history,
                             commentaries=comments)
             app.run()
+        # # TODO: not working
+        # if print_options.show_commentaries and (commentaries :=
+        #                                         entity.commentaries):
+        #     self.print_commentaries(commentaries)
+        # # TODO: not working
+        # if print_options.show_history and (history := entity.history):
+        #     self.print_history(history)
         return table, completed_tasks, completed_story_points

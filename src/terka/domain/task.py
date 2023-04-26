@@ -22,7 +22,9 @@ class TaskPriority(Enum):
 class Task:
 
     _next_task_id = 1
-    def __init__(self, name: str,
+
+    def __init__(self,
+                 name: str,
                  description: str = None,
                  creation_date: datetime = datetime.now(),
                  project: int = None,
@@ -31,8 +33,7 @@ class Task:
                  due_date: datetime = None,
                  status: str = "BACKLOG",
                  priority: str = "NORMAL",
-                 **kwargs
-                 ):
+                 **kwargs):
         if not name:
             raise ValueError("task name cannot be empty!")
         if not isinstance(creation_date, datetime):
@@ -48,7 +49,8 @@ class Task:
         self.assignee = assignee
         self.created_by = created_by
         if due_date and due_date.date() < datetime.today().date():
-            raise ValueError(f"Due date {due_date.date()} cannot be less than today")
+            raise ValueError(
+                f"Due date {due_date.date()} cannot be less than today")
         else:
             self.due_date = due_date
         self.status = self._validate_status(status)
@@ -58,7 +60,9 @@ class Task:
             self.priority = priority
 
     def _validate_status(self, status):
-        if status and status not in [s.name for s in TaskStatus if s.name != "DELETED"]:
+        if status and status not in [
+                s.name for s in TaskStatus if s.name != "DELETED"
+        ]:
             raise ValueError(f"{status} is invalid status")
         else:
             return status
