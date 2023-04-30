@@ -96,6 +96,25 @@ def main():
         logger.debug(task_dict)
 
         command, entity = args.command, args.entity
+        if file_path := task_dict.get("file"):
+            with open(file_path, "r") as f:
+                lines = [line.rstrip() for line in f if line.rstrip()]
+                for line in lines:
+                    entry = line.strip().split("::")
+                    if not entry:
+                        continue
+                    match entry:
+                        case [project, name, description]:
+                            task_dict = {"name": name, "project": project, "description": description}
+                        case [project, name]:
+                            task_dict = {"name": name, "project": project}
+                        case [name]:
+                            task_dict = {"name": name}
+                        case _:
+                            raise Exception("Unknown format")
+                    task_dict = update_task_dict(task_dict, repo)
+                    command_handler.execute(command, entity, task_dict)
+            exit()
         is_interactive = False
         if not command and not entity:
             is_interactive = True
