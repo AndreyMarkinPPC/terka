@@ -79,6 +79,7 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             "tasks": new_dict.get("tasks"),
             "external_project": new_dict.get("external-project"),
             "external_task": new_dict.get("external-task"),
+            "show_viz": new_dict.get("show-viz"),
         }
         if "--show-completed" in kwargs:
             task_dict.update({"show_completed": True})

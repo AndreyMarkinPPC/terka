@@ -865,7 +865,8 @@ class CommandHandler:
             print_options = printer.PrintOptions(
                 show_history=bool(kwargs.pop("show_history", False)),
                 show_commentaries=bool(kwargs.pop("show_commentaries", False)),
-                show_completed=bool(kwargs.pop("show_completed", False)))
+                show_completed=bool(kwargs.pop("show_completed", False)),
+                show_viz=kwargs.pop("show_viz", False))
             if kwargs.pop("partial_project_view", False):
                 print_options.show_epics = bool(kwargs.pop("epics", False))
                 print_options.show_tasks = bool(kwargs.pop("tasks", False))

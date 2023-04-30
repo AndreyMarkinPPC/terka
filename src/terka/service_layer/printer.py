@@ -5,9 +5,13 @@ import inspect
 from copy import deepcopy
 
 from collections import defaultdict
+import itertools
 from datetime import datetime, date, timedelta
 import plotext as plt
 import rich
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot
 from rich.console import Console
 from rich.table import Table
 from statistics import mean, median
@@ -24,6 +28,7 @@ class PrintOptions:
     show_completed: bool = False
     show_epics: bool = True
     show_stories: bool = True
+    show_viz: bool = False
 
 
 class Printer:
@@ -79,7 +84,8 @@ class Printer:
                 exit(f"No sprint with id '{task}' found!")
         if entity_type in ("epics", "stories"):
             if entities:
-                self.print_composite(entities, repo, print_options, entity_type)
+                self.print_composite(entities, repo, print_options,
+                                     entity_type)
             else:
                 exit(f"No {entity_type} with id '{task}' found!")
         if entity_type == "projects":
@@ -120,9 +126,9 @@ class Printer:
                               print_options=print_options)
         elif type in ("epics", "stories"):
             self.print_composite(entities=entities,
-                            repo=repo,
-                            print_options=print_options,
-                            composite_type=type)
+                                 repo=repo,
+                                 print_options=print_options,
+                                 composite_type=type)
         else:
             self.print_default_entity(self, entities)
 
@@ -257,15 +263,41 @@ class Printer:
         if i == 0 and print_options.show_commentaries and (
                 commentaries := entities[0].commentaries):
             self.print_commentaries(commentaries)
-        time_entries = views.time_spent(repo.session, entity.start_date,
-                                        entity.end_date)
-        dates = [entry.get("date") for entry in time_entries]
-        times = [entry.get("time_spent_hours") for entry in time_entries]
-        plt.date_form('Y-m-d')
-        plt.plot_size(100, 15)
-        plt.title("Time tracker")
-        plt.bar(dates, times)
-        plt.show()
+        if viz := print_options.show_viz:
+            if "cfd" in viz:
+                dates = [
+                    date.strftime("%Y-%m-%d")
+                    for date in pd.date_range(entity.start_date, entity.end_date).
+                    to_pydatetime().tolist()
+                ]
+                status_changes = views.status_changes(repo.session, 2)
+                placeholders = pd.DataFrame(data=list(
+                    itertools.product([task.id for task in tasks], dates)),
+                                            columns=["task", "date"])
+                history = self._restore_status_history(placeholders, status_changes)
+                # TODO: aggreggate history ty date and number of tasks within the state
+                # plt.date_form('Y-m-d')
+                # y = range(1, 10)
+                # y2 = range(2, 20, 2)
+                # y3 = range(3, 30, 3)
+                # y4 = range(4, 40, 4)
+                # y5 = range(5, 50, 5)
+                # plt.plot(dates, y2,  fillx=True, color="green", label="TODO")
+                # plt.plot(dates, y3,  fillx=False, color="blue", label="IN_PROGRESS")
+                # plt.plot(dates, y4,  fillx=False, color="red", label="REVIEW")
+                # plt.plot(dates, y5,  fillx=False, color="black", label="DONE")
+                # plt.plot_size(50, 15)
+                # plt.show()
+            if "time" in viz:
+                time_entries = views.time_spent(repo.session, entity.start_date,
+                                                entity.end_date)
+                dates = [entry.get("date") for entry in time_entries]
+                times = [entry.get("time_spent_hours") for entry in time_entries]
+                plt.date_form('Y-m-d')
+                plt.plot_size(100, 15)
+                plt.title("Time tracker")
+                plt.bar(dates, times)
+                plt.show()
 
     def print_project(self, entities, print_options, kwargs=None):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD, expand=True)
@@ -332,10 +364,12 @@ class Printer:
         non_task_view_options.show_tasks = False
         if print_options.show_epics and (epics := entity.epics):
             self.console.print("")
-            self.print_composite(epics, self.repo, non_task_view_options, "epics")
+            self.print_composite(epics, self.repo, non_task_view_options,
+                                 "epics")
         if print_options.show_stories and (stories := entity.stories):
             self.console.print("")
-            self.print_composite(stories, self.repo, non_task_view_options, "stories")
+            self.print_composite(stories, self.repo, non_task_view_options,
+                                 "stories")
         if print_options.show_tasks and (tasks := entity.tasks):
             task_print_options = deepcopy(print_options)
             task_print_options.show_commentaries = False
@@ -592,3 +626,31 @@ class Printer:
         # if print_options.show_history and (history := entity.history):
         #     self.print_history(history)
         return table, completed_tasks, completed_story_points
+
+    def _restore_status_history(self, placeholders, status_history):
+        partial_history = status_history[status_history["last_status_for_date"].notnull()]
+        current_values = status_history[["task", "current_status"]].drop_duplicates()
+        if not partial_history.empty:
+            joined = pd.merge(placeholders,
+                              partial_history,
+                              on=["task", "date"],
+                              how="left")
+            joined = joined.replace({np.nan: None})
+            joined["filled_backward"] = joined.groupby(
+                "task")["first_status_for_date"].bfill()
+            joined["filled_forward"] = joined.groupby(
+                "task")["last_status_for_date"].ffill()
+            joined["filled_forward"] = joined.groupby(
+                "task")["filled_forward"].fillna(
+                    joined.pop("filled_backward"))
+            joined = pd.merge(joined,
+                              current_values,
+                              on="task",
+                              how="left")
+            joined["status"] = joined["filled_forward"]
+        else:
+            joined = pd.merge(placeholders,
+                              current_values,
+                              on="task",
+                              how="left")
+        return joined[["date", "task", "status"]]
