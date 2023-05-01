@@ -33,7 +33,6 @@ class Epic:
         self.assignee = assignee
         self.created_by = created_by
         self.status = status
-        self.tasks: Set[Task, ...] = set()
         self.is_completed = False
 
     def complete(self, tasks) -> None:
