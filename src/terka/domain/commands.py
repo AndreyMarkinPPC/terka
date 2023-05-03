@@ -664,12 +664,16 @@ class CommandHandler:
                                          {"asana_task_id": asana_task_id})
             self.repo.session.commit()
         elif command == "add":
-            if entity not in (Task, ):
-                raise ValueError("'add' operation only allowed for tasks!")
+            if entity not in (Task, Story, Epic):
+                raise ValueError(
+                    "'add' operation only allowed for tasks, epics, and stories!"
+                )
             task_ids = get_ids(kwargs.get("id"))
             for task_id in task_ids:
-                if not (added_task := self.repo.get_by_id(Task, task_id)):
-                    exit(f"Task id {task_id} is not found")
+                if not (added_task := self.repo.get_by_id(entity, task_id)):
+                    exit(
+                        f"{entity.__class__.__name__} id {task_id} is not found"
+                    )
 
                 if epic_id := kwargs.get("epic_id"):
                     epic = self.repo.list(Epic, {"id": epic_id})
@@ -682,6 +686,10 @@ class CommandHandler:
                     }):
                         exit("task already added to epic")
                     self.repo.add(obj)
+                    self.execute("tag", "tasks", {
+                        "id": obj.task,
+                        "tags": f"epic:{obj.epic}"
+                    })
                 if story_id := kwargs.get("story_id"):
                     story = self.repo.list(Story, {"id": story_id})
                     if not story:
@@ -693,38 +701,24 @@ class CommandHandler:
                     }):
                         exit("task already added to story")
                     self.repo.add(obj)
+                    self.execute("tag", "tasks", {
+                        "id": obj.task,
+                        "tags": f"story:{obj.story}"
+                    })
                 if sprint_id := kwargs.get("sprint_id"):
                     sprint = self.repo.get_by_id(Sprint, sprint_id)
                     if not sprint:
                         exit(f"Sprint id {sprint_id} is not found")
                     if sprint.status.name == "COMPLETED":
                         exit("Cannot add task to a finished sprint")
-                    if sprint.status.name == "ACTIVE":
-                        story_points = input(
-                            "Please enter story points estimation: ")
+                    if entity in (Task, ):
+                        self._add_task_to_sprint(added_task, sprint)
                     else:
-                        story_points = 0
-                    obj = SprintTask(task=task_id,
-                                     story_points=story_points,
-                                     sprint=sprint_id,
-                                     is_active_link=True)
-                    if self.repo.list(SprintTask, {
-                            "task": obj.task,
-                            "sprint": obj.sprint
-                    }):
-                        exit("task already added to sprint")
-                    self.repo.add(obj)
-                    sprint_task_id = obj.task
-                else:
-                    sprint_task_id = None
-                # Update task status and due date
-                if sprint_task_id:
-                    task_params = {"id": added_task.id}
-                    if added_task.status.name == "BACKLOG":
-                        task_params.update({"status": "TODO"})
-                    if not added_task.due_date or added_task.due_date > sprint.end_date:
-                        task_params.update({"due_date": sprint.end_date})
-                    self.execute("update", "tasks", task_params)
+                        for entity_task in added_task.tasks:
+                            if entity_task.tasks.status.name not in (
+                                    "DONE", "DELETED"):
+                                self._add_task_to_sprint(
+                                    entity_task.tasks, sprint)
                 if story_points := kwargs.get("story_points"):
                     if not sprint_task_id:
                         sprint_task = self.execute("get", "sprint_tasks",
@@ -971,6 +965,38 @@ class CommandHandler:
                 exit("tracking missing -H (hours) or -M (minutes) value")
         else:
             raise ValueError(f"Uknown command: {command}")
+
+    def _add_task_to_sprint(self, task, sprint):
+        if self.repo.list(SprintTask, {"task": task.id, "sprint": sprint.id}):
+            exit("task already added to sprint")
+        if sprint.status.name == "ACTIVE":
+
+            story_points = input(
+                f"Please enter story points estimation for task <{task.id}>: {task.name}: "
+            )
+            if not story_points.isnumeric():
+                self.console.print(
+                    "[red]Provide number when specifying story points[/red]")
+                exit()
+        else:
+            story_points = 0
+        obj = SprintTask(task=task.id,
+                         story_points=story_points,
+                         sprint=sprint.id,
+                         is_active_link=True)
+        self.repo.add(obj)
+        sprint_task_id = obj.task
+        if sprint_task_id:
+            task_params = {"id": task.id}
+            if task.status.name == "BACKLOG":
+                task_params.update({"status": "TODO"})
+            if not task.due_date or task.due_date > sprint.end_date:
+                task_params.update({"due_date": sprint.end_date})
+            self.execute("update", "tasks", task_params)
+            self.execute("tag", "tasks", {
+                "id": task.id,
+                "tags": f"sprint:{sprint.id}"
+            })
 
     def _read_config(self) -> Dict[str, Any]:
         with open(f"{self.home_dir}/.terka/config.yaml", "r",

@@ -195,7 +195,8 @@ class Printer:
             self.print_task(entities=tasks,
                             repo=repo,
                             print_options=print_options,
-                            show_window=False)
+                            show_window=False,
+                            view_level=composite_type[:-1])
         if print_options.show_tasks and completed_tasks:
             self.print_task(entities=completed_tasks,
                             repo=repo,
@@ -260,22 +261,24 @@ class Printer:
                             print_options=task_print_options,
                             story_points=story_points,
                             kwargs=kwargs,
-                            show_window=False)
+                            show_window=False,
+                            view_level="sprint")
         if i == 0 and print_options.show_commentaries and (
                 commentaries := entities[0].commentaries):
             self.print_commentaries(commentaries)
         if viz := print_options.show_viz:
             if "cfd" in viz:
                 dates = [
-                    date.strftime("%Y-%m-%d")
-                    for date in pd.date_range(entity.start_date, entity.end_date).
-                    to_pydatetime().tolist()
+                    date.strftime("%Y-%m-%d") for date in pd.date_range(
+                        entity.start_date,
+                        entity.end_date).to_pydatetime().tolist()
                 ]
                 status_changes = views.status_changes(repo.session, 2)
                 placeholders = pd.DataFrame(data=list(
                     itertools.product([task.id for task in tasks], dates)),
                                             columns=["task", "date"])
-                history = self._restore_status_history(placeholders, status_changes)
+                history = self._restore_status_history(placeholders,
+                                                       status_changes)
                 # TODO: aggreggate history ty date and number of tasks within the state
                 # plt.date_form('Y-m-d')
                 # y = range(1, 10)
@@ -290,10 +293,13 @@ class Printer:
                 # plt.plot_size(50, 15)
                 # plt.show()
             if "time" in viz:
-                time_entries = views.time_spent(repo.session, entity.start_date,
+                time_entries = views.time_spent(repo.session,
+                                                entity.start_date,
                                                 entity.end_date)
                 dates = [entry.get("date") for entry in time_entries]
-                times = [entry.get("time_spent_hours") for entry in time_entries]
+                times = [
+                    entry.get("time_spent_hours") for entry in time_entries
+                ]
                 plt.date_form('Y-m-d')
                 plt.plot_size(100, 15)
                 plt.title("Time tracker")
@@ -393,6 +399,7 @@ class Printer:
                    custom_sort=None,
                    show_window=True,
                    story_points=None,
+                   view_level="tasks",
                    kwargs=None):
         table = Table(box=self.box, title="TASKS")
         if story_points:
@@ -425,7 +432,8 @@ class Printer:
             default_columns=default_columns,
             repo=repo,
             story_points=story_points,
-            show_window=show_window)
+            show_window=show_window,
+            view_level=view_level)
         if table.row_count:
             self.console.print(table)
         if print_options.show_completed and completed_tasks:
@@ -437,7 +445,8 @@ class Printer:
                 repo=repo,
                 story_points=completed_story_points,
                 show_window=show_window,
-                all_tasks=False)
+                all_tasks=False,
+                view_level=view_level)
             if table.row_count:
                 self.console.print(f"[green]****COMPLETED TASKS*****[/green]")
                 self.console.print(table)
@@ -535,7 +544,8 @@ class Printer:
                     repo,
                     story_points=None,
                     all_tasks=True,
-                    show_window=True):
+                    show_window=True,
+                    view_level="tasks"):
         if all_tasks:
             completed_tasks = []
         else:
@@ -558,8 +568,21 @@ class Printer:
             else:
                 story_point = None
             if tags := entity.tags:
-                tag_texts = sorted([tag.base_tag.text for tag in list(tags)])
-                tag_string = ",".join(tag_texts)
+                tag_texts = []
+                for tag in list(tags):
+                    tag_text = tag.base_tag.text
+                    if not tag_text.startswith(view_level):
+                        if tag_text.startswith("sprint"):
+                            tag_texts.append(f"[yellow]{tag_text}[/yellow]")
+                        elif tag_text.startswith("epic"):
+                            tag_texts.append(f"[green]{tag_text}[/green]")
+                        elif tag_text.startswith("story"):
+                            tag_texts.append(f"[magenta]{tag_text}[/magenta]")
+                        elif tag_text.startswith("bug"):
+                            tag_texts.append(f"[red]{tag_text}[/red]")
+                        else:
+                            tag_texts.append(tag_text)
+                tag_string = ",".join(sorted(tag_texts))
             else:
                 tag_string = ""
             if collaborators := entity.collaborators:
@@ -629,8 +652,10 @@ class Printer:
         return table, completed_tasks, completed_story_points
 
     def _restore_status_history(self, placeholders, status_history):
-        partial_history = status_history[status_history["last_status_for_date"].notnull()]
-        current_values = status_history[["task", "current_status"]].drop_duplicates()
+        partial_history = status_history[
+            status_history["last_status_for_date"].notnull()]
+        current_values = status_history[["task",
+                                         "current_status"]].drop_duplicates()
         if not partial_history.empty:
             joined = pd.merge(placeholders,
                               partial_history,
@@ -642,12 +667,8 @@ class Printer:
             joined["filled_forward"] = joined.groupby(
                 "task")["last_status_for_date"].ffill()
             joined["filled_forward"] = joined.groupby(
-                "task")["filled_forward"].fillna(
-                    joined.pop("filled_backward"))
-            joined = pd.merge(joined,
-                              current_values,
-                              on="task",
-                              how="left")
+                "task")["filled_forward"].fillna(joined.pop("filled_backward"))
+            joined = pd.merge(joined, current_values, on="task", how="left")
             joined["status"] = joined["filled_forward"]
         else:
             joined = pd.merge(placeholders,
