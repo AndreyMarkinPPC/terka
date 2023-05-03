@@ -541,7 +541,8 @@ class CommandHandler:
                         f"Task with id {kwargs['id']} is not found!")
                 obj = TaskCommentary(**kwargs)
                 self.repo.add(obj)
-                self.repo.update(Task, kwargs["id"], {"modification_date": datetime.now()})
+                self.repo.update(Task, kwargs["id"],
+                                 {"modification_date": datetime.now()})
                 session.commit()
             elif entity_type == "projects":
                 existing_project = self.repo.list(Project,
@@ -576,6 +577,7 @@ class CommandHandler:
                 obj = SprintCommentary(**kwargs)
                 self.repo.add(obj)
                 session.commit()
+            self.printer.print_new_object(obj)
         elif command == "delete":
             if entity not in (Task, ):
                 raise ValueError("'delete' operation only allowed for tasks!")
@@ -633,25 +635,33 @@ class CommandHandler:
             session.commit()
         elif command == "connect":
             if entity not in (Task, Project):
-                raise ValueError("'connect' operation only allowed for tasks and project!")
+                raise ValueError(
+                    "'connect' operation only allowed for tasks and project!")
             task_ids = get_ids(kwargs.get("id"))
             for task_id in task_ids:
                 if entity_type == "projects":
                     asana_project_id = kwargs.get("external_project")
                     asana_project = self.repo.get_by_id(AsanaProject, task_id)
                     if not asana_project:
-                        obj = AsanaProject(id=task_id, asana_project_id=asana_project_id)
+                        obj = AsanaProject(id=task_id,
+                                           asana_project_id=asana_project_id)
                         self.repo.add(obj)
                     else:
-                        self.repo.update(AsanaProject, task_id, {"asana_project_id": asana_project_id})
+                        self.repo.update(
+                            AsanaProject, task_id,
+                            {"asana_project_id": asana_project_id})
                 elif entity_type == "tasks":
                     asana_task_id = kwargs.get("external_task")
                     asana_task = self.repo.get_by_id(AsanaProject, task_id)
                     if not asana_task:
-                        obj = AsanaTask(project=task.project, id=task_id, asana_task_id=kwargs.get("external_task"))
+                        obj = AsanaTask(
+                            project=task.project,
+                            id=task_id,
+                            asana_task_id=kwargs.get("external_task"))
                         self.repo.add(obj)
                     else:
-                        self.repo.update(AsanaTask, task_id, {"asana_task_id": asana_task_id})
+                        self.repo.update(AsanaTask, task_id,
+                                         {"asana_task_id": asana_task_id})
             self.repo.session.commit()
         elif command == "add":
             if entity not in (Task, ):
@@ -689,7 +699,13 @@ class CommandHandler:
                         exit(f"Sprint id {sprint_id} is not found")
                     if sprint.status.name == "COMPLETED":
                         exit("Cannot add task to a finished sprint")
+                    if sprint.status.name == "ACTIVE":
+                        story_points = input(
+                            "Please enter story points estimation: ")
+                    else:
+                        story_points = 0
                     obj = SprintTask(task=task_id,
+                                     story_points=story_points,
                                      sprint=sprint_id,
                                      is_active_link=True)
                     if self.repo.list(SprintTask, {
@@ -698,7 +714,7 @@ class CommandHandler:
                     }):
                         exit("task already added to sprint")
                     self.repo.add(obj)
-                    sprint_task_id = obj.id
+                    sprint_task_id = obj.task
                 else:
                     sprint_task_id = None
                 # Update task status and due date
@@ -783,11 +799,15 @@ class CommandHandler:
                                         event = ProjectEvent
                                     elif entity_type == "tasks":
                                         event = TaskEvent
-                                    self.repo.add(
-                                        event(task, key, old_value, value,
-                                              now))
+                                    if old_value != value:
+                                        update_event = event(
+                                            task, key, old_value, value, now)
+                                        self.repo.add(update_event)
+                                        self.printer.print_new_object(
+                                            update_event)
                             if hasattr(entity, "modification_date"):
-                                self.repo.update(entity, task, {"modification_date": now})
+                                self.repo.update(entity, task,
+                                                 {"modification_date": now})
                         else:
                             print(
                                 "No changes were proposed to the existing entity"
@@ -806,7 +826,8 @@ class CommandHandler:
                     else:
                         entities = self.repo.get(entity, task)
                         task_id = entities.id
-                    if entity_type in ("tasks", "projects", "sprints", "epics", "stories"):
+                    if entity_type in ("tasks", "projects", "sprints", "epics",
+                                       "stories"):
                         task = entities
                         if kwargs.get("description"):
                             current_entry = task.description
@@ -823,8 +844,8 @@ class CommandHandler:
                             )
 
                     message_template = generate_message_template(
-                        CurrentEntry(current_entry, current_type, entity_type), task,
-                        self.repo)
+                        CurrentEntry(current_entry, current_type, entity_type),
+                        task, self.repo)
                     with tempfile.NamedTemporaryFile(suffix=".tmp") as tf:
                         tf.write(message_template.encode("utf-8"))
                         tf.flush()
@@ -848,8 +869,12 @@ class CommandHandler:
         elif command == "start":
             sprint_id = kwargs.get("id")
             kwargs.update({"status": "ACTIVE"})
-            self.execute("update", "sprints", kwargs)
             [sprint] = self.execute("get", "sprints", {"id": sprint_id})
+            if sprint.end_date < datetime.today().date():
+                self.console.print(
+                    "[red]Cannot start the sprint, end date in the past[/red]")
+                exit()
+            self.execute("update", "sprints", kwargs)
             for sprint_task in sprint.tasks:
                 task = sprint_task.tasks
                 task_params = {"id": task.id}
@@ -910,10 +935,22 @@ class CommandHandler:
 
                 if entity_type == "sprints":
                     entity.complete(entity.tasks)
+                    for entity_task in entity.tasks:
+                        if entity_task.tasks.status.name not in ("DONE",
+                                                                 "DELETED"):
+                            self.execute(
+                                "update", "tasks", {
+                                    "id": entity_task.task,
+                                    "status": "BACKLOG",
+                                    "due_date": None
+                                })
                 else:
                     entity.complete(entity.tasks)
                     for entity_task in entity.tasks:
-                        self.execute("update", "tasks", {"id": entity_task.task, "status": "DONE"})
+                        self.execute("update", "tasks", {
+                            "id": entity_task.task,
+                            "status": "DONE"
+                        })
                 self.execute("update", entity_type, kwargs)
         elif command == "track":
             if entity_type != "tasks":

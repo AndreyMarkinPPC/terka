@@ -38,7 +38,7 @@ class Printer:
         self.box = box
         self.repo = repo
 
-    def print_new_object(self, obj, project):
+    def print_new_object(self, obj, project=None):
         table = Table(box=self.box)
         attributes = self._get_attributes(obj)
         for column, value in attributes:
@@ -46,6 +46,7 @@ class Printer:
                 table.add_column(column)
         table.add_row(*list(zip(*attributes))[1])
         if table.row_count:
+            self.console.print(f"Added new {obj.__class__.__name__}")
             self.console.print(table)
 
     def print_history(self, entities):

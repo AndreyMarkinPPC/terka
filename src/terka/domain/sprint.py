@@ -23,6 +23,8 @@ class Sprint:
                  status: str = "PLANNED",
                  goal: str = None,
                  **kwargs) -> None:
+        if not start_date and not end_date:
+            raise ValueError("Please add start and end date of the sprint")
         if start_date.date()  < datetime.today().date():
             raise ValueError(f"start date cannot be less than today")
         if not start_date:

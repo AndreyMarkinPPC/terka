@@ -129,7 +129,9 @@ def convert_status(status: str):
         "i": "IN_PROGRESS",
         "r": "REVIEW",
         "d": "DONE",
-        "x": "DELETED"
+        "x": "DELETED",
+        "a": "ACTIVE",
+        "p": "PLANNED"
     }
     return conversion_dict.get(status[0].lower(), "BACKLOG")
 
