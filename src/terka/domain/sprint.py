@@ -40,7 +40,6 @@ class Sprint:
             raise ValueError(f"Sprint end date cannot be less than today")
         self.status = self._validate_status(status)
         self.goal = goal
-        self.tasks: Set[Task, ...] = set()
         self.is_completed = False
 
     def _validate_status(self, status):

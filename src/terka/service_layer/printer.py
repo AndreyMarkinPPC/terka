@@ -485,9 +485,9 @@ class Printer:
         if time_spent_hours and time_spent_minutes:
             time_spent = f"{time_spent_hours}H:{time_spent_minutes}M"
         elif time_spent_hours:
-            time_spent = f"{time_spent_hours}H"
+            time_spent = f"{time_spent_hours}H:00M"
         elif time_spent_minutes:
-            time_spent = f"{time_spent_minutes}M"
+            time_spent = f"00H:{time_spent_minutes}M"
         else:
             time_spent = ""
         return time_spent
