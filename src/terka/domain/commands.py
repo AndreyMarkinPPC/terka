@@ -720,14 +720,13 @@ class CommandHandler:
                                 self._add_task_to_sprint(
                                     entity_task.tasks, sprint)
                 if story_points := kwargs.get("story_points"):
-                    if not sprint_task_id:
-                        sprint_task = self.execute("get", "sprint_tasks",
-                                                   {"task": task_id})
-                        if not sprint_task:
-                            exit(
-                                f"Task id {task_id} is not part of any sprint")
-                        else:
-                            sprint_task_id = sprint_task[0].id
+                    sprint_task = self.execute("get", "sprint_tasks",
+                                               {"task": task_id})
+                    if not sprint_task:
+                        exit(
+                            f"Task id {task_id} is not part of any sprint")
+                    else:
+                        sprint_task_id = sprint_task[0].id
                     self.repo.update(SprintTask, sprint_task_id,
                                      {"story_points": story_points})
             session.commit()
