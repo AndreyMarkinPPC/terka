@@ -566,12 +566,13 @@ class Printer:
             completed_tasks = None
             completed_story_points = None
         if not custom_sort:
-            custom_sort = "status"
+            custom_sort = "status.value"
         if story_points:
             completed_story_points = []
+            sorting = attrgetter(custom_sort)
             entities = [(entity, story_point) for entity, story_point in
                         sorted(zip(entities, story_points),
-                               key=lambda x: getattr(x[0], custom_sort),
+                               key=lambda x: sorting(x[0]),
                                reverse=True)]
         else:
             completed_story_points = None

@@ -973,7 +973,9 @@ class CommandHandler:
             story_points = input(
                 f"Please enter story points estimation for task <{task.id}>: {task.name}: "
             )
-            if not story_points.isnumeric():
+            try:
+                float(story_points)
+            except ValueError:
                 self.console.print(
                     "[red]Provide number when specifying story points[/red]")
                 exit()
