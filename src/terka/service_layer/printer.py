@@ -86,7 +86,7 @@ class Printer:
         if entity_type in ("epics", "stories"):
             if entities:
                 self.print_composite(entities, repo, print_options,
-                                     entity_type)
+                                     entity_type, kwargs)
             else:
                 exit(f"No {entity_type} with id '{task}' found!")
         if entity_type == "projects":
@@ -105,13 +105,17 @@ class Printer:
             entities.sort(key=self._sort_open_tasks, reverse=True)
             self.print_project(entities, print_options)
         elif type == "tasks":
-            if custom_sort:
+            if custom_sort and custom_sort not in ("status", "priority"):
                 entities.sort(key=lambda c: getattr(c, custom_sort),
                               reverse=False)
+            elif custom_sort == "status":
+                entities.sort(key=lambda c: c.status.value,
+                              reverse=True)
+            elif custom_sort == "priority":
+                entities.sort(key=lambda c: c.priority.value,
+                              reverse=True)
             else:
-                entities.sort(key=lambda c:
-                              (c.status.value, c.priority.value
-                               if hasattr(c.priority, "value") else 0),
+                entities.sort(key=lambda c: (c.status.value, c.priority.value),
                               reverse=True)
             self.print_task(entities=entities,
                             repo=repo,
@@ -167,7 +171,7 @@ class Printer:
         if table.row_count:
             self.console.print(table)
 
-    def print_composite(self, entities, repo, print_options, composite_type):
+    def print_composite(self, entities, repo, print_options, composite_type, kwargs=None):
         table = Table(box=self.box, title=composite_type.upper(), expand=True)
         for column in ("id", "name", "description", "project", "tasks"):
             table.add_column(column, style="bold")
@@ -196,12 +200,14 @@ class Printer:
                             repo=repo,
                             print_options=print_options,
                             show_window=False,
-                            view_level=composite_type[:-1])
+                            view_level=composite_type[:-1],
+                            kwargs=kwargs)
         if print_options.show_tasks and completed_tasks:
             self.print_task(entities=completed_tasks,
                             repo=repo,
                             print_options=print_options,
-                            show_window=False)
+                            show_window=False,
+                            kwargs=kwargs)
         if i == 0 and print_options.show_commentaries and (
                 commentaries := entity.commentaries):
             self.print_commentaries(commentaries)
@@ -372,11 +378,11 @@ class Printer:
         if print_options.show_epics and (epics := entity.epics):
             self.console.print("")
             self.print_composite(epics, self.repo, non_task_view_options,
-                                 "epics")
+                                 "epics", kwargs)
         if print_options.show_stories and (stories := entity.stories):
             self.console.print("")
             self.print_composite(stories, self.repo, non_task_view_options,
-                                 "stories")
+                                 "stories", kwargs)
         if print_options.show_tasks and (tasks := entity.tasks):
             task_print_options = deepcopy(print_options)
             task_print_options.show_commentaries = False
@@ -418,11 +424,18 @@ class Printer:
         #     console.print(f"[blue]task is active {active_in_days.days} days[/blue]")
         entities = list(entities)
         if kwargs:
+            custom_sort = custom_sort or kwargs.pop("sort", None)
             entities = self._get_filtered_entities(entities, kwargs)
         if not story_points:
-            if custom_sort:
+            if custom_sort and custom_sort not in ("status", "priority"):
                 entities.sort(key=lambda c: getattr(c, custom_sort),
                               reverse=False)
+            elif custom_sort == "status":
+                entities.sort(key=lambda c: c.status.value,
+                              reverse=True)
+            elif custom_sort == "priority":
+                entities.sort(key=lambda c: c.priority.value,
+                              reverse=True)
             else:
                 entities.sort(key=lambda c: (c.status.value, c.priority.value),
                               reverse=True)
@@ -545,17 +558,20 @@ class Printer:
                     story_points=None,
                     all_tasks=True,
                     show_window=True,
-                    view_level="tasks"):
+                    view_level="tasks",
+                    custom_sort=None):
         if all_tasks:
             completed_tasks = []
         else:
             completed_tasks = None
             completed_story_points = None
+        if not custom_sort:
+            custom_sort = "status"
         if story_points:
             completed_story_points = []
             entities = [(entity, story_point) for entity, story_point in
                         sorted(zip(entities, story_points),
-                               key=lambda x: x[0].status.value,
+                               key=lambda x: getattr(x[0], custom_sort),
                                reverse=True)]
         else:
             completed_story_points = None

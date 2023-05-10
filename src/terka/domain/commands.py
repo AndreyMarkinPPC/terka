@@ -252,10 +252,7 @@ class CommandHandler:
                 else:
                     kwargs["status"] = "ACTIVE"
 
-            if (custom_sort := kwargs.get("sort")):
-                del kwargs["sort"]
-            else:
-                custom_sort = None
+            custom_sort = kwargs.pop("sort", None)
             if entity_type == "projects" and "project_id" in kwargs:
                 kwargs["id"] = kwargs.pop("project_id")
             if has_collaborators := "collaborators" in kwargs:
