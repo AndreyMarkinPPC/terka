@@ -463,7 +463,8 @@ class Printer:
                 story_points=completed_story_points,
                 show_window=show_window,
                 all_tasks=False,
-                view_level=view_level)
+                view_level=view_level,
+                custom_sort=custom_sort)
             if table.row_count:
                 self.console.print(f"[green]****COMPLETED TASKS*****[/green]")
                 self.console.print(table)
@@ -570,20 +571,29 @@ class Printer:
             completed_tasks = None
             completed_story_points = None
         if not custom_sort:
-            custom_sort = "status.value"
-            reverse=True
+            custom_sort = "status"
+            reverse = True
+        elif custom_sort == "priority":
+            reverse = True
         else:
-            reverse=False
+            reverse = False
+        sorting = attrgetter(custom_sort)
+
+        def sorting_fn(x):
+            if hasattr(sorting(x), "value"):
+                return sorting(x).value
+            return sorting(x)
+
         if story_points:
             completed_story_points = []
-            sorting = attrgetter(custom_sort)
             entities = [
                 (entity, story_point)
                 for entity, story_point in sorted(zip(entities, story_points),
-                                                  key=lambda x: sorting(x[0]),
+                                                  key=lambda x: sorting_fn(x),
                                                   reverse=reverse)
             ]
         else:
+            entities.sort(key=lambda x: sorting_fn(x), reverse=reverse)
             completed_story_points = None
         for column in default_columns:
             table.add_column(column)
