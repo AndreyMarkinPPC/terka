@@ -109,11 +109,9 @@ class Printer:
                 entities.sort(key=lambda c: getattr(c, custom_sort),
                               reverse=False)
             elif custom_sort == "status":
-                entities.sort(key=lambda c: c.status.value,
-                              reverse=True)
+                entities.sort(key=lambda c: c.status.value, reverse=True)
             elif custom_sort == "priority":
-                entities.sort(key=lambda c: c.priority.value,
-                              reverse=True)
+                entities.sort(key=lambda c: c.priority.value, reverse=True)
             else:
                 entities.sort(key=lambda c: (c.status.value, c.priority.value),
                               reverse=True)
@@ -171,7 +169,12 @@ class Printer:
         if table.row_count:
             self.console.print(table)
 
-    def print_composite(self, entities, repo, print_options, composite_type, kwargs=None):
+    def print_composite(self,
+                        entities,
+                        repo,
+                        print_options,
+                        composite_type,
+                        kwargs=None):
         table = Table(box=self.box, title=composite_type.upper(), expand=True)
         for column in ("id", "name", "description", "project", "tasks"):
             table.add_column(column, style="bold")
@@ -426,19 +429,19 @@ class Printer:
         if kwargs:
             custom_sort = custom_sort or kwargs.pop("sort", None)
             entities = self._get_filtered_entities(entities, kwargs)
-        if not story_points:
-            if custom_sort and custom_sort not in ("status", "priority"):
-                entities.sort(key=lambda c: getattr(c, custom_sort),
-                              reverse=False)
-            elif custom_sort == "status":
-                entities.sort(key=lambda c: c.status.value,
-                              reverse=True)
-            elif custom_sort == "priority":
-                entities.sort(key=lambda c: c.priority.value,
-                              reverse=True)
-            else:
-                entities.sort(key=lambda c: (c.status.value, c.priority.value),
-                              reverse=True)
+        else:
+            custom_sort = None
+        # if not story_points:
+        #     if custom_sort and custom_sort not in ("status", "priority"):
+        #         entities.sort(key=lambda c: getattr(c, custom_sort),
+        #                       reverse=False)
+        #     elif custom_sort == "status":
+        #         entities.sort(key=lambda c: c.status.value, reverse=True)
+        #     elif custom_sort == "priority":
+        #         entities.sort(key=lambda c: c.priority.value, reverse=True)
+        #     else:
+        #         entities.sort(key=lambda c: (c.status.value, c.priority.value),
+        #                       reverse=True)
         table, completed_tasks, completed_story_points = self._print_task(
             table=table,
             entities=entities,
@@ -446,7 +449,8 @@ class Printer:
             repo=repo,
             story_points=story_points,
             show_window=show_window,
-            view_level=view_level)
+            view_level=view_level,
+            custom_sort=custom_sort)
         if table.row_count:
             self.console.print(table)
         if print_options.show_completed and completed_tasks:
@@ -567,13 +571,18 @@ class Printer:
             completed_story_points = None
         if not custom_sort:
             custom_sort = "status.value"
+            reverse=True
+        else:
+            reverse=False
         if story_points:
             completed_story_points = []
             sorting = attrgetter(custom_sort)
-            entities = [(entity, story_point) for entity, story_point in
-                        sorted(zip(entities, story_points),
-                               key=lambda x: sorting(x[0]),
-                               reverse=True)]
+            entities = [
+                (entity, story_point)
+                for entity, story_point in sorted(zip(entities, story_points),
+                                                  key=lambda x: sorting(x[0]),
+                                                  reverse=reverse)
+            ]
         else:
             completed_story_points = None
         for column in default_columns:

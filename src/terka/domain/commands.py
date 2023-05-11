@@ -221,9 +221,9 @@ class CommandHandler:
         if command == "list":
             print_options = printer.PrintOptions(
                 show_tasks=False,
-                show_history=bool(kwargs.get("show_history")),
-                show_commentaries=bool(kwargs.get("show_commentaries")),
-                show_completed=bool(kwargs.get("show_completed")))
+                show_history=bool(kwargs.pop("show_history", False)),
+                show_commentaries=bool(kwargs.pop("show_commentaries", False)),
+                show_completed=bool(kwargs.pop("all", False)))
             if entity_type == "tasks":
                 if "status" not in kwargs and "all" not in kwargs:
                     kwargs["status"] = "BACKLOG,TODO,IN_PROGRESS,REVIEW"
@@ -883,7 +883,7 @@ class CommandHandler:
             print_options = printer.PrintOptions(
                 show_history=bool(kwargs.pop("show_history", False)),
                 show_commentaries=bool(kwargs.pop("show_commentaries", False)),
-                show_completed=bool(kwargs.pop("show_completed", False)),
+                show_completed=bool(kwargs.pop("all", False)),
                 show_viz=kwargs.pop("show_viz", False))
             if kwargs.pop("partial_project_view", False):
                 print_options.show_epics = bool(kwargs.pop("epics", False))

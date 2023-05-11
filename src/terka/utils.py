@@ -54,7 +54,7 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             "collaborators":
             new_dict.get("collaborator") or new_dict.get("collaborators"),
             "all":
-            new_dict.get("all"),
+            new_dict.get("all") or new_dict.get("show-completed"),
             "priority":
             new_dict.get("priority"),
             "overdue":
@@ -82,10 +82,9 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             "show_viz": new_dict.get("show-viz"),
             "file": new_dict.get("file") or new_dict.get("f"),
         }
-        if "--show-completed" in kwargs:
-            task_dict.update({"show_completed": True})
         if "--sort" in kwargs:
-            sort_statement = kwargs[kwargs.index("--sort"):]
+            sort_index = kwargs.index("--sort")
+            sort_statement = kwargs[sort_index:sort_index+2]
             task_dict.update(create_task_dict(sort_statement))
     elif len(kwargs) == 1:
         if "overdue" in kwargs[0]:
@@ -94,8 +93,6 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             task_dict = {"stale": 7}
         elif "all" in kwargs[0]:
             task_dict = {"all": "all"}
-        elif "show-completed" in kwargs[0]:
-            task_dict = {"show_completed": True}
         else:
             task_dict = {"id": kwargs[0]}
     else:
