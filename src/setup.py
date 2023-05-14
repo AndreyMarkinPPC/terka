@@ -6,7 +6,7 @@ HERE = pathlib.Path(__file__).parent
 
 setup(
     name="terka",
-    version="1.8.0",
+    version="1.9.0",
     description="CLI utility for creating and managing tasks in a terminal",
     # long_description=README,
     long_description_content_type="text/markdown",
@@ -18,7 +18,7 @@ setup(
     include_package_data=True,
     package_data={"": ["service_layer/*.css"]},
     install_requires=[
-        "sqlalchemy", "pyaml", "rich", "textual==0.5.0", "plotext==5.2.8"
+        "sqlalchemy==1.4.0", "pyaml", "rich", "textual==0.5.0", "plotext==5.2.8"
     ],
     setup_requires=["pytest-runner"],
     tests_requires=["pytest"],

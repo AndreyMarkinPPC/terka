@@ -214,8 +214,7 @@ class CommandHandler:
             entity, entity_type = self.handle(entity_type)
         else:
             entity = None
-        if not entity and command not in ("init", "unfocus", "log", "calendar",
-                                          "help"):
+        if not entity and command not in ("calendar", "help"):
             raise ValueError(f"Entity *{entity_type}* is not a valid entity")
         command = format_command(command)
         if command == "list":
@@ -336,32 +335,6 @@ class CommandHandler:
             available commands: 'list', 'show', 'create', 'update', 'done', 'calendar', 'log', 'edit'
             available entities: 'tasks', 'projects', 'commentaries'
             """)
-        elif command == "init":
-            home_dir = os.path.expanduser('~')
-            path = os.path.join(home_dir, ".terka")
-            if not os.path.exists(path):
-                answer = input(
-                    f"Do you want to init terka in this directory {path}? [Y/n]"
-                )
-                if "y" in answer.lower():
-                    os.mkdirs(path)
-                    with open(os.path.join(path, "config.yaml"), "w") as f:
-                        yaml.dump({"user": "admin"}, f)
-                elif "n" in answer.lower():
-                    path = input("Specify full path to the terka directory: ")
-                    os.mkdirs(path)
-                else:
-                    exit()
-            elif not os.path.exists(os.path.join(path, "config.yaml")):
-                answer = input(
-                    f"Config.yaml not found in {path}, Create it? [Y/n]")
-                if "y" in answer.lower():
-                    with open(os.path.join(path, "config.yaml"), "w") as f:
-                        yaml.dump({"user": "admin"}, f)
-                else:
-                    exit()
-            else:
-                print("Terka directory already exist.")
         elif command == "get":
             if entity_type == "tasks" and "status" not in kwargs:
                 kwargs["status"] = "BACKLOG,TODO,IN_PROGRESS,REVIEW,DONE"
@@ -386,43 +359,6 @@ class CommandHandler:
         elif command == "calendar":
             kwargs["sort"] = "due_date"
             self.execute("list", "tasks", kwargs)
-        elif command == "log":
-            table = Table(box=rich.box.SIMPLE)
-            with open(f"{self.home_dir}/.terka/terka.log", "r") as f:
-                head = f.readlines()
-            for column in ("date", "source", "level", "message"):
-                table.add_column(column)
-            num_log_entries = int(kwargs.get("num_log_entries", 10))
-            tail = head[-num_log_entries:]
-            for row in tail[::-1]:
-                info, message = row.split("] ")
-                date, source, level = info.split("][")
-                table.add_row(re.sub("\[", "", date), source, level, message)
-            self.console.print(table)
-        elif command == "focus":
-            if entity_type == "tasks":
-                self.config["task_id"] = kwargs["id"]
-                if "project_name" in self.config.keys():
-                    del self.config["project_name"]
-            if entity_type == "projects":
-                self.config["project_name"] = kwargs["id"]
-                if "task_id" in self.config.keys():
-                    del self.config["task_id"]
-            with open(f"{self.home_dir}/.terka/config.yaml",
-                      "w",
-                      encoding="utf-8") as f:
-                yaml.dump(self.config, f)
-            logger.info("<focus> %s: %s", entity_type, "")
-        elif command == "unfocus":
-            if "task_id" in self.config.keys():
-                del self.config["task_id"]
-            if "project_name" in self.config.keys():
-                del self.config["project_name"]
-            with open(f"{self.home_dir}/.terka/config.yaml",
-                      "w",
-                      encoding="utf-8") as f:
-                yaml.dump(self.config, f)
-            logger.info("<unfocus> %s: %s", entity_type, "")
         elif command == "count":
             entities = self.repo.list(entity, kwargs)
             print(len(entities))
