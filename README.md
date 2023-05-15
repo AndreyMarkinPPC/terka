@@ -6,13 +6,19 @@
 in the terminal. Create task, assign it to a project, update it status, write
 comments and many more!
 
+Key features:
+* Manage tasks within projects
+* Support for sprints (with story points assignment and time tracker)
+* Manage meta-tasks with epics and stories
+* Tag tasks and specify collaborators
+
 ## Installation
 
 To install `terka` run the following command:
 
 `pip install terka`
 
-it will make `terka` command available in your shell.
+It will make `terka` command available in your shell.
 
 ## Usage
 

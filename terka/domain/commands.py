@@ -17,6 +17,7 @@ from terka.domain.task import Task
 from terka.domain.project import Project
 from terka.domain.user import User
 from terka.domain.commentary import TaskCommentary, ProjectCommentary, EpicCommentary, StoryCommentary, SprintCommentary
+from terka.domain.notes import TaskNote, ProjectNote, EpicNote, StoryNote, SprintNote
 from terka.domain.tag import BaseTag, TaskTag, ProjectTag
 from terka.domain.collaborators import TaskCollaborator, ProjectCollaborator
 from terka.domain.event_history import TaskEvent, ProjectEvent
@@ -181,6 +182,15 @@ class StoryTaskHandler(BaseHandler):
         return super().handle(entity)
 
 
+class SprintNoteHandler(BaseHandler):
+
+    def handle(self, entity):
+        if entity == "notes":
+            logger.debug("Handling sprint note")
+            return SprintNote, "notes"
+        return super().handle(entity)
+
+
 class CommandHandler:
 
     def __init__(self, repo: AbsRepository):
@@ -196,7 +206,7 @@ class CommandHandler:
         for handler in [
                 TaskHandler, ProjectHandler, UserHandler, TagHandler,
                 SprintHandler, SprintTaskHandler, TimeTrackerHandler,
-                EpicHandler, StoryHandler
+                EpicHandler, StoryHandler, SprintNoteHandler
         ]:
             new_handler = handler(handler_chain)
             handler_chain = new_handler
@@ -469,6 +479,57 @@ class CommandHandler:
                         obj = ProjectTag(id=project_id, tag_id=tag_id)
                         self.repo.add(obj)
                     session.commit()
+        elif command == "note":
+            if entity_type == "tasks":
+                existing_task = self.repo.list(Task, {"id": kwargs["id"]})
+                if not existing_task:
+                    raise ValueError(
+                        f"Task with id {kwargs['id']} is not found!")
+                existing_note = self.repo.list(TaskNote, {"task": kwargs["id"]})
+                if not existing_note:
+                    obj = TaskNote(**kwargs)
+                    self.repo.add(obj)
+                    self.repo.update(Task, kwargs["id"],
+                                     {"modification_date": datetime.now()})
+                    session.commit()
+                else:
+                    from rich.markdown import Markdown
+                    self.console.print(Markdown(existing_note[0].text))
+                    exit()
+            elif entity_type == "projects":
+                existing_project = self.repo.list(Project,
+                                                  {"id": kwargs["id"]})
+                if not existing_project:
+                    raise ValueError(
+                        f"Project with id {kwargs['id']} is not found!")
+                obj = ProjectNote(**kwargs)
+                self.repo.add(obj)
+                session.commit()
+            elif entity_type == "epics":
+                epic = self.repo.list(Epic, {"id": kwargs["id"]})
+                if not epic:
+                    raise ValueError(
+                        f"Epic with id {kwargs['id']} is not found!")
+                obj = EpicNote(**kwargs)
+                self.repo.add(obj)
+                session.commit()
+            elif entity_type == "stories":
+                epic = self.repo.list(Story, {"id": kwargs["id"]})
+                if not epic:
+                    raise ValueError(
+                        f"Story with id {kwargs['id']} is not found!")
+                obj = StoryNote(**kwargs)
+                self.repo.add(obj)
+                session.commit()
+            elif entity_type == "sprints":
+                sprint = self.repo.list(Sprint, {"id": kwargs["id"]})
+                if not sprint:
+                    raise ValueError(
+                        f"Sprint with id {kwargs['id']} is not found!")
+                obj = SprintNote(**kwargs)
+                self.repo.add(obj)
+                session.commit()
+            self.printer.print_new_object(obj)
         elif command == "comment":
             if entity_type == "tasks":
                 existing_task = self.repo.list(Task, {"id": kwargs["id"]})

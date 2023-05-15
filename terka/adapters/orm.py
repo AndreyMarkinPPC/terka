@@ -20,6 +20,7 @@ from terka.domain.user import User
 from terka.domain.project import Project, ProjectStatus
 from terka.domain.event_history import TaskEvent, ProjectEvent, EventType
 from terka.domain.commentary import TaskCommentary, ProjectCommentary, EpicCommentary, StoryCommentary, SprintCommentary
+from terka.domain.notes import TaskNote, ProjectNote, EpicNote, StoryNote, SprintNote
 from terka.domain.tag import BaseTag, TaskTag, ProjectTag
 from terka.domain.collaborators import TaskCollaborator, ProjectCollaborator
 from terka.domain.sprint import Sprint, SprintStatus, SprintTask
@@ -122,6 +123,51 @@ story_commentaries = Table(
 
 sprint_commentaries = Table(
     "sprint_commentaries",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("sprint", ForeignKey("sprints.id"), nullable=True),
+    Column("date", DateTime, nullable=False),
+    Column("text", String(225)),
+)
+
+task_notes = Table(
+    "task_notes",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("task", ForeignKey("tasks.id"), nullable=True),
+    Column("date", DateTime, nullable=False),
+    Column("text", String(225)),
+)
+
+project_notes = Table(
+    "project_notes",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("project", ForeignKey("projects.id"), nullable=True),
+    Column("date", DateTime, nullable=False),
+    Column("text", String(225)),
+)
+
+epic_notes = Table(
+    "epic_notes",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("epic", ForeignKey("epics.id"), nullable=True),
+    Column("date", DateTime, nullable=False),
+    Column("text", String(225)),
+)
+
+story_notes = Table(
+    "story_notes",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("story", ForeignKey("stories.id"), nullable=True),
+    Column("date", DateTime, nullable=False),
+    Column("text", String(225)),
+)
+
+sprint_notes = Table(
+    "sprint_notes",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("sprint", ForeignKey("sprints.id"), nullable=True),
@@ -241,14 +287,23 @@ asana_projects = Table(
 def start_mappers():
     asana_task_mapper = mapper(AsanaTask, asana_tasks)
     asana_project_mapper = mapper(AsanaProject, asana_projects)
+
     task_commentary_mapper = mapper(TaskCommentary, task_commentaries)
     project_commentary_mapper = mapper(ProjectCommentary, project_commentaries)
     epic_commentary_mapper = mapper(EpicCommentary, epic_commentaries)
     story_commentary_mapper = mapper(StoryCommentary, story_commentaries)
     sprint_commentary_mapper = mapper(SprintCommentary, sprint_commentaries)
+
+    task_note_mapper = mapper(TaskNote, task_notes)
+    project_note_mapper = mapper(ProjectNote, project_notes)
+    epic_note_mapper = mapper(EpicNote, epic_notes)
+    story_note_mapper = mapper(StoryNote, story_notes)
+    sprint_note_mapper = mapper(SprintNote, sprint_notes)
+
     task_event_mapper = mapper(TaskEvent, task_events)
     project_event_mapper = mapper(ProjectEvent, project_events)
     user_mapper = mapper(User, users)
+
     tag_mapper = mapper(BaseTag, tags)
     task_tag_mapper = mapper(TaskTag,
                              task_tags,
@@ -288,6 +343,10 @@ def start_mappers():
                              relationship(task_commentary_mapper,
                                           collection_class=list,
                                           cascade="all, delete-orphan"),
+                             "notes":
+                             relationship(task_note_mapper,
+                                          collection_class=set,
+                                          cascade="all, delete-orphan"),
                              "history":
                              relationship(task_event_mapper,
                                           collection_class=list,
@@ -308,6 +367,10 @@ def start_mappers():
                              relationship(epic_commentary_mapper,
                                           collection_class=list,
                                           cascade="all, delete-orphan"),
+                             "notes":
+                             relationship(epic_note_mapper,
+                                          collection_class=set,
+                                          cascade="all, delete-orphan"),
                              "tasks":
                              relationship(epic_tasks_mapper,
                                           collection_class=list)
@@ -322,6 +385,10 @@ def start_mappers():
                              "commentaries":
                              relationship(story_commentary_mapper,
                                           collection_class=list,
+                                          cascade="all, delete-orphan"),
+                             "notes":
+                             relationship(story_note_mapper,
+                                          collection_class=set,
                                           cascade="all, delete-orphan"),
                               "tasks":
                               relationship(story_tasks_mapper,
@@ -351,6 +418,10 @@ def start_mappers():
                                 relationship(project_commentary_mapper,
                                              collection_class=list,
                                              cascade="all, delete-orphan"),
+                                 "notes":
+                                 relationship(project_note_mapper,
+                                              collection_class=set,
+                                              cascade="all, delete-orphan"),
                                 "history":
                                 relationship(project_event_mapper,
                                              collection_class=list)
@@ -366,6 +437,10 @@ def start_mappers():
                                relationship(sprint_commentary_mapper,
                                             collection_class=list,
                                         cascade="all, delete-orphan"),
+                               "notes":
+                               relationship(sprint_note_mapper,
+                                            collection_class=set,
+                                            cascade="all, delete-orphan"),
                                "tasks":
                                relationship(sprint_tasks_mapper,
                                             collection_class=list)

@@ -50,6 +50,3 @@ class Story:
 class StoryTask:
     story: int
     task: int
-
-
-
