@@ -1,13 +1,15 @@
 import pytest
 
-from src.domain.user import User
-from src.domain.task import Task
-from src.domain.project import Project
+from terka.domain.user import User
+from terka.domain.task import Task
+from terka.domain.project import Project
 
 
 @pytest.fixture
 def user():
     return User("am")
+
+
 @pytest.fixture
 def task():
     return Task("test_task")
