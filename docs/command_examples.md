@@ -2,24 +2,28 @@
 
 ## terka entities
 
-* tasks
-* projects
-* users
-* sprints
+* `tasks`
+* `projects`
+* `users`
+* `sprints`
+* `epics`
+* `stories`
 
 ## terka commands
-* create
-* show
-* list
-* update
-* comment
-* edit
-* done
-* delete
-* tag
-* collaborate
-* add
-* start
+* `create`
+* `show`
+* `list`
+* `update`
+* `comment`
+* `edit`
+* `done`
+* `delete`
+* `tag`
+* `collaborate`
+* `add`
+* `start`
+* `track`
+* `connect`
 
 > When calling commands and entities you can use their first letters.
 > I.e. if you want to create new task you can call `terka cre ta` or even `terka c t`.
@@ -195,6 +199,21 @@ sprint's end_date).
 ```
 terka start sprint 1
 ```
+#### `track`
+
+Tracks time spend on the task; can be in hours or minutes
+
+1. Track 10 minutes spent on task 1
+
+```
+terka track task 1 -M 10
+```
+1. Track 1 hour spent on task 1
+```
+terka track task 1 -H 1
+```
+
+
 ## terka options
 Options depend on a particular entity but there are some common one
 * `--n|--name` - name of the entity
