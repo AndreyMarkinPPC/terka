@@ -1,4 +1,6 @@
 # Terka - Ter[minal] Ka[nban]
+[![PyPI](https://img.shields.io/pypi/v/terka?logo=pypi&logoColor=white&style=flat-square)](https://pypi.org/project/terka)
+[![Downloads](https://static.pepy.tech/badge/terka)](https://pepy.tech/project/terka)(https://pypi.org/project/terka)
 
 `terka` (pronounced *tyorka* or *Тёрка*) is a CLI tool that helps you manage your tasks
 in the terminal. Create task, assign it to a project, update it status, write

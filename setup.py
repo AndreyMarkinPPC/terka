@@ -1,14 +1,14 @@
 import pathlib
 from setuptools import setup, find_packages
 
-HERE = pathlib.Path(__file__).parent
-# README = (HERE.parent / "README.md").read_text()
+HERE = pathlib.Path(__file__)
+README = (HERE.parent / "README.md").read_text()
 
 setup(
     name="terka",
-    version="1.9.0",
+    version="1.9.1",
     description="CLI utility for creating and managing tasks in a terminal",
-    # long_description=README,
+    long_description=README,
     long_description_content_type="text/markdown",
     author="Andrei Markin",
     author_email="andrey.markin.ppc@gmail.com",

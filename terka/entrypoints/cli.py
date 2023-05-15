@@ -124,6 +124,10 @@ def main():
                         case _:
                             raise Exception("Unknown format")
                     task_dict = update_task_dict(task_dict, repo)
+                    if entity.startswith("s/"):
+                        entity = "stories"
+                    elif entity.startswith("e/"):
+                        entity = "epics"
                     command_handler.execute(command, entity, task_dict)
             exit()
         is_interactive = False

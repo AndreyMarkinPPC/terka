@@ -589,7 +589,7 @@ class Printer:
             entities = [
                 (entity, story_point)
                 for entity, story_point in sorted(zip(entities, story_points),
-                                                  key=lambda x: sorting_fn(x),
+                                                  key=lambda x: sorting_fn(x[0]),
                                                   reverse=reverse)
             ]
         else:
