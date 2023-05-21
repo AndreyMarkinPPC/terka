@@ -74,6 +74,7 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             "minutes": new_dict.get("M"),
             "show_history": new_dict.get("show-history"),
             "show_commentaries": new_dict.get("show-commentaries") or new_dict.get("show-comments"),
+            "show_notes": new_dict.get("show-notes"),
             "epics": new_dict.get("epics"),
             "stories": new_dict.get("stories"),
             "tasks": new_dict.get("tasks"),

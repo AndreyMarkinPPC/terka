@@ -17,7 +17,7 @@ from terka.domain.task import Task
 from terka.domain.project import Project
 from terka.domain.user import User
 from terka.domain.commentary import TaskCommentary, ProjectCommentary, EpicCommentary, StoryCommentary, SprintCommentary
-from terka.domain.notes import TaskNote, ProjectNote, EpicNote, StoryNote, SprintNote
+from terka.domain.notes import BaseNote, TaskNote, ProjectNote, EpicNote, StoryNote, SprintNote
 from terka.domain.tag import BaseTag, TaskTag, ProjectTag
 from terka.domain.collaborators import TaskCollaborator, ProjectCollaborator
 from terka.domain.event_history import TaskEvent, ProjectEvent
@@ -191,6 +191,15 @@ class SprintNoteHandler(BaseHandler):
         return super().handle(entity)
 
 
+class NoteHandler(BaseHandler):
+
+    def handle(self, entity):
+        if "note".startswith(entity):
+            logger.debug("Handling note")
+            return BaseNote, "note"
+        return super().handle(entity)
+
+
 class CommandHandler:
 
     def __init__(self, repo: AbsRepository):
@@ -206,7 +215,7 @@ class CommandHandler:
         for handler in [
                 TaskHandler, ProjectHandler, UserHandler, TagHandler,
                 SprintHandler, SprintTaskHandler, TimeTrackerHandler,
-                EpicHandler, StoryHandler, SprintNoteHandler
+                EpicHandler, StoryHandler, SprintNoteHandler, NoteHandler
         ]:
             new_handler = handler(handler_chain)
             handler_chain = new_handler
@@ -233,6 +242,15 @@ class CommandHandler:
                 show_history=bool(kwargs.pop("show_history", False)),
                 show_commentaries=bool(kwargs.pop("show_commentaries", False)),
                 show_completed=bool(kwargs.pop("all", False)))
+            if entity_type == "notes":
+                note_type = get_note_type(kwargs)
+                notes = self.repo.list(note_type, {})
+                self.printer.print_entities(notes,
+                                            "notes",
+                                            self.repo,
+                                            custom_sort=None,
+                                            print_options=print_options)
+                exit()
             if entity_type == "tasks":
                 if "status" not in kwargs and "all" not in kwargs:
                     kwargs["status"] = "BACKLOG,TODO,IN_PROGRESS,REVIEW"
@@ -375,13 +393,15 @@ class CommandHandler:
             logger.info("<count> tasks")
         elif command == "collaborate":
             if entity_type not in ("tasks", "projects"):
-                raise ValueError("You can collaborate only on tasks and projects")
+                raise ValueError(
+                    "You can collaborate only on tasks and projects")
             if entity_type == "tasks":
                 task_ids = get_ids(kwargs["id"])
                 for task_id in task_ids:
                     existing_task = self.repo.list(Task, {"id": task_id})
                     if not existing_task:
-                        raise ValueError(f"Task with id {task_id} is not found!")
+                        raise ValueError(
+                            f"Task with id {task_id} is not found!")
                     user = self.repo.list(User, {"name": kwargs["name"]})
                     if not user:
                         user = User(**kwargs)
@@ -404,7 +424,8 @@ class CommandHandler:
             elif entity_type == "projects":
                 project_ids = get_ids(kwargs["id"])
                 for project_id in project_ids:
-                    existing_project = self.repo.list(Project, {"id": project_id})
+                    existing_project = self.repo.list(Project,
+                                                      {"id": project_id})
                     if not existing_project:
                         raise ValueError(
                             f"Project with id {project_id} is not found!")
@@ -485,7 +506,8 @@ class CommandHandler:
                 if not existing_task:
                     raise ValueError(
                         f"Task with id {kwargs['id']} is not found!")
-                existing_note = self.repo.list(TaskNote, {"task": kwargs["id"]})
+                existing_note = self.repo.list(TaskNote,
+                                               {"task": kwargs["id"]})
                 if not existing_note:
                     obj = TaskNote(**kwargs)
                     self.repo.add(obj)
@@ -720,8 +742,7 @@ class CommandHandler:
                     sprint_task = self.execute("get", "sprint_tasks",
                                                {"task": task_id})
                     if not sprint_task:
-                        exit(
-                            f"Task id {task_id} is not part of any sprint")
+                        exit(f"Task id {task_id} is not part of any sprint")
                     else:
                         sprint_task_id = sprint_task[0].id
                     self.repo.update(SprintTask, sprint_task_id,
@@ -730,8 +751,38 @@ class CommandHandler:
         elif command == "create":
             kwargs["created_by"] = services.lookup_user_id(
                 self.config.get("user"), self.repo)
-            obj = entity(**kwargs)
-            if entity in (Task, Project):
+            if entity == BaseNote:
+                if "task_id" in kwargs:
+                    create_dict = note_edit_vim(kwargs.pop("task_id"), "task",
+                                                kwargs)
+                    create_dict.update(kwargs)
+                    obj = TaskNote(**create_dict)
+                elif "project" in kwargs:
+                    create_dict = note_edit_vim(kwargs.pop("project"),
+                                                "project", kwargs)
+                    create_dict.update(kwargs)
+                    obj = ProjectNote(**create_dict)
+                elif "sprint" in kwargs:
+                    create_dict = note_edit_vim(kwargs.pop("sprint_id"),
+                                                "sprint", kwargs)
+                    create_dict.update(kwargs)
+                    obj = SprintNote(**create_dict)
+                elif "epic" in kwargs:
+                    create_dict = note_edit_vim(kwargs.pop("epic_id"), "epic",
+                                                kwargs)
+                    create_dict.update(kwargs)
+                    obj = EpicNote(**create_dict)
+                elif "story" in kwargs:
+                    create_dict = note_edit_vim(kwargs.pop("story_id"),
+                                                "story", kwargs)
+                    create_dict.update(kwargs)
+                    obj = StoryNote(**create_dict)
+                self.repo.add(obj)
+                session.commit()
+                exit()
+            else:
+                obj = entity(**kwargs)
+            if entity in (Task, Project, BaseNote):
                 if (existing_obj := self.repo.list(entity,
                                                    {"name": obj.name})):
                     print("Found existing entity\n")
@@ -810,6 +861,28 @@ class CommandHandler:
             if (task_id := kwargs.get("id")):
                 tasks = get_ids(task_id)
                 for task in tasks:
+                    if entity_type == "note":
+                        note_type = get_note_type(kwargs)
+                        note = self.repo.get_by_id(note_type, task)
+                        if note:
+                            with tempfile.NamedTemporaryFile(
+                                    suffix=".md") as tf:
+                                if isinstance(note.text, (bytes, bytearray)):
+                                    text = note.text
+                                else:
+                                    text = note.text.encode("utf-8")
+                                tf.write(text)
+                                tf.flush()
+                                run(["vim", "+2", tf.name])
+                                tf.seek(0)
+                                new_entry = tf.read()
+                            self.repo.update(note_type, task,
+                                             {"text": new_entry})
+                            session.commit()
+                            exit()
+                        else:
+                            print(f"There's no note with id {task}")
+
                     if task.isdigit():
                         entities = self.repo.get_by_id(entity, task)
                         task_id = task
@@ -881,11 +954,18 @@ class CommandHandler:
                 show_history=bool(kwargs.pop("show_history", False)),
                 show_commentaries=bool(kwargs.pop("show_commentaries", False)),
                 show_completed=bool(kwargs.pop("all", False)),
+                show_notes=bool(kwargs.pop("show_notes", False)),
                 show_viz=kwargs.pop("show_viz", False))
             if kwargs.pop("partial_project_view", False):
                 print_options.show_epics = bool(kwargs.pop("epics", False))
                 print_options.show_tasks = bool(kwargs.pop("tasks", False))
                 print_options.show_stories = bool(kwargs.pop("stories", False))
+            if entity_type == "note":
+                note_type = get_note_type(kwargs)
+                note = self.repo.get_by_id(note_type, kwargs.get("id"))
+                self.printer.print_entity(kwargs.get("id"), "notes", [note],
+                                          self.repo, None, print_options)
+                exit()
             if entity_type == "tasks":
                 print_options.show_completed = True
             if not (task_id := kwargs.get("id")):
@@ -1013,3 +1093,40 @@ def get_ids(ids: Union[str, int]) -> List[Union[int, str]]:
     else:
         ids = [id_string]
     return ids
+
+
+def note_edit_vim(entity_id: str, attached_entity: str,
+                  kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    message_template = f"---You are adding note for {attached_entity} {entity_id}"
+    with tempfile.NamedTemporaryFile(suffix=".md") as tf:
+        if not isinstance(message_template, (bytes, bytearray)):
+            message_template = message_template.encode("utf-8")
+        tf.write(message_template)
+        tf.flush()
+        run(["vim", "+2", tf.name])
+        tf.seek(0)
+        new_entry = tf.read()
+    text = []
+    new_entry = new_entry.decode("utf-8").rstrip()
+    for i, row in enumerate(new_entry.split("\n")):
+        if row.startswith("---"):
+            continue
+        if row:
+            text.append(row)
+    if "name" not in kwargs:
+        name = input("Would you like to enter the name for the note? ")
+    create_dict = {"id": entity_id, "text": "\n".join(text), "name": name}
+    return create_dict
+
+
+def get_note_type(kwargs: Dict[str, Any]) -> BaseNote:
+    if "project" in kwargs:
+        return ProjectNote
+    if "task_id" in kwargs:
+        return TaskNote
+    if "sprint_id" in kwargs:
+        return SprintNote
+    if "story_id" in kwargs:
+        return StoryNote
+    if "epic_id" in kwargs:
+        return EpicNote

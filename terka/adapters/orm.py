@@ -135,8 +135,10 @@ task_notes = Table(
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("task", ForeignKey("tasks.id"), nullable=True),
+    Column("created_by", ForeignKey("users.id"), nullable=True),
     Column("date", DateTime, nullable=False),
-    Column("text", String(225)),
+    Column("name", String(225)),
+    Column("text", String(1000)),
 )
 
 project_notes = Table(
@@ -144,8 +146,10 @@ project_notes = Table(
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("project", ForeignKey("projects.id"), nullable=True),
+    Column("created_by", ForeignKey("users.id"), nullable=True),
     Column("date", DateTime, nullable=False),
-    Column("text", String(225)),
+    Column("name", String(225)),
+    Column("text", String(1000)),
 )
 
 epic_notes = Table(
@@ -153,8 +157,10 @@ epic_notes = Table(
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("epic", ForeignKey("epics.id"), nullable=True),
+    Column("created_by", ForeignKey("users.id"), nullable=True),
     Column("date", DateTime, nullable=False),
-    Column("text", String(225)),
+    Column("name", String(225)),
+    Column("text", String(1000)),
 )
 
 story_notes = Table(
@@ -162,8 +168,10 @@ story_notes = Table(
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("story", ForeignKey("stories.id"), nullable=True),
+    Column("created_by", ForeignKey("users.id"), nullable=True),
     Column("date", DateTime, nullable=False),
-    Column("text", String(225)),
+    Column("name", String(225)),
+    Column("text", String(1000)),
 )
 
 sprint_notes = Table(
@@ -171,8 +179,10 @@ sprint_notes = Table(
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("sprint", ForeignKey("sprints.id"), nullable=True),
+    Column("created_by", ForeignKey("users.id"), nullable=True),
     Column("date", DateTime, nullable=False),
-    Column("text", String(225)),
+    Column("name", String(225)),
+    Column("text", String(1000)),
 )
 
 users = Table("users", metadata,

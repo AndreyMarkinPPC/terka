@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.table import Table
 from statistics import mean, median
 
@@ -28,6 +29,7 @@ class PrintOptions:
     show_completed: bool = False
     show_epics: bool = True
     show_stories: bool = True
+    show_notes: bool = True
     show_viz: bool = False
 
 
@@ -99,6 +101,12 @@ class Printer:
                 self.print_task(entities, repo, print_options)
             else:
                 print(f"No task with id '{task}' found!")
+        if entity_type == "notes":
+            if entities:
+                self.print_note(entities=entities, association="task", markdown=True)
+            else:
+                print(f"No notes with id '{task}' found!")
+
 
     def print_entities(self, entities, type, repo, custom_sort, print_options):
         if type == "projects":
@@ -132,6 +140,8 @@ class Printer:
                                  repo=repo,
                                  print_options=print_options,
                                  composite_type=type)
+        elif type == "notes":
+            self.print_note(entities=entities, association="task")
         else:
             self.print_default_entity(self, entities)
 
@@ -156,6 +166,25 @@ class Printer:
             if entity.text not in seen_tags:
                 table.add_row(f"[red]{entity.id}[/red]", entity.text)
                 seen_tags.add(entity.text)
+        if table.row_count:
+            self.console.print(table)
+
+    def print_note(self, entities, association: str, markdown=False) -> None:
+        association = entities[0].__class__.__name__.replace("Note", "").lower()
+        table = Table(box=self.box, title="NOTES")
+        for column in ("id", "name", "association"):
+            table.add_column(column)
+        for entity in entities:
+            if markdown:
+                if isinstance(entity.text, (bytes, bytearray)):
+                    text = entity.text.encode("utf-8")
+                else:
+                    text = entity.text
+                self.console.print(Markdown(text), width=80)
+                exit()
+            else:
+                table.add_row(f"[red]{str(entity.id)}[/red]", entity.name,
+                              str(getattr(entity, association)))
         if table.row_count:
             self.console.print(table)
 
@@ -400,6 +429,8 @@ class Printer:
             self.print_commentaries(commentaries)
         if print_options.show_history and (history := entity.history):
             self.print_history(history)
+        if print_options.show_notes and (notes := entity.notes):
+            self.print_note(notes, "project")
 
     def print_task(self,
                    entities,
@@ -586,12 +617,10 @@ class Printer:
 
         if story_points:
             completed_story_points = []
-            entities = [
-                (entity, story_point)
-                for entity, story_point in sorted(zip(entities, story_points),
-                                                  key=lambda x: sorting_fn(x[0]),
-                                                  reverse=reverse)
-            ]
+            entities = [(entity, story_point) for entity, story_point in
+                        sorted(zip(entities, story_points),
+                               key=lambda x: sorting_fn(x[0]),
+                               reverse=reverse)]
         else:
             entities.sort(key=lambda x: sorting_fn(x), reverse=reverse)
             completed_story_points = None
