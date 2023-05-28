@@ -103,10 +103,11 @@ class Printer:
                 print(f"No task with id '{task}' found!")
         if entity_type == "notes":
             if entities:
-                self.print_note(entities=entities, association="task", markdown=True)
+                self.print_note(entities=entities,
+                                association="task",
+                                markdown=True)
             else:
                 print(f"No notes with id '{task}' found!")
-
 
     def print_entities(self, entities, type, repo, custom_sort, print_options):
         if type == "projects":
@@ -170,14 +171,16 @@ class Printer:
             self.console.print(table)
 
     def print_note(self, entities, association: str, markdown=False) -> None:
-        association = entities[0].__class__.__name__.replace("Note", "").lower()
+
+        association = next(iter(entities)).__class__.__name__.replace(
+            "Note", "").lower()
         table = Table(box=self.box, title="NOTES")
         for column in ("id", "name", "association"):
             table.add_column(column)
         for entity in entities:
             if markdown:
                 if isinstance(entity.text, (bytes, bytearray)):
-                    text = entity.text.encode("utf-8")
+                    text = entity.text.decode("utf-8")
                 else:
                     text = entity.text
                 self.console.print(Markdown(text), width=80)

@@ -244,12 +244,23 @@ class CommandHandler:
                 show_completed=bool(kwargs.pop("all", False)))
             if entity_type == "notes":
                 note_type = get_note_type(kwargs)
-                notes = self.repo.list(note_type, {})
-                self.printer.print_entities(notes,
-                                            "notes",
-                                            self.repo,
-                                            custom_sort=None,
-                                            print_options=print_options)
+                if note_type:
+                    notes = self.repo.list(note_type, kwargs)
+                    self.printer.print_entities(notes,
+                                                "notes",
+                                                self.repo,
+                                                custom_sort=None,
+                                                print_options=print_options)
+                else:
+                    for note_type in (ProjectNote, TaskNote, SprintNote, EpicNote, StoryNote):
+                        if notes := self.repo.list(note_type, {}):
+                            self.console.print(note_type.__name__)
+                            self.printer.print_entities(notes,
+                                                        "notes",
+                                                        self.repo,
+                                                        custom_sort=None,
+                                                        print_options=print_options)
+
                 exit()
             if entity_type == "tasks":
                 if "status" not in kwargs and "all" not in kwargs:
@@ -762,17 +773,17 @@ class CommandHandler:
                                                 "project", kwargs)
                     create_dict.update(kwargs)
                     obj = ProjectNote(**create_dict)
-                elif "sprint" in kwargs:
+                elif "sprint_id" in kwargs:
                     create_dict = note_edit_vim(kwargs.pop("sprint_id"),
                                                 "sprint", kwargs)
                     create_dict.update(kwargs)
                     obj = SprintNote(**create_dict)
-                elif "epic" in kwargs:
+                elif "epic_id" in kwargs:
                     create_dict = note_edit_vim(kwargs.pop("epic_id"), "epic",
                                                 kwargs)
                     create_dict.update(kwargs)
                     obj = EpicNote(**create_dict)
-                elif "story" in kwargs:
+                elif "story_id" in kwargs:
                     create_dict = note_edit_vim(kwargs.pop("story_id"),
                                                 "story", kwargs)
                     create_dict.update(kwargs)
