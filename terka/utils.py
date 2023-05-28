@@ -36,11 +36,13 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             new_dict.get("task_id") or new_dict.get("task-id"),
             "name":
             new_dict.get("n") or new_dict.get("name"),
-            "num_log_entries": new_dict.get("L") or new_dict.get("lines"),
+            "num_log_entries":
+            new_dict.get("L") or new_dict.get("lines"),
             "status":
             new_dict.get("s") or new_dict.get("status"),
             "project":
-            new_dict.get("p") or new_dict.get("project") or new_dict.get("project_name"),
+            new_dict.get("p") or new_dict.get("project")
+            or new_dict.get("project_name"),
             "assignee":
             new_dict.get("a") or new_dict.get("assignee"),
             "due_date":
@@ -61,31 +63,51 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             new_dict.get("overdue"),
             "stale":
             new_dict.get("stale"),
-            "goal": new_dict.get("goal"),
+            "goal":
+            new_dict.get("goal"),
             "start_date":
             convert_date(new_dict.get("start-date")),
             "end_date":
             convert_date(new_dict.get("end-date")),
-            "sprint_id": new_dict.get("to-sprint") or new_dict.get("from-sprint") or new_dict.get("sprint"),
-            "story_id": new_dict.get("to-story") or new_dict.get("from-story") or new_dict.get("story"),
-            "epic_id": new_dict.get("to-epic") or new_dict.get("from-epic") or new_dict.get("epic"),
-            "story_points": new_dict.get("story-points"),
-            "hours": new_dict.get("H"),
-            "minutes": new_dict.get("M"),
-            "show_history": new_dict.get("show-history"),
-            "show_commentaries": new_dict.get("show-commentaries") or new_dict.get("show-comments"),
-            "show_notes": new_dict.get("show-notes"),
-            "epics": new_dict.get("epics"),
-            "stories": new_dict.get("stories"),
-            "tasks": new_dict.get("tasks"),
-            "external_project": new_dict.get("external-project"),
-            "external_task": new_dict.get("external-task"),
-            "show_viz": new_dict.get("show-viz"),
-            "file": new_dict.get("file") or new_dict.get("f"),
+            "sprint_id":
+            new_dict.get("to-sprint") or new_dict.get("from-sprint")
+            or new_dict.get("sprint"),
+            "story_id":
+            new_dict.get("to-story") or new_dict.get("from-story")
+            or new_dict.get("story"),
+            "epic_id":
+            new_dict.get("to-epic") or new_dict.get("from-epic")
+            or new_dict.get("epic"),
+            "story_points":
+            new_dict.get("story-points"),
+            "hours":
+            new_dict.get("H"),
+            "minutes":
+            new_dict.get("M"),
+            "show_history":
+            new_dict.get("show-history"),
+            "show_commentaries":
+            new_dict.get("show-commentaries") or new_dict.get("show-comments"),
+            "show_notes":
+            new_dict.get("show-notes"),
+            "epics":
+            new_dict.get("epics"),
+            "stories":
+            new_dict.get("stories"),
+            "tasks":
+            new_dict.get("tasks"),
+            "external_project":
+            new_dict.get("external-project"),
+            "external_task":
+            new_dict.get("external-task"),
+            "show_viz":
+            new_dict.get("show-viz"),
+            "file":
+            new_dict.get("file") or new_dict.get("f"),
         }
         if "--sort" in kwargs:
             sort_index = kwargs.index("--sort")
-            sort_statement = kwargs[sort_index:sort_index+2]
+            sort_statement = kwargs[sort_index:sort_index + 2]
             task_dict.update(create_task_dict(sort_statement))
     elif len(kwargs) == 1:
         if "overdue" in kwargs[0]:
@@ -131,7 +153,12 @@ def convert_status(status: str):
         "a": "ACTIVE",
         "p": "PLANNED"
     }
-    return conversion_dict.get(status[0].lower(), "BACKLOG")
+    statuses = [
+        conversion_dict.get(status[0].lower(), "BACKLOG")
+        for status in status.split(",")
+    ]
+
+    return ",".join(statuses)
 
 
 def convert_date(date: str):

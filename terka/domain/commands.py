@@ -252,14 +252,16 @@ class CommandHandler:
                                                 custom_sort=None,
                                                 print_options=print_options)
                 else:
-                    for note_type in (ProjectNote, TaskNote, SprintNote, EpicNote, StoryNote):
+                    for note_type in (ProjectNote, TaskNote, SprintNote,
+                                      EpicNote, StoryNote):
                         if notes := self.repo.list(note_type, {}):
                             self.console.print(note_type.__name__)
-                            self.printer.print_entities(notes,
-                                                        "notes",
-                                                        self.repo,
-                                                        custom_sort=None,
-                                                        print_options=print_options)
+                            self.printer.print_entities(
+                                notes,
+                                "notes",
+                                self.repo,
+                                custom_sort=None,
+                                print_options=print_options)
 
                 exit()
             if entity_type == "tasks":
@@ -754,6 +756,19 @@ class CommandHandler:
                                                {"task": task_id})
                     if not sprint_task:
                         exit(f"Task id {task_id} is not part of any sprint")
+                    elif len(sprint_task) > 1:
+                        sprint_ids = [str(task.sprint) for task in sprint_task]
+                        sprint_id = input(
+                            f"Task task_id is part of several sprints, "
+                            "where do you want to assign story points? "
+                            f"(sprints: {', '.join(sprint_ids)}): ")
+                        if sprint_id not in sprint_ids:
+                            exit("Incorrect sprint id")
+                        sprint_task_id = [
+                            task.id for task in sprint_task
+                            if task.sprint == int(sprint_id)
+                        ][0]
+
                     else:
                         sprint_task_id = sprint_task[0].id
                     self.repo.update(SprintTask, sprint_task_id,
@@ -1075,7 +1090,7 @@ class CommandHandler:
                          is_active_link=True)
         self.repo.add(obj)
         sprint_task_id = obj.task
-        if sprint_task_id:
+        if sprint_task_id and sprint.status == "ACTIVE":
             task_params = {"id": task.id}
             if task.status.name == "BACKLOG":
                 task_params.update({"status": "TODO"})
