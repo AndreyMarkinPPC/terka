@@ -246,6 +246,10 @@ class Printer:
         if i == 0 and print_options.show_commentaries and (
                 commentaries := entity.commentaries):
             self.print_commentaries(commentaries)
+        if viz := print_options.show_viz:
+            if "time" in viz:
+                time_entries = views.time_spent(self.repo.session, tasks)
+                self._print_time_utilization(time_entries)
 
     def print_sprint(self, entities, repo, print_options, kwargs=None):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
@@ -297,6 +301,7 @@ class Printer:
         if print_options.show_tasks:
             task_print_options = deepcopy(print_options)
             task_print_options.show_commentaries = False
+            task_print_options.show_viz = False
             self.print_task(entities=tasks,
                             repo=repo,
                             print_options=task_print_options,
@@ -402,6 +407,7 @@ class Printer:
             self.console.print(non_active_projects)
         non_task_view_options = deepcopy(print_options)
         non_task_view_options.show_tasks = False
+        non_task_view_options.show_viz = False
         if print_options.show_epics and (epics := entity.epics):
             self.console.print("")
             self.print_composite(epics, self.repo, non_task_view_options,
@@ -413,6 +419,7 @@ class Printer:
         if print_options.show_tasks and (tasks := entity.tasks):
             task_print_options = deepcopy(print_options)
             task_print_options.show_commentaries = False
+            task_print_options.show_viz = False
             self.console.print("")
             self.print_task(entities=tasks,
                             repo=self.repo,
@@ -498,6 +505,10 @@ class Printer:
             if table.row_count:
                 self.console.print(f"[green]****COMPLETED TASKS*****[/green]")
                 self.console.print(table)
+        if viz := print_options.show_viz:
+            if "time" in viz:
+                time_entries = views.time_spent(self.repo.session, entities)
+                self._print_time_utilization(time_entries)
 
     def _get_attributes(self, obj) -> List[Tuple[str, str]]:
         import inspect
@@ -743,9 +754,18 @@ class Printer:
 
     def _print_time_utilization(self, time_entries) -> None:
         dates = [entry.get("date") for entry in time_entries]
-        times = [entry.get("time_spent_hours") for entry in time_entries]
+        times = [entry.get("time_spent_hours") / 60 for entry in time_entries]
         plt.date_form('Y-m-d')
         plt.plot_size(100, 15)
-        plt.title(f"Time tracker - {sum(times)} hours spent")
+        plt.title(f"Time tracker - {format_hour_minute(sum(times))} spent")
         plt.bar(dates, times)
         plt.show()
+
+def format_hour_minute(time_minutes: int) -> str:
+    if time_minutes < 1:
+        return f"00H: {round(time_minutes * 60)}M"
+    else:
+        return f"{round(time_minutes // 1)}H:{round(time_minutes % 1* 60)}M"
+
+
+

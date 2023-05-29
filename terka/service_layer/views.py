@@ -22,7 +22,7 @@ def time_spent(
         text(f"""
     SELECT
         STRFTIME("%Y-%m-%d", creation_date) AS date,
-        ROUND(SUM(time_spent_minutes) / 60, 2) AS time_spent_hours
+        SUM(time_spent_minutes) AS time_spent_hours
     FROM time_tracker_entries
     WHERE
         task IN ({tasks})
