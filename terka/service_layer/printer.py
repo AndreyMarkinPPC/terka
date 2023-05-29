@@ -334,18 +334,10 @@ class Printer:
                 # plt.plot_size(50, 15)
                 # plt.show()
             if "time" in viz:
-                time_entries = views.time_spent(repo.session,
+                time_entries = views.time_spent(self.repo.session, tasks,
                                                 entity.start_date,
                                                 entity.end_date)
-                dates = [entry.get("date") for entry in time_entries]
-                times = [
-                    entry.get("time_spent_hours") for entry in time_entries
-                ]
-                plt.date_form('Y-m-d')
-                plt.plot_size(100, 15)
-                plt.title("Time tracker")
-                plt.bar(dates, times)
-                plt.show()
+                self._print_time_utilization(time_entries)
 
     def print_project(self, entities, print_options, kwargs=None):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD, expand=True)
@@ -434,6 +426,10 @@ class Printer:
             self.print_history(history)
         if print_options.show_notes and (notes := entity.notes):
             self.print_note(notes, "project")
+        if viz := print_options.show_viz:
+            if "time" in viz:
+                time_entries = views.time_spent(self.repo.session, tasks)
+                self._print_time_utilization(time_entries)
 
     def print_task(self,
                    entities,
@@ -744,3 +740,12 @@ class Printer:
                               on="task",
                               how="left")
         return joined[["date", "task", "status"]]
+
+    def _print_time_utilization(self, time_entries) -> None:
+        dates = [entry.get("date") for entry in time_entries]
+        times = [entry.get("time_spent_hours") for entry in time_entries]
+        plt.date_form('Y-m-d')
+        plt.plot_size(100, 15)
+        plt.title(f"Time tracker - {sum(times)} hours spent")
+        plt.bar(dates, times)
+        plt.show()

@@ -1,21 +1,35 @@
 from typing import Dict, List, Optional
 import pandas as pd
 import numpy as np
+from datetime import datetime, timedelta
+from sqlalchemy import text
+
+from terka.domain.task import Task
 
 
-def time_spent(session, start_date: str,
-               end_date: str) -> List[Dict[str, str]]:
+def _n_days_ago(n: int) -> str:
+    return (datetime.today() - timedelta(n)).strftime("%Y-%m-%d")
+
+
+def time_spent(
+    session,
+    tasks: List[Task],
+    start_date: str = _n_days_ago(7),
+    end_date: str = _n_days_ago(0)
+) -> List[Dict[str, str]]:
+    tasks = ",".join([str(task.id) for task in tasks])
     results = session.execute(
-        """
+        text(f"""
     SELECT
         STRFTIME("%Y-%m-%d", creation_date) AS date,
         ROUND(SUM(time_spent_minutes) / 60, 2) AS time_spent_hours
     FROM time_tracker_entries
     WHERE
-        creation_date >= :start_date
-        AND creation_date <= :end_date
+        task IN ({tasks})
+        AND creation_date >= "{start_date}"
+        AND creation_date <= "{end_date}"
     GROUP BY 1
-    """, dict(start_date=start_date, end_date=end_date))
+    """))
     return [dict(r) for r in results]
 
 
