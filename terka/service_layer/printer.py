@@ -137,6 +137,11 @@ class Printer:
                               repo=repo,
                               print_options=print_options)
         elif type in ("epics", "stories"):
+            if custom_sort == "project":
+                entities.sort(key=lambda c: c.project, reverse=True)
+            elif custom_sort == "tasks":
+                entities.sort(key=lambda c: len(c.tasks), reverse=True)
+
             self.print_composite(entities=entities,
                                  repo=repo,
                                  print_options=print_options,
@@ -208,9 +213,28 @@ class Printer:
                         composite_type,
                         kwargs=None):
         table = Table(box=self.box, title=composite_type.upper(), expand=True)
-        for column in ("id", "name", "description", "project", "tasks"):
+        non_active_entities = Table(box=self.box,
+                                    title=f"INACTIVE {composite_type.upper()}",
+                                    expand=True)
+        default_columns = ("id", "name", "description", "status", "project",
+                           "tasks")
+        for column in default_columns:
             table.add_column(column, style="bold")
+        for column in default_columns:
+            non_active_entities.add_column(column, style="bold")
         for i, entity in enumerate(entities):
+            try:
+                project_obj = services.lookup_project_name(
+                    entity.project, repo)
+                project = project_obj.name
+            except:
+                project = None
+            if entity.status.name == "COMPLETED":
+                non_active_entities.add_row(f"E{entity.id}", str(entity.name),
+                                            entity.description,
+                                            entity.status.name, project,
+                                            str(len(tasks)))
+                continue
             tasks = []
             completed_tasks = []
             for entity_task in entity.tasks:
@@ -219,17 +243,21 @@ class Printer:
                     tasks.append(task)
                 else:
                     completed_tasks.append(task)
-            try:
-                project_obj = services.lookup_project_name(
-                    entity.project, repo)
-                project = project_obj.name
-            except:
-                project = None
-            if i == 0 or tasks or print_options.show_completed:
-                table.add_row(f"E{entity.id}", str(entity.name),
-                              entity.description, project, str(len(tasks)))
+            if len(completed_tasks) == len(
+                    entity.tasks):
+                non_active_entities.add_row(f"E{entity.id}", str(entity.name),
+                                            entity.description,
+                                            entity.status.name, project,
+                                            str(len(tasks)))
+                continue
+            # if i == 0 or tasks or print_options.show_completed:
+            table.add_row(f"E{entity.id}", str(entity.name),
+                          entity.description, entity.status.name, project,
+                          str(len(tasks)))
         if table.row_count:
             self.console.print(table)
+        if non_active_entities.row_count and print_options.show_completed:
+            self.console.print(non_active_entities)
         if print_options.show_tasks and tasks:
             self.print_task(entities=tasks,
                             repo=repo,

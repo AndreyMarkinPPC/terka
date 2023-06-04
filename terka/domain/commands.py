@@ -272,22 +272,18 @@ class CommandHandler:
                         del kwargs["all"]
                     show_completed = True
             if entity_type in ("stories", "epics"):
-                if "all" in kwargs:
+                if print_options.show_completed:
                     kwargs["status"] = "ACTIVE,COMPLETED"
-                    del kwargs["all"]
-                    print_options.show_completed = True
                 else:
                     kwargs["status"] = "ACTIVE"
             if entity_type == "sprints":
-                if "all" in kwargs:
+                if print_options.show_completed:
                     kwargs["status"] = "PLANNED,ACTIVE,COMPLETED"
-                    del kwargs["all"]
                 else:
                     kwargs["status"] = "PLANNED,ACTIVE"
             if entity_type == "projects":
-                if "all" in kwargs:
+                if print_options.show_completed:
                     kwargs["status"] = "DELETED,ACTIVE,ON_HOLD,COMPLETED"
-                    del kwargs["all"]
                     show_completed = True
                 else:
                     kwargs["status"] = "ACTIVE"
