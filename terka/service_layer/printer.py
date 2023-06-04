@@ -456,6 +456,10 @@ class Printer:
             default_columns = ("id", "name", "description", "status",
                                "priority", "project", "due_date", "tags",
                                "collaborators", "time_spent")
+        completed_tasks_default_columns = ("id", "name", "description",
+                                           "status", "priority", "project",
+                                           "completed_date", "tags",
+                                           "collaborators", "time_spent")
         #TODO: Add printing for only a single task
         # if (entities[0].status.name == "DONE"):
         #     console.print(f"[green]task is completed on [/green]")
@@ -495,7 +499,7 @@ class Printer:
             table, *rest = self._print_task(
                 table=table,
                 entities=completed_tasks,
-                default_columns=default_columns,
+                default_columns=completed_tasks_default_columns,
                 repo=repo,
                 story_points=completed_story_points,
                 show_window=show_window,
@@ -688,12 +692,22 @@ class Printer:
                     completed_story_points.append(story_point)
                 continue
             entity_name = f"{entity.name}" if not comments else f"{entity.name} [blue][{len(comments)}][/blue]"
+
+            completed_date = None
+            if event_history := entity.history:
+                completed_events = [
+                    event.date for event in event_history
+                    if event.new_value in ("DONE", "DELETED")
+                ]
+                if completed_events:
+                    completed_date = max(completed_events).strftime("%Y-%m-%d")
             if not all_tasks:
                 entity_id = str(entity.id)
             elif entity.due_date and entity.due_date <= date.today():
                 entity_id = f"[red]{entity.id}[/red]"
-            elif (event_history := entity.history) and entity.status.name in (
-                    "TODO", "IN_PROGRESS", "REVIEW"):
+            elif event_history and entity.status.name in ("TODO",
+                                                          "IN_PROGRESS",
+                                                          "REVIEW"):
                 if max([event.date for event in event_history
                         ]) < (datetime.today() - timedelta(days=5)):
                     entity_id = f"[yellow]{entity.id}[/yellow]"
@@ -704,13 +718,13 @@ class Printer:
             if story_points:
                 table.add_row(entity_id, entity_name, entity.description,
                               str(story_point), entity.status.name, priority,
-                              project, str(entity.due_date), tag_string,
-                              collaborator_string, str(time_spent))
+                              project, str(entity.due_date or completed_date),
+                              tag_string, collaborator_string, str(time_spent))
             else:
                 table.add_row(entity_id, entity_name, entity.description,
                               entity.status.name, priority, project,
-                              str(entity.due_date), tag_string,
-                              collaborator_string, str(time_spent))
+                              str(entity.due_date or completed_date),
+                              tag_string, collaborator_string, str(time_spent))
         if table.row_count == 1 and show_window:
             app = TerkaTask(entity=entity,
                             project=project,
@@ -761,11 +775,9 @@ class Printer:
         plt.bar(dates, times)
         plt.show()
 
+
 def format_hour_minute(time_minutes: int) -> str:
     if time_minutes < 1:
         return f"00H: {round(time_minutes * 60)}M"
     else:
         return f"{round(time_minutes // 1)}H:{round(time_minutes % 1* 60)}M"
-
-
-
