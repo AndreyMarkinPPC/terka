@@ -648,15 +648,18 @@ class CommandHandler:
                         exit("task is not in story")
                     self.repo.delete(StoryTask, story_task[0].id)
                 if sprint_id := kwargs.get("sprint_id"):
-                    sprint = self.repo.list(Sprint, {"id": sprint_id})
+                    if isinstance(sprint_id, bool):
+                        sprint = get_active_sprint(self.repo)
+                    else:
+                        sprint = self.repo.get_by_id(Sprint, sprint_id)
                     if not sprint:
                         exit(f"Sprint id {sprint_id} is not found")
-                    if sprint[0].status.name == "COMPLETED":
+                    if sprint.status.name == "COMPLETED":
                         exit("Cannot add task to a finished sprint")
                     if not (sprint_task := self.repo.list(
                             SprintTask, {
                                 "task": task_id,
-                                "sprint": sprint_id
+                                "sprint": sprint.id
                             })):
                         exit("task is not in sprint")
                     self.repo.delete(SprintTask, sprint_task[0].id)
@@ -734,9 +737,12 @@ class CommandHandler:
                         "tags": f"story:{obj.story}"
                     })
                 if sprint_id := kwargs.get("sprint_id"):
-                    sprint = self.repo.get_by_id(Sprint, sprint_id)
+                    if isinstance(sprint_id, bool):
+                        sprint = get_active_sprint(self.repo)
+                    else:
+                        sprint = self.repo.get_by_id(Sprint, sprint_id)
                     if not sprint:
-                        exit(f"Sprint id {sprint_id} is not found")
+                        exit(f"Sprint id {sprint.id} is not found")
                     if sprint.status.name == "COMPLETED":
                         exit("Cannot add task to a finished sprint")
                     if entity in (Task, ):
@@ -992,14 +998,8 @@ class CommandHandler:
                 print_options.show_completed = True
             if not (task_id := kwargs.get("id")):
                 if entity_type == "sprints":
-                    active_sprint = self.repo.list(Sprint,
-                                                   {"status": "ACTIVE"})
-                    if len(active_sprint) == 1:
-                        task_id = active_sprint[0].id
-                    else:
-                        exit(
-                            "More than 1 active sprint, please specify the sprint_id"
-                        )
+                    active_sprint = get_active_sprint(self.repo)
+                    task_id = active_sprint.id
             tasks = get_ids(task_id)
             if "id" in kwargs:
                 kwargs.pop("id")
@@ -1028,14 +1028,15 @@ class CommandHandler:
                 if entity_type == "sprints":
                     entity.complete(entity.tasks)
                     for entity_task in entity.tasks:
-                        if entity_task.tasks.status.name not in ("DONE",
-                                                                 "DELETED"):
-                            self.execute(
-                                "update", "tasks", {
-                                    "id": entity_task.task,
-                                    "status": "BACKLOG",
-                                    "due_date": None
-                                })
+                        task_status = entity_task.tasks.status.name
+                        if task_status not in ("DONE", "DELETED"):
+                            update_dict = {
+                                "id": entity_task.task,
+                                "status": "BACKLOG"
+                                if task_status == "TODO" else task_status,
+                                "due_date": None
+                            }
+                            self.execute("update", "tasks", update_dict)
                 else:
                     entity.complete(entity.tasks)
                     for entity_task in entity.tasks:
@@ -1086,7 +1087,7 @@ class CommandHandler:
                          is_active_link=True)
         self.repo.add(obj)
         sprint_task_id = obj.task
-        if sprint_task_id and sprint.status == "ACTIVE":
+        if sprint_task_id and sprint.status.name == "ACTIVE":
             task_params = {"id": task.id}
             if task.status.name == "BACKLOG":
                 task_params.update({"status": "TODO"})
@@ -1152,3 +1153,13 @@ def get_note_type(kwargs: Dict[str, Any]) -> BaseNote:
         return StoryNote
     if "epic_id" in kwargs:
         return EpicNote
+
+
+def get_active_sprint(repo: AbsRepository) -> int:
+    active_sprint = repo.list(Sprint, {"status": "ACTIVE"})
+    if len(active_sprint) == 1:
+        return active_sprint[0]
+    elif len(active_sprint) > 1:
+        exit("More than 1 active sprint, please specify the sprint_id")
+    else:
+        exit("No active sprints")

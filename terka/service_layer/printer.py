@@ -229,12 +229,6 @@ class Printer:
                 project = project_obj.name
             except:
                 project = None
-            if entity.status.name == "COMPLETED":
-                non_active_entities.add_row(f"E{entity.id}", str(entity.name),
-                                            entity.description,
-                                            entity.status.name, project,
-                                            str(len(tasks)))
-                continue
             tasks = []
             completed_tasks = []
             for entity_task in entity.tasks:
@@ -243,6 +237,12 @@ class Printer:
                     tasks.append(task)
                 else:
                     completed_tasks.append(task)
+            if entity.status.name == "COMPLETED":
+                non_active_entities.add_row(f"E{entity.id}", str(entity.name),
+                                            entity.description,
+                                            entity.status.name, project,
+                                            str(len(tasks)))
+                continue
             if len(completed_tasks) == len(
                     entity.tasks):
                 non_active_entities.add_row(f"E{entity.id}", str(entity.name),
