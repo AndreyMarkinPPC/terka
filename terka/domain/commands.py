@@ -317,11 +317,19 @@ class CommandHandler:
                 tag_text = kwargs["tags"]
                 tag = self.repo.list(BaseTag, {"text": tag_text})
                 if tag:
-                    task_tags = self.repo.list(TaskTag, {"tag": tag[0].id})
-                    if task_tags:
-                        tasks_with_tag = set(
-                            [task_tag.task for task_tag in task_tags])
-                        del kwargs["tags"]
+                    if entity_type == "tasks":
+                        entity_tags = self.repo.list(TaskTag, {"tag": tag[0].id})
+                    if entity_type == "projects":
+                        entity_tags = self.repo.list(ProjectTag, {"tag": tag[0].id})
+                    if entity_tags:
+                        if entity_type == "tasks":
+                            entities_with_tag = set(
+                                [tag.task for tag in entity_tags])
+                            del kwargs["tags"]
+                        if entity_type == "projects":
+                            entities_with_tag = set(
+                                [tag.project for tag in entity_tags])
+                            del kwargs["tags"]
                     else:
                         self.console.print(
                             f"[red]No tasks with tag '{tag_text}' found![/red]"
@@ -332,12 +340,12 @@ class CommandHandler:
                         f"[red]No tag '{tag_text}' found![/red]")
                     exit()
             else:
-                tasks_with_tag = None
-            if tasks_with_tag and tasks_with_collaborators:
-                filtered_tasks = tasks_with_tag.intersection(
+                entities_with_tag = None
+            if entities_with_tag and tasks_with_collaborators:
+                filtered_tasks = entities_with_tag.intersection(
                     tasks_with_collaborators)
-            elif tasks_with_tag:
-                filtered_tasks = tasks_with_tag
+            elif entities_with_tag:
+                filtered_tasks = entities_with_tag
             elif tasks_with_collaborators:
                 filtered_tasks = tasks_with_collaborators
             else:
