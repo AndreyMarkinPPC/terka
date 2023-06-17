@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Tuple, Optional, Union
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import re
 import sys, tempfile, os
@@ -885,6 +885,37 @@ class CommandHandler:
                 return entity, None
             else:
                 raise ValueError("No task_id is provided")
+        elif command == "report":
+            start_date = kwargs.pop("start_date", get_days_ago(7))
+            end_date = kwargs.pop("end_date", get_days_ago(1))
+            show_tasks = kwargs.pop("tasks", False)
+
+            created_tasks = self.repo.session.query(Task).filter(
+                Task.creation_date >= start_date, Task.creation_date
+                <= end_date).all()
+            completed_task_events = self.repo.session.query(TaskEvent).filter(
+                TaskEvent.date >= start_date, TaskEvent.date <= end_date,
+                TaskEvent.new_value == "DONE").all()
+            completed_task_ids = ",".join(
+                list(set([str(task.task) for task in completed_task_events])))
+            completed_tasks = self.execute("get", "tasks",
+                                           {"id": completed_task_ids})
+            if show_tasks:
+                self.printer.print_entities(created_tasks,
+                                            "tasks",
+                                            self.repo,
+                                            custom_sort="id")
+                self.printer.print_entities(
+                    completed_tasks,
+                    "tasks",
+                    self.repo,
+                    custom_sort="id",
+                    print_options=printer.PrintOptions(show_completed=True))
+            self.console.print(
+                f"For the period: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}"
+            )
+            self.console.print(f"{len(created_tasks)} tasks were created")
+            self.console.print(f"{len(completed_tasks)} tasks were completed")
         elif command == "edit":
             if (task_id := kwargs.get("id")):
                 tasks = get_ids(task_id)
@@ -1163,3 +1194,7 @@ def get_active_sprint(repo: AbsRepository) -> int:
         exit("More than 1 active sprint, please specify the sprint_id")
     else:
         exit("No active sprints")
+
+
+def get_days_ago(lookback: int = 0) -> datetime.date:
+    return datetime.now().date() - timedelta(days=lookback)

@@ -109,7 +109,7 @@ class Printer:
             else:
                 print(f"No notes with id '{task}' found!")
 
-    def print_entities(self, entities, type, repo, custom_sort, print_options):
+    def print_entities(self, entities, type, repo, custom_sort, print_options=PrintOptions()):
         if type == "projects":
             entities.sort(key=self._sort_open_tasks, reverse=True)
             self.print_project(entities, print_options)
