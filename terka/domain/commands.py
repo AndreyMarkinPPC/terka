@@ -265,12 +265,10 @@ class CommandHandler:
 
                 exit()
             if entity_type == "tasks":
-                if "status" not in kwargs and "all" not in kwargs:
-                    kwargs["status"] = "BACKLOG,TODO,IN_PROGRESS,REVIEW"
+                if print_options.show_completed:
+                    kwargs["status"] = "BACKLOG,TODO,IN_PROGRESS,REVIEW,DONE,DELETED"
                 else:
-                    if "all" in kwargs:
-                        del kwargs["all"]
-                    show_completed = True
+                    kwargs["status"] = "BACKLOG,TODO,IN_PROGRESS,REVIEW"
             if entity_type in ("stories", "epics"):
                 if print_options.show_completed:
                     kwargs["status"] = "ACTIVE,COMPLETED"
