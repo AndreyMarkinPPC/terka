@@ -49,7 +49,7 @@ def sprint_task_ids(session,
 def external_connectors_asana_projects(session) -> List[Dict[int, str]]:
     results = session.execute("""
     SELECT
-        id, asana_project_id
+        id, asana_project_id, sync_date
     FROM 'external_connectors.asana.projects'
     """)
     return [dict(r) for r in results]
@@ -60,7 +60,7 @@ def external_connectors_asana_tasks(session,
     results = session.execute(
         """
     SELECT
-        id, asana_task_id
+        id, asana_task_id, sync_date
     FROM 'external_connectors.asana.tasks'
     WHERE project = :project_id
     """, dict(project_id=project_id))
