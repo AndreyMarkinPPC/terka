@@ -267,7 +267,7 @@ class CommandHandler:
             if entity_type == "tasks":
                 if print_options.show_completed:
                     kwargs["status"] = "BACKLOG,TODO,IN_PROGRESS,REVIEW,DONE,DELETED"
-                else:
+                elif not kwargs.get("status"):
                     kwargs["status"] = "BACKLOG,TODO,IN_PROGRESS,REVIEW"
             if entity_type in ("stories", "epics"):
                 if print_options.show_completed:
