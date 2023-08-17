@@ -67,5 +67,11 @@ class Task:
         else:
             return status
 
+    @property
+    def total_time_spent(self):
+        if self.time_spent:
+            return sum([t.time_spent_minutes for t in self.time_spent])
+        return 0
+
     def __repr__(self):
         return f"<Task {self.id}>: {self.name}, {self.status.name}, {self.creation_date}"

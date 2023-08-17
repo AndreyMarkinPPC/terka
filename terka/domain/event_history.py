@@ -26,6 +26,10 @@ class BaseEvent:
         self.new_value = new_value
         self.date = date
 
+    def __repr__(self) -> str:
+        return (f"<{self.__class__.__name__}> [{self.type.name}] "
+                f"{self.old_value} -> {self.new_value}")
+
 
 class TaskEvent(BaseEvent):
 

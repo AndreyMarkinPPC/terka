@@ -30,29 +30,30 @@ from terka.domain.external_connectors.asana import AsanaTask, AsanaProject
 from terka.service_layer import services, printer
 from terka.service_layer.ui import TerkaTask
 from terka.adapters.repository import AbsRepository
-from terka.utils import format_command, format_task_dict
+from terka.utils import format_command, format_task_dict, convert_status
 
 logger = logging.getLogger(__name__)
 
+# @dataclass
+# class CurrentEntry:
+#     value: str
+#     type: str
+#     source: str = None
 
-@dataclass
-class CurrentEntry:
-    value: str
-    type: str
-    source: str = None
 
-
-def generate_message_template(current_entry: CurrentEntry, task: Task,
-                              repo) -> str:
+def generate_message_template(task: Task, repo) -> str:
     if isinstance(task, (Task, Story, Epic)):
         project = services.lookup_project_name(task.project, repo)
         project_name = project.name
     elif isinstance(task, Project):
         project_name = task.name
-    if current_entry.source == "sprints":
+    if isinstance(task, Sprint):
         message_template = f"""
-        # You are editing {current_entry.type}, enter below:
-        {current_entry.value}
+        # You are editing sprint, enter below:
+        goal: {task.goal}
+        start_date: {task.start_date}
+        end_date: {task.end_date}
+        status: {task.status.name}
         ---
         {current_entry.source} context:
         id: {task.id}
@@ -60,14 +61,18 @@ def generate_message_template(current_entry: CurrentEntry, task: Task,
         """
     else:
         message_template = f"""
-        # You are editing {current_entry.type}, enter below:
-        {current_entry.value}
+        # You are editing task {task.id}, enter below:
         ---
-        {current_entry.source} context:
-        id: {task.id}
+        status: {task.status.name}
         name: {task.name}
-        description: {task.description}
-        project: {project_name}
+        description: {task.description if task.description else ""}
+        sprint: {task.sprints[-1].sprint if task.sprints else ""}
+        epic: {task.epics[-1] if task.epics else ""}
+        story: {task.stories[-1] if task.stories else ""}
+        tags: {task.tags.pop()}
+        collaborators: {task.collaborators.pop()}
+        time_spent: 0 (task total_time_spent {task.total_time_spent})
+        comment: 
         """
     return re.sub("\n +", "\n", message_template.lstrip())
 
@@ -266,7 +271,8 @@ class CommandHandler:
                 exit()
             if entity_type == "tasks":
                 if print_options.show_completed:
-                    kwargs["status"] = "BACKLOG,TODO,IN_PROGRESS,REVIEW,DONE,DELETED"
+                    kwargs[
+                        "status"] = "BACKLOG,TODO,IN_PROGRESS,REVIEW,DONE,DELETED"
                 elif not kwargs.get("status"):
                     kwargs["status"] = "BACKLOG,TODO,IN_PROGRESS,REVIEW"
             if entity_type in ("stories", "epics"):
@@ -318,9 +324,11 @@ class CommandHandler:
                 tag = self.repo.list(BaseTag, {"text": tag_text})
                 if tag:
                     if entity_type == "tasks":
-                        entity_tags = self.repo.list(TaskTag, {"tag": tag[0].id})
+                        entity_tags = self.repo.list(TaskTag,
+                                                     {"tag": tag[0].id})
                     if entity_type == "projects":
-                        entity_tags = self.repo.list(ProjectTag, {"tag": tag[0].id})
+                        entity_tags = self.repo.list(ProjectTag,
+                                                     {"tag": tag[0].id})
                     if entity_tags:
                         if entity_type == "tasks":
                             entities_with_tag = set(
@@ -897,8 +905,8 @@ class CommandHandler:
             show_tasks = kwargs.pop("tasks", False)
 
             created_tasks = self.repo.session.query(Task).filter(
-                Task.creation_date >= start_date, Task.creation_date
-                <= end_date).all()
+                Task.creation_date >= start_date,
+                Task.creation_date <= end_date).all()
             completed_task_events = self.repo.session.query(TaskEvent).filter(
                 TaskEvent.date >= start_date, TaskEvent.date <= end_date,
                 TaskEvent.new_value == "DONE").all()
@@ -957,22 +965,21 @@ class CommandHandler:
                     if entity_type in ("tasks", "projects", "sprints", "epics",
                                        "stories"):
                         task = entities
-                        if kwargs.get("description"):
-                            current_entry = task.description
-                            current_type = "description"
-                        elif kwargs.get("name"):
-                            current_entry = task.name
-                            current_type = "name"
-                        elif kwargs.get("goal"):
-                            current_entry = task.goal
-                            current_type = "goal"
-                        else:
-                            raise ValueError(
-                                "Either name or description should be specified!"
-                            )
+                        # if kwargs.get("description"):
+                        #     current_entry = task.description
+                        #     current_type = "description"
+                        # elif kwargs.get("name"):
+                        #     current_entry = task.name
+                        #     current_type = "name"
+                        # elif kwargs.get("goal"):
+                        #     current_entry = task.goal
+                        #     current_type = "goal"
+                        # else:
+                        #     raise ValueError(
+                        #         "Either name or description should be specified!"
+                        #     )
 
                     message_template = generate_message_template(
-                        CurrentEntry(current_entry, current_type, entity_type),
                         task, self.repo)
                     with tempfile.NamedTemporaryFile(suffix=".tmp") as tf:
                         tf.write(message_template.encode("utf-8"))
@@ -981,18 +988,74 @@ class CommandHandler:
                         tf.seek(0)
                         new_entry = tf.read()
 
-                    updated_entry = []
+                    updated_entry = {}
+                    time_entry = {}
+                    commentary = {}
+                    collaborators = {}
+                    tags = {}
                     new_entry = new_entry.decode("utf-8").rstrip()
                     for i, row in enumerate(new_entry.split("\n")):
                         if not row.startswith("#") and row:
                             if row.startswith("--"):
-                                break
-                            updated_entry.append(row)
-                new_kwargs = {
-                    "id": task_id,
-                    current_type: " ".join(updated_entry)
-                }
-                self.execute("update", entity_type, new_kwargs)
+                                continue
+                            entry_type, *entry_value= row.split(": ",
+                                                                maxsplit=2)
+                            entry_value = ": ".join(entry_value)
+                            entry_value = entry_value.strip()
+                            if entry_type == "tags":
+                                self.execute("tag", entity_type, {
+                                    "id": task.id,
+                                    "tags": entry_value
+                                })
+                            elif entry_type == "comment":
+                                self.execute("comment", entity_type, {
+                                    "id": task.id,
+                                    "text": entry_value
+                                })
+                            elif entry_type == "collaborators":
+                                self.execute("collaborate", entity_type, {
+                                    "id": task.id,
+                                    "name": entry_value
+                                })
+                            elif entry_type == "epic":
+                                self.execute("collaborate", entity_type, {
+                                    "id": task.id,
+                                    "name": entry_value
+                                })
+                            elif entry_type == "sprint":
+                                self.execute("collaborate", entity_type, {
+                                    "id": task.id,
+                                    "name": entry_value
+                                })
+                            elif entry_type == "story":
+                                self.execute("collaborate", entity_type, {
+                                    "id": task.id,
+                                    "name": entry_value
+                                })
+                            elif entry_type == "time_spent":
+                                time_spent = entry_value.split(" (")
+                                try:
+                                    time_spent = time_spent[0].strip()
+                                    time_spent_minutes = int(time_spent)
+                                    if time_spent_minutes:
+                                        self.execute("track", entity_type, {
+                                            "id": task.id,
+                                            "minutes": time_spent_minutes
+                                        })
+                                except Exception:
+                                    pass
+                            else:
+                                if entry_value:
+                                    if entry_type == "status":
+                                        entry_value = convert_status(entry_value)
+                                    updated_entry[entry_type]=  entry_value
+                if updated_entry:
+                    updated_entry.update({"id": task.id})
+                # new_kwargs = {
+                #     "id": task_id,
+                #     current_type: " ".join(updated_entry)
+                # }
+                    self.execute("update", entity_type, updated_entry)
                 return entities, None, None
         elif command == "start":
             sprint_id = kwargs.get("id")
