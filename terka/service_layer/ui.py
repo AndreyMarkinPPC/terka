@@ -61,6 +61,31 @@ class TerkaTask(App):
                 yield Static("Completion date unknown", classes="header_simple")
         else:
             yield Static(f"Due date: {self.entity.due_date}", classes="header_simple")
+        if sprints := self.entity.sprints:
+            sprint_id = ",".join(str(s.sprint) for s in sprints)
+            yield Static(f"Sprint: [bold]{sprint_id}[/bold]", classes="transp")
+        else:
+            yield Static(f"Not in sprint", classes="transp")
+        if epics := self.entity.epics:
+            epic_id = epics[0].epic
+            yield Static(f"Epic: [bold]{epic_id}[/bold]", classes="transp")
+        else:
+            yield Static(f"Not in epic", classes="transp")
+        if stories := self.entity.stories:
+            story_id = stories[0].story
+            yield Static(f"Story: [bold]{story_id}[/bold]", classes="transp")
+        else:
+            yield Static(f"Not in story", classes="transp")
+        if tags := self.entity.tags:
+            tags = ",".join(t.base_tag.text for t in tags)
+            yield Static(f"Tags: [bold]{tags}[/bold]", classes="transp")
+        else:
+            yield Static(f"No tags", classes="transp")
+        if collaborators := self.entity.collaborators:
+            collaborators = ",".join(c.users.name for c in collaborators)
+            yield Static(f"Collaborators: [bold]{collaborators}[/bold]", classes="transp")
+        else:
+            yield Static(f"No collaborators", classes="transp")
         description_message = self.entity.description or ""
         if description_message:
             yield Static(
