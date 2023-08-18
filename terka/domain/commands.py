@@ -69,8 +69,8 @@ def generate_message_template(task: Task, repo) -> str:
         sprint: {task.sprints[-1].sprint if task.sprints else ""}
         epic: {task.epics[-1] if task.epics else ""}
         story: {task.stories[-1] if task.stories else ""}
-        tags: {task.tags.pop()}
-        collaborators: {task.collaborators.pop()}
+        tags: {task.tags.pop() if task.tags else ""}
+        collaborators: {task.collaborators.pop() if task.collaborators else ""}
         time_spent: 0 (task total_time_spent {task.total_time_spent})
         comment: 
         """
@@ -1018,19 +1018,19 @@ class CommandHandler:
                                     "name": entry_value
                                 })
                             elif entry_type == "epic":
-                                self.execute("collaborate", entity_type, {
+                                self.execute("add", entity_type, {
                                     "id": task.id,
-                                    "name": entry_value
+                                    "epic_id": entry_value
                                 })
                             elif entry_type == "sprint":
-                                self.execute("collaborate", entity_type, {
+                                self.execute("add", entity_type, {
                                     "id": task.id,
-                                    "name": entry_value
+                                    "sprint_id": entry_value
                                 })
                             elif entry_type == "story":
-                                self.execute("collaborate", entity_type, {
+                                self.execute("add", entity_type, {
                                     "id": task.id,
-                                    "name": entry_value
+                                    "story_id": entry_value
                                 })
                             elif entry_type == "time_spent":
                                 time_spent = entry_value.split(" (")
