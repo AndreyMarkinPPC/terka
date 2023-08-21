@@ -34,6 +34,22 @@ from terka.utils import format_command, format_task_dict, convert_status
 
 logger = logging.getLogger(__name__)
 
+
+class TerkaException(Exception):
+    ...
+
+
+class TaskAddedToCompletedEntity(TerkaException):
+    ...
+
+
+class TaskAddedToEntity(TerkaException):
+    ...
+
+
+class EntityNotFound(TerkaException):
+    ...
+
 # @dataclass
 # class CurrentEntry:
 #     value: str
@@ -41,7 +57,36 @@ logger = logging.getLogger(__name__)
 #     source: str = None
 
 
-def generate_message_template(task: Task, repo) -> str:
+def edited_task_template(task: Task) -> str:
+    return f"""
+        # You are editing task {task.id}, enter below:
+        ---
+        status: {task.status.name}
+        name: {task.name}
+        description: {task.description if task.description else ""}
+        sprint: {task.sprints[-1].sprint if task.sprints else ""}
+        epics: {task.epics[-1].epic if task.epics else ""}
+        stories: {task.stories[-1].story if task.stories else ""}
+        tags: {task.tags.pop() if task.tags else ""}
+        collaborators: {task.collaborators.pop() if task.collaborators else ""}
+        time_spent: 0 (task total_time_spent {task.total_time_spent})
+        comment: 
+        """
+
+
+def completed_task_template(task: Task) -> str:
+    return f"""
+        # You are closing task {task.id}, enter below:
+        ---
+        status: DONE 
+        time_spent: 0 (task total_time_spent {task.total_time_spent})
+        comment: 
+        """
+
+
+def generate_message_template(task: Task,
+                              repo,
+                              kwargs: Optional[Dict[str, str]] = None) -> str:
     if isinstance(task, (Task, Story, Epic)):
         project = services.lookup_project_name(task.project, repo)
         project_name = project.name
@@ -60,20 +105,10 @@ def generate_message_template(task: Task, repo) -> str:
         goal: {task.goal}
         """
     else:
-        message_template = f"""
-        # You are editing task {task.id}, enter below:
-        ---
-        status: {task.status.name}
-        name: {task.name}
-        description: {task.description if task.description else ""}
-        sprint: {task.sprints[-1].sprint if task.sprints else ""}
-        epic: {task.epics[-1] if task.epics else ""}
-        story: {task.stories[-1] if task.stories else ""}
-        tags: {task.tags.pop() if task.tags else ""}
-        collaborators: {task.collaborators.pop() if task.collaborators else ""}
-        time_spent: 0 (task total_time_spent {task.total_time_spent})
-        comment: 
-        """
+        if kwargs and kwargs.get("status"):
+            message_template = completed_task_template(task)
+        else:
+            message_template = edited_task_template(task)
     return re.sub("\n +", "\n", message_template.lstrip())
 
 
@@ -732,8 +767,7 @@ class CommandHandler:
                         exit("task already added to epic")
                     self.repo.add(obj)
                     self.execute("tag", "tasks", {
-                        "id": obj.task,
-                        "tags": f"epic:{obj.epic}"
+                        "id": obj.task, "tags": f"epic:{obj.epic}"
                     })
                 if story_id := kwargs.get("story_id"):
                     story = self.repo.list(Story, {"id": story_id})
@@ -756,9 +790,9 @@ class CommandHandler:
                     else:
                         sprint = self.repo.get_by_id(Sprint, sprint_id)
                     if not sprint:
-                        exit(f"Sprint id {sprint.id} is not found")
+                        raise EntityNotFound(f"Sprint id {sprint.id} is not found")
                     if sprint.status.name == "COMPLETED":
-                        exit("Cannot add task to a finished sprint")
+                        raise TaskAddedToCompletedEntity("Cannot add task to a finished sprint")
                     if entity in (Task, ):
                         self._add_task_to_sprint(added_task, sprint)
                     else:
@@ -980,7 +1014,7 @@ class CommandHandler:
                         #     )
 
                     message_template = generate_message_template(
-                        task, self.repo)
+                        task, self.repo, kwargs)
                     with tempfile.NamedTemporaryFile(suffix=".tmp") as tf:
                         tf.write(message_template.encode("utf-8"))
                         tf.flush()
@@ -998,63 +1032,68 @@ class CommandHandler:
                         if not row.startswith("#") and row:
                             if row.startswith("--"):
                                 continue
-                            entry_type, *entry_value= row.split(": ",
-                                                                maxsplit=2)
+                            entry_type, *entry_value = row.split(": ",
+                                                                 maxsplit=2)
                             entry_value = ": ".join(entry_value)
                             entry_value = entry_value.strip()
-                            if entry_type == "tags":
-                                self.execute("tag", entity_type, {
-                                    "id": task.id,
-                                    "tags": entry_value
-                                })
-                            elif entry_type == "comment":
-                                self.execute("comment", entity_type, {
-                                    "id": task.id,
-                                    "text": entry_value
-                                })
-                            elif entry_type == "collaborators":
-                                self.execute("collaborate", entity_type, {
-                                    "id": task.id,
-                                    "name": entry_value
-                                })
-                            elif entry_type == "epic":
-                                self.execute("add", entity_type, {
-                                    "id": task.id,
-                                    "epic_id": entry_value
-                                })
-                            elif entry_type == "sprint":
-                                self.execute("add", entity_type, {
-                                    "id": task.id,
-                                    "sprint_id": entry_value
-                                })
-                            elif entry_type == "story":
-                                self.execute("add", entity_type, {
-                                    "id": task.id,
-                                    "story_id": entry_value
-                                })
-                            elif entry_type == "time_spent":
-                                time_spent = entry_value.split(" (")
-                                try:
-                                    time_spent = time_spent[0].strip()
-                                    time_spent_minutes = int(time_spent)
-                                    if time_spent_minutes:
-                                        self.execute("track", entity_type, {
-                                            "id": task.id,
-                                            "minutes": time_spent_minutes
-                                        })
-                                except Exception:
-                                    pass
-                            else:
-                                if entry_value:
-                                    if entry_type == "status":
-                                        entry_value = convert_status(entry_value)
-                                    updated_entry[entry_type]=  entry_value
+                            try:
+                                if entry_type == "tags":
+                                    self.execute("tag", entity_type, {
+                                        "id": task.id,
+                                        "tags": entry_value
+                                    })
+                                elif entry_type == "comment":
+                                    self.execute("comment", entity_type, {
+                                        "id": task.id,
+                                        "text": entry_value
+                                    })
+                                elif entry_type == "collaborators":
+                                    self.execute("collaborate", entity_type, {
+                                        "id": task.id,
+                                        "name": entry_value
+                                    })
+                                elif entry_type == "epics":
+                                    self.execute("add", entity_type, {
+                                        "id": task.id,
+                                        "epic_id": entry_value
+                                    })
+                                elif entry_type == "sprints":
+                                    self.execute("add", entity_type, {
+                                        "id": task.id,
+                                        "sprint_id": entry_value
+                                    })
+                                elif entry_type == "stories":
+                                    self.execute("add", entity_type, {
+                                        "id": task.id,
+                                        "story_id": entry_value
+                                    })
+                                elif entry_type == "time_spent":
+                                    time_spent = entry_value.split(" (")
+                                    try:
+                                        time_spent = time_spent[0].strip()
+                                        time_spent_minutes = int(time_spent)
+                                        if time_spent_minutes:
+                                            self.execute(
+                                                "track", entity_type, {
+                                                    "id": task.id,
+                                                    "minutes": time_spent_minutes
+                                                })
+                                    except Exception:
+                                        pass
+                                else:
+                                    if entry_value:
+                                        if entry_type == "status":
+                                            entry_value = convert_status(
+                                                entry_value)
+                                        updated_entry[entry_type] = entry_value
+                            except TerkaException as e:
+                                pass
                 if updated_entry:
                     updated_entry.update({"id": task.id})
-                # new_kwargs = {
-                #     "id": task_id,
-                #     current_type: " ".join(updated_entry)
-                # }
+                    # new_kwargs = {
+                    #     "id": task_id,
+                    #     current_type: " ".join(updated_entry)
+                    # }
                     self.execute("update", entity_type, updated_entry)
                 return entities, None, None
         elif command == "start":
@@ -1117,7 +1156,7 @@ class CommandHandler:
                 raise ValueError("can complete only tasks and sprints")
             elif entity_type == "tasks":
                 kwargs.update({"status": "DONE"})
-                self.execute("update", entity_type, kwargs)
+                self.execute("edit", entity_type, kwargs)
                 self.console.print(
                     "[green]Yay! You've just completed a task![/green]")
             elif entity_type in ("sprints", "epics", "stories"):
@@ -1167,7 +1206,7 @@ class CommandHandler:
 
     def _add_task_to_sprint(self, task, sprint):
         if self.repo.list(SprintTask, {"task": task.id, "sprint": sprint.id}):
-            exit("task already added to sprint")
+            raise TaskAddedToEntity("task already added to sprint")
         if sprint.status.name == "ACTIVE":
 
             story_points = input(

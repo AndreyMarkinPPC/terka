@@ -6,6 +6,22 @@ from textual.widget import Widget
 from textual.widgets import Header, Static, Input
 
 
+# TODO: extract out of printer
+def format_time_spent(time_spent: int) -> str:
+    time_spent_hours = time_spent // 60
+    time_spent_minutes = time_spent % 60
+    if time_spent_hours and time_spent_minutes:
+        time_spent = f"{time_spent_hours}H:{time_spent_minutes}M"
+    elif time_spent_hours:
+        time_spent = f"{time_spent_hours}H:00M"
+    elif time_spent_minutes:
+        time_spent = f"00H:{time_spent_minutes}M"
+    else:
+        time_spent = ""
+    return time_spent
+
+
+
 class Comment(Widget):
     value = reactive("text")
 
@@ -58,12 +74,19 @@ class TerkaTask(App):
                     f"Completed {completion_message} ({completion_date.strftime('%Y-%m-%d')})",
                     classes="header_simple")
             else:
-                yield Static("Completion date unknown", classes="header_simple")
+                yield Static("Completion date unknown",
+                             classes="header_simple")
         else:
-            yield Static(f"Due date: {self.entity.due_date}", classes="header_simple")
+            yield Static(f"Due date: {self.entity.due_date}",
+                         classes="header_simple")
         if sprints := self.entity.sprints:
             sprint_id = ",".join(str(s.sprint) for s in sprints)
-            yield Static(f"Sprint: [bold]{sprint_id}[/bold]", classes="transp")
+            story_points = sprints[-1].story_points
+            yield Static(
+                f"Sprint: [bold]{sprint_id}[/bold], "
+                f"SP: [bold]{story_points}[/bold], "
+                f"T: [bold]{format_time_spent(self.entity.total_time_spent)}[/bold]",
+                classes="transp")
         else:
             yield Static(f"Not in sprint", classes="transp")
         if epics := self.entity.epics:
@@ -77,13 +100,16 @@ class TerkaTask(App):
         else:
             yield Static(f"Not in story", classes="transp")
         if tags := self.entity.tags:
-            tags = ",".join(t.base_tag.text for t in tags)
+            tags = ",".join(
+                t.base_tag.text for t in tags
+                if not t.base_tag.text.startswith(("epic", "story", "sprint")))
             yield Static(f"Tags: [bold]{tags}[/bold]", classes="transp")
         else:
             yield Static(f"No tags", classes="transp")
         if collaborators := self.entity.collaborators:
             collaborators = ",".join(c.users.name for c in collaborators)
-            yield Static(f"Collaborators: [bold]{collaborators}[/bold]", classes="transp")
+            yield Static(f"Collaborators: [bold]{collaborators}[/bold]",
+                         classes="transp")
         else:
             yield Static(f"No collaborators", classes="transp")
         description_message = self.entity.description or ""
@@ -117,4 +143,3 @@ class TerkaTask(App):
         for event in self.history:
             if event.new_value == "DONE":
                 return event.date
-

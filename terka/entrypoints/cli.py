@@ -19,6 +19,7 @@ from sqlalchemy.orm import sessionmaker, clear_mappers
 from terka.adapters.orm import metadata, start_mappers
 from terka.adapters.repository import SqlAlchemyRepository
 
+from terka.domain import commands
 from terka.domain.commands import CommandHandler
 from terka.utils import (
     format_task_dict,
@@ -147,7 +148,7 @@ def main():
             command, entity, task_dict = process_command(command, config, repo)
         try:
             command_handler.execute(command, entity, task_dict)
-        except ValueError as e:
+        except (ValueError, commands.TerkaException) as e:
             console.print(f"[red]{e}[/red]")
 
         while is_interactive:
@@ -168,7 +169,11 @@ def main():
             command, entity, task_dict = process_command(command, config, repo)
             if command[0] == "q":
                 exit()
-            command_handler.execute(command, entity, task_dict)
+            try:
+                command_handler.execute(command, entity, task_dict)
+            except commands.TerkaException as e:
+                console.print(f"[red]{e}[/red]")
+                exit()
 
 
 def load_config(home_dir):
