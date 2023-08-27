@@ -64,7 +64,7 @@ def edited_task_template(task: Task) -> str:
         status: {task.status.name}
         name: {task.name}
         description: {task.description if task.description else ""}
-        sprint: {task.sprints[-1].sprint if task.sprints else ""}
+        sprints: {task.sprints[-1].sprint if task.sprints else ""}
         epics: {task.epics[-1].epic if task.epics else ""}
         stories: {task.stories[-1].story if task.stories else ""}
         tags: {task.tags.pop() if task.tags else ""}
@@ -758,13 +758,13 @@ class CommandHandler:
                 if epic_id := kwargs.get("epic_id"):
                     epic = self.repo.list(Epic, {"id": epic_id})
                     if not epic:
-                        exit(f"Epic id {epic_id} is not found")
+                        raise EntityNotFound(f"Epic id {epic_id} is not found")
                     obj = EpicTask(task=task_id, epic=epic_id)
                     if self.repo.list(EpicTask, {
                             "task": obj.task,
                             "epic": obj.epic
                     }):
-                        exit("task already added to epic")
+                        raise TaskAddedToEntity("task already added to epic")
                     self.repo.add(obj)
                     self.execute("tag", "tasks", {
                         "id": obj.task, "tags": f"epic:{obj.epic}"
@@ -772,13 +772,13 @@ class CommandHandler:
                 if story_id := kwargs.get("story_id"):
                     story = self.repo.list(Story, {"id": story_id})
                     if not story:
-                        exit(f"Story id {story_id} is not found")
+                        raise EntityNotFound(f"Story id {story_id} is not found")
                     obj = StoryTask(task=task_id, story=story_id)
                     if self.repo.list(StoryTask, {
                             "task": obj.task,
                             "story": obj.story
                     }):
-                        exit("task already added to story")
+                        raise TaskAddedToEntity("task already added to story")
                     self.repo.add(obj)
                     self.execute("tag", "tasks", {
                         "id": obj.task,

@@ -83,20 +83,20 @@ class TerkaTask(App):
             sprint_id = ",".join(str(s.sprint) for s in sprints)
             story_points = sprints[-1].story_points
             yield Static(
-                f"Sprint: [bold]{sprint_id}[/bold], "
+                f"Sprints: [bold]{sprint_id}[/bold], "
                 f"SP: [bold]{story_points}[/bold], "
                 f"T: [bold]{format_time_spent(self.entity.total_time_spent)}[/bold]",
                 classes="transp")
         else:
             yield Static(f"Not in sprint", classes="transp")
         if epics := self.entity.epics:
-            epic_id = epics[0].epic
-            yield Static(f"Epic: [bold]{epic_id}[/bold]", classes="transp")
+            epic_ids = ",".join([str(e.epic) for e in epics])
+            yield Static(f"Epics: [bold]{epic_ids}[/bold]", classes="transp")
         else:
             yield Static(f"Not in epic", classes="transp")
         if stories := self.entity.stories:
-            story_id = stories[0].story
-            yield Static(f"Story: [bold]{story_id}[/bold]", classes="transp")
+            story_ids = ",".join([str(s.story) for s in stories])
+            yield Static(f"Story: [bold]{story_ids}[/bold]", classes="transp")
         else:
             yield Static(f"Not in story", classes="transp")
         if tags := self.entity.tags:
