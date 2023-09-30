@@ -30,7 +30,7 @@ from terka.domain.external_connectors.asana import AsanaTask, AsanaProject
 from terka.service_layer import services, printer
 from terka.service_layer.ui import TerkaTask
 from terka.adapters.repository import AbsRepository
-from terka.utils import format_command, format_task_dict, convert_status
+from terka.utils import format_command, format_task_dict, convert_date, convert_status, update_task_dict
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,23 @@ class EntityNotFound(TerkaException):
 #     type: str
 #     source: str = None
 
+
+def new_task_template() -> str:
+    return f"""
+        # You are creating a task, enter below:
+        ---
+        status: BACKLOG
+        name: 
+        description: 
+        project: 
+        due_date: 
+        priority: NORMAL
+        sprints: 
+        epics: 
+        stories: 
+        tags: 
+        collaborators: 
+        """
 
 def edited_task_template(task: Task) -> str:
     return f"""
@@ -84,14 +101,15 @@ def completed_task_template(task: Task) -> str:
         """
 
 
-def generate_message_template(task: Task,
-                              repo,
+def generate_message_template(task: Optional[Task] = None,
+                              repo = None,
                               kwargs: Optional[Dict[str, str]] = None) -> str:
-    if isinstance(task, (Task, Story, Epic)):
-        project = services.lookup_project_name(task.project, repo)
-        project_name = project.name
-    elif isinstance(task, Project):
-        project_name = task.name
+    if task:
+        if isinstance(task, (Task, Story, Epic)):
+            project = services.lookup_project_name(task.project, repo)
+            project_name = project.name
+        elif isinstance(task, Project):
+            project_name = task.name
     if isinstance(task, Sprint):
         message_template = f"""
         # You are editing sprint, enter below:
@@ -105,7 +123,9 @@ def generate_message_template(task: Task,
         goal: {task.goal}
         """
     else:
-        if kwargs and kwargs.get("status"):
+        if not kwargs:
+            message_template = new_task_template()
+        elif kwargs and kwargs.get("status"):
             message_template = completed_task_template(task)
         else:
             message_template = edited_task_template(task)
@@ -857,6 +877,44 @@ class CommandHandler:
                 session.commit()
                 exit()
             else:
+                if len(kwargs) == 1:
+                    message_template = generate_message_template()
+                    with tempfile.NamedTemporaryFile(suffix=".tmp") as tf:
+                        tf.write(message_template.encode("utf-8"))
+                        tf.flush()
+                        run(["vim", "+2", tf.name])
+                        tf.seek(0)
+                        new_entry = tf.read()
+
+                    updated_entry = {}
+                    commentary = {}
+                    collaborators = {}
+                    tags = {}
+                    new_entry = new_entry.decode("utf-8").rstrip()
+                    for i, row in enumerate(new_entry.split("\n")):
+                        if not row.startswith("#") and row:
+                            if row.startswith("--"):
+                                continue
+                            entry_type, *entry_value = row.split(": ",
+                                                                 maxsplit=2)
+                            entry_value = ": ".join(entry_value)
+                            entry_value = entry_value.strip()
+                            try:
+                                if entry_value:
+                                    if entry_type == "status":
+                                        entry_value = convert_status(
+                                            entry_value)
+                                    updated_entry[entry_type] = entry_value
+                            except TerkaException as e:
+                                pass
+
+                else:
+                    updated_entry = {}
+                if updated_entry:
+                    kwargs.update(updated_entry)
+                    if "due_date" in kwargs:
+                        kwargs["due_date"] = convert_date(kwargs["due_date"])
+                    kwargs = update_task_dict(kwargs, self.repo)
                 obj = entity(**kwargs)
             if entity in (Task, Project, BaseNote):
                 if (existing_obj := self.repo.list(entity,
@@ -884,6 +942,21 @@ class CommandHandler:
                 project = services.lookup_project_name(obj.project, self.repo)
             else:
                 project = None
+            if epic_id := kwargs.get("epics"):
+                self.execute("add", entity_type, {
+                    "id": obj.id,
+                    "epic_id": epic_id 
+                })
+            if sprint_id := kwargs.get("sprints"):
+                self.execute("add", entity_type, {
+                    "id": obj.id,
+                    "sprint_id": sprint_id 
+                })
+            if story_id := kwargs.get("stories"):
+                self.execute("add", entity_type, {
+                    "id": obj.id,
+                    "story_id": story_id 
+                })
             self.printer.print_new_object(obj, project)
             logger.info("<create> %s: %s", entity_type, obj.id)
             return entity, obj

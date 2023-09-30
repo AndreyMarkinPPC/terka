@@ -10,6 +10,7 @@ import yaml
 from terka.adapters.repository import AbsRepository
 from terka.domain.project import Project
 from terka.domain.user import User
+import terka.domain._commands as commands
 
 
 def update_config(update_pair: Dict[str, Any]):
@@ -96,6 +97,20 @@ def lookup_project_name(project_id: int, repo: AbsRepository) -> Optional[str]:
         return project[0]
     return None
 
+
+
+class CommandHander:
+
+    def __init__(self, home_dir, config, console=Console()):
+        self.home_dir = home_dir
+        self.config = config
+        self.console =  console
+
+    def execute(self, command: commands.Command, entity, task_dict):
+        # TODO: create registry of commands
+        handler = commands_registry[command]
+        handler.handle(entity, task_dict)
+        
 
 
 class ServiceCommandHander:
