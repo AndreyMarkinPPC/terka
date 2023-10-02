@@ -74,6 +74,23 @@ def new_task_template() -> str:
         collaborators: 
         """
 
+
+def new_sprint_template() -> str:
+    today = datetime.now()
+    next_monday = (today + timedelta(days=(7-today.weekday()))).strftime("%Y-%m-%d")
+    next_sunday = (today + timedelta(days=(13-today.weekday()))).strftime("%Y-%m-%d")
+    return f"""
+        # You are creating a sprint, enter below:
+        ---
+        goal: 
+        description: 
+        start_date: {next_monday}
+        end_date:  {next_sunday}
+        """
+
+def start_sprint_template(sprint: Sprint) -> str:
+    ...
+
 def edited_task_template(task: Task) -> str:
     return f"""
         # You are editing task {task.id}, enter below:
@@ -103,7 +120,8 @@ def completed_task_template(task: Task) -> str:
 
 def generate_message_template(task: Optional[Task] = None,
                               repo = None,
-                              kwargs: Optional[Dict[str, str]] = None) -> str:
+                              kwargs: Optional[Dict[str, str]] = None,
+                              entity=None) -> str:
     if task:
         if isinstance(task, (Task, Story, Epic)):
             project = services.lookup_project_name(task.project, repo)
@@ -111,20 +129,26 @@ def generate_message_template(task: Optional[Task] = None,
         elif isinstance(task, Project):
             project_name = task.name
     if isinstance(task, Sprint):
-        message_template = f"""
-        # You are editing sprint, enter below:
-        goal: {task.goal}
-        start_date: {task.start_date}
-        end_date: {task.end_date}
-        status: {task.status.name}
-        ---
-        {current_entry.source} context:
-        id: {task.id}
-        goal: {task.goal}
-        """
+        if not kwargs:
+            message_template = new_sprint_template()
+        else:
+            message_template = f"""
+            # You are editing sprint, enter below:
+            goal: {task.goal}
+            start_date: {task.start_date}
+            end_date: {task.end_date}
+            status: {task.status.name}
+            ---
+            {current_entry.source} context:
+            id: {task.id}
+            goal: {task.goal}
+            """
     else:
         if not kwargs:
-            message_template = new_task_template()
+            if entity == Task:
+                message_template = new_task_template()
+            if entity == Sprint:
+                message_template = new_sprint_template()
         elif kwargs and kwargs.get("status"):
             message_template = completed_task_template(task)
         else:
@@ -878,7 +902,7 @@ class CommandHandler:
                 exit()
             else:
                 if len(kwargs) == 1:
-                    message_template = generate_message_template()
+                    message_template = generate_message_template(entity=entity)
                     with tempfile.NamedTemporaryFile(suffix=".tmp") as tf:
                         tf.write(message_template.encode("utf-8"))
                         tf.flush()
@@ -1178,6 +1202,7 @@ class CommandHandler:
                     "[red]Cannot start the sprint, end date in the past[/red]")
                 exit()
             self.execute("update", "sprints", kwargs)
+            # TODO: for each tasks start Vim to enter story points
             for sprint_task in sprint.tasks:
                 task = sprint_task.tasks
                 task_params = {"id": task.id}
