@@ -109,7 +109,12 @@ class Printer:
             else:
                 print(f"No notes with id '{task}' found!")
 
-    def print_entities(self, entities, type, repo, custom_sort, print_options=PrintOptions()):
+    def print_entities(self,
+                       entities,
+                       type,
+                       repo,
+                       custom_sort,
+                       print_options=PrintOptions()):
         if type == "projects":
             entities.sort(key=self._sort_open_tasks, reverse=True)
             self.print_project(entities, print_options)
@@ -243,8 +248,7 @@ class Printer:
                                             entity.status.name, project,
                                             str(len(tasks)))
                 continue
-            if len(completed_tasks) == len(
-                    entity.tasks):
+            if len(completed_tasks) == len(entity.tasks):
                 non_active_entities.add_row(f"E{entity.id}", str(entity.name),
                                             entity.description,
                                             entity.status.name, project,
@@ -282,8 +286,8 @@ class Printer:
     def print_sprint(self, entities, repo, print_options, kwargs=None):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
         for column in ("id", "start_date", "end_date", "goal", "status",
-                       "open tasks", "tasks", "velocity", "collaborators",
-                       "time_spent"):
+                       "open tasks", "pct_completed", "velocity",
+                       "collaborators", "time_spent", "utilization"):
             table.add_column(column)
         for i, entity in enumerate(entities):
             story_points = []
@@ -317,12 +321,16 @@ class Printer:
             ])
 
             time_spent = self._format_time_spent(time_spent_sum)
-            table.add_row(str(entity.id), str(entity.start_date),
-                          str(entity.end_date), entity.goal,
-                          entity.status.name, str(len(open_tasks)),
-                          str(len(tasks)), str(round(sum(story_points),
-                                                     2)), collaborators_string,
-                          str(time_spent))
+            pct_completed = round(
+                (len(tasks) - len(open_tasks)) / len(tasks) * 100)
+            utilization = round(time_spent_sum / (sum(story_points) * 60) *
+                                100)
+            table.add_row(
+                str(entity.id), str(entity.start_date), str(entity.end_date),
+                entity.goal, entity.status.name,
+                f"{len(open_tasks)} ({len(tasks)})", f"{pct_completed}%",
+                str(round(sum(story_points), 2)), collaborators_string,
+                str(time_spent), f"{utilization}%")
         if table.row_count:
             self.console.print(table)
 

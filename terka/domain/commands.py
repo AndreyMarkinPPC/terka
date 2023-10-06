@@ -50,6 +50,7 @@ class TaskAddedToEntity(TerkaException):
 class EntityNotFound(TerkaException):
     ...
 
+
 # @dataclass
 # class CurrentEntry:
 #     value: str
@@ -77,8 +78,10 @@ def new_task_template() -> str:
 
 def new_sprint_template() -> str:
     today = datetime.now()
-    next_monday = (today + timedelta(days=(7-today.weekday()))).strftime("%Y-%m-%d")
-    next_sunday = (today + timedelta(days=(13-today.weekday()))).strftime("%Y-%m-%d")
+    next_monday = (today +
+                   timedelta(days=(7 - today.weekday()))).strftime("%Y-%m-%d")
+    next_sunday = (today +
+                   timedelta(days=(13 - today.weekday()))).strftime("%Y-%m-%d")
     return f"""
         # You are creating a sprint, enter below:
         ---
@@ -88,8 +91,10 @@ def new_sprint_template() -> str:
         end_date:  {next_sunday}
         """
 
+
 def start_sprint_template(sprint: Sprint) -> str:
     ...
+
 
 def edited_task_template(task: Task) -> str:
     return f"""
@@ -119,7 +124,7 @@ def completed_task_template(task: Task) -> str:
 
 
 def generate_message_template(task: Optional[Task] = None,
-                              repo = None,
+                              repo=None,
                               kwargs: Optional[Dict[str, str]] = None,
                               entity=None) -> str:
     if task:
@@ -811,12 +816,14 @@ class CommandHandler:
                         raise TaskAddedToEntity("task already added to epic")
                     self.repo.add(obj)
                     self.execute("tag", "tasks", {
-                        "id": obj.task, "tags": f"epic:{obj.epic}"
+                        "id": obj.task,
+                        "tags": f"epic:{obj.epic}"
                     })
                 if story_id := kwargs.get("story_id"):
                     story = self.repo.list(Story, {"id": story_id})
                     if not story:
-                        raise EntityNotFound(f"Story id {story_id} is not found")
+                        raise EntityNotFound(
+                            f"Story id {story_id} is not found")
                     obj = StoryTask(task=task_id, story=story_id)
                     if self.repo.list(StoryTask, {
                             "task": obj.task,
@@ -834,9 +841,11 @@ class CommandHandler:
                     else:
                         sprint = self.repo.get_by_id(Sprint, sprint_id)
                     if not sprint:
-                        raise EntityNotFound(f"Sprint id {sprint.id} is not found")
+                        raise EntityNotFound(
+                            f"Sprint id {sprint.id} is not found")
                     if sprint.status.name == "COMPLETED":
-                        raise TaskAddedToCompletedEntity("Cannot add task to a finished sprint")
+                        raise TaskAddedToCompletedEntity(
+                            "Cannot add task to a finished sprint")
                     if entity in (Task, ):
                         self._add_task_to_sprint(added_task, sprint)
                     else:
@@ -969,17 +978,17 @@ class CommandHandler:
             if epic_id := kwargs.get("epics"):
                 self.execute("add", entity_type, {
                     "id": obj.id,
-                    "epic_id": epic_id 
+                    "epic_id": epic_id
                 })
             if sprint_id := kwargs.get("sprints"):
                 self.execute("add", entity_type, {
                     "id": obj.id,
-                    "sprint_id": sprint_id 
+                    "sprint_id": sprint_id
                 })
             if story_id := kwargs.get("stories"):
                 self.execute("add", entity_type, {
                     "id": obj.id,
-                    "story_id": story_id 
+                    "story_id": story_id
                 })
             self.printer.print_new_object(obj, project)
             logger.info("<create> %s: %s", entity_type, obj.id)
@@ -1173,7 +1182,8 @@ class CommandHandler:
                                             self.execute(
                                                 "track", entity_type, {
                                                     "id": task.id,
-                                                    "minutes": time_spent_minutes
+                                                    "minutes":
+                                                    time_spent_minutes
                                                 })
                                     except Exception:
                                         pass
@@ -1202,7 +1212,6 @@ class CommandHandler:
                     "[red]Cannot start the sprint, end date in the past[/red]")
                 exit()
             self.execute("update", "sprints", kwargs)
-            # TODO: for each tasks start Vim to enter story points
             for sprint_task in sprint.tasks:
                 task = sprint_task.tasks
                 task_params = {"id": task.id}
@@ -1211,6 +1220,21 @@ class CommandHandler:
                 if not task.due_date or task.due_date > sprint.end_date:
                     task_params.update({"due_date": sprint.end_date})
                 self.execute("update", "tasks", task_params)
+                if sprint_task.story_points == 0:
+                    story_points = input(
+                        f"Please enter story points estimation for task <{task.id}>: {task.name}: "
+                    )
+                    try:
+                        float(story_points)
+                    except ValueError:
+                        self.console.print(
+                            "[red]Provide number when specifying story points[/red]")
+                        story_points = 0
+                    self.execute("update", "sprint_tasks", {
+                        "id": sprint_task.id,
+                        "story_points": story_points
+                    })
+
         elif command == "show":
             if len(kwargs) == 1 and "project" in kwargs:
                 kwargs["id"] = kwargs["project"]
