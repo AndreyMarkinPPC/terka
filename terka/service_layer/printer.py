@@ -326,7 +326,7 @@ class Printer:
                     (len(tasks) - len(open_tasks)) / len(tasks) * 100)
             else:
                 pct_completed = 0
-            if (total_story_poins := sum(story_points)) > 0:
+            if (total_story_points := sum(story_points)) > 0:
                 utilization = round(time_spent_sum / total_story_points * 60 *
                                     100)
             else:
