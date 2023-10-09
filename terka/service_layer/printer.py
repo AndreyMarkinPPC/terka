@@ -31,6 +31,7 @@ class PrintOptions:
     show_stories: bool = True
     show_notes: bool = True
     show_viz: bool = False
+    columns: str = ""
 
 
 class Printer:
@@ -223,9 +224,13 @@ class Printer:
                                     expand=True)
         default_columns = ("id", "name", "description", "status", "project",
                            "tasks")
-        for column in default_columns:
+        if print_options.columns:
+            printable_columns = print_options.columns.split(",")
+        else:
+            printable_columns = default_columns
+        for column in printable_columns:
             table.add_column(column, style="bold")
-        for column in default_columns:
+        for column in printable_columns:
             non_active_entities.add_column(column, style="bold")
         for i, entity in enumerate(entities):
             try:
@@ -242,22 +247,25 @@ class Printer:
                     tasks.append(task)
                 else:
                     completed_tasks.append(task)
+            printable_row = {
+                "id": f"{entity.id}", 
+                "name": str(entity.name),
+                "description": entity.description,
+                "status": entity.status.name,
+                "project": project,
+                "tasks": str(len(tasks))
+            }
+            printable_elements = [value for key, value in printable_row.items() if key in printable_columns]
+            table.add_row(*printable_elements)
             if entity.status.name == "COMPLETED":
-                non_active_entities.add_row(f"E{entity.id}", str(entity.name),
-                                            entity.description,
-                                            entity.status.name, project,
-                                            str(len(tasks)))
+                non_active_entities.add_row(*printable_elements)
                 continue
             if len(completed_tasks) == len(entity.tasks):
-                non_active_entities.add_row(f"E{entity.id}", str(entity.name),
-                                            entity.description,
-                                            entity.status.name, project,
-                                            str(len(tasks)))
+                non_active_entities.add_row(*printable_elements)
                 continue
             # if i == 0 or tasks or print_options.show_completed:
-            table.add_row(f"E{entity.id}", str(entity.name),
-                          entity.description, entity.status.name, project,
-                          str(len(tasks)))
+            # TODO: Uncomment
+            # table.add_row(*printable_elements)
         if table.row_count:
             self.console.print(table)
         if non_active_entities.row_count and print_options.show_completed:
@@ -285,9 +293,15 @@ class Printer:
 
     def print_sprint(self, entities, repo, print_options, kwargs=None):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
-        for column in ("id", "start_date", "end_date", "goal", "status",
+        columns = ("id", "start_date", "end_date", "goal", "status",
                        "open tasks", "pct_completed", "velocity",
-                       "collaborators", "time_spent", "utilization"):
+                       "collaborators", "time_spent", "utilization") 
+        if print_options.columns:
+            printable_columns = print_options.columns.split(",")
+        else:
+            printable_columns = columns
+
+        for column in printable_columns:
             table.add_column(column)
         for i, entity in enumerate(entities):
             story_points = []
@@ -330,12 +344,21 @@ class Printer:
                 utilization = round(time_spent_sum / total_story_points * 100)
             else:
                 utilization = 0
-            table.add_row(
-                str(entity.id), str(entity.start_date), str(entity.end_date),
-                entity.goal, entity.status.name,
-                f"{len(open_tasks)} ({len(tasks)})", f"{pct_completed}%",
-                str(round(sum(story_points), 2)), collaborators_string,
-                str(time_spent), f"{utilization}%")
+            printable_row = {
+                "id": str(entity.id), 
+                "start_date": str(entity.start_date),
+                "end_date": str(entity.end_date), 
+                "goal": entity.goal, 
+                "status": entity.status.name,
+                "open tasks": f"{len(open_tasks)} ({len(tasks)})", 
+                "pct_completed": f"{pct_completed}%",
+                "velocity": str(round(sum(story_points), 2)),
+                "collaborators": collaborators_string,
+                "time_spent": str(time_spent),
+                "utilization": f"{utilization}%"
+            }
+            printable_elements = [value for key, value in printable_row.items() if key in printable_columns]
+            table.add_row(*printable_elements)
         if table.row_count:
             self.console.print(table)
 

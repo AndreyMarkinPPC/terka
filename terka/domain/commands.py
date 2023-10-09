@@ -334,6 +334,7 @@ class CommandHandler:
         command = format_command(command)
         if command == "list":
             print_options = printer.PrintOptions(
+                columns=kwargs.pop("columns", ""),
                 show_tasks=False,
                 show_history=bool(kwargs.pop("show_history", False)),
                 show_commentaries=bool(kwargs.pop("show_commentaries", False)),

@@ -104,6 +104,8 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             new_dict.get("show-viz"),
             "file":
             new_dict.get("file") or new_dict.get("f"),
+            "columns":
+            new_dict.get("columns") or new_dict.get("c")
         }
         if "--sort" in kwargs:
             sort_index = kwargs.index("--sort")
