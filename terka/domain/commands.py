@@ -120,6 +120,13 @@ def completed_task_template(task: Task) -> str:
         status: DONE 
         time_spent: 0 (task total_time_spent {task.total_time_spent})
         comment: 
+        name: {task.name}
+        description: {task.description if task.description else ""}
+        sprints: {task.sprints[-1].sprint if task.sprints else ""}
+        epics: {task.epics[-1].epic if task.epics else ""}
+        stories: {task.stories[-1].story if task.stories else ""}
+        tags: {task.tags.pop() if task.tags else ""}
+        collaborators: {task.collaborators.pop() if task.collaborators else ""}
         """
 
 
