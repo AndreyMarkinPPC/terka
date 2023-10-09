@@ -323,8 +323,11 @@ class Printer:
             time_spent = self._format_time_spent(time_spent_sum)
             pct_completed = round(
                 (len(tasks) - len(open_tasks)) / len(tasks) * 100)
-            utilization = round(time_spent_sum / (sum(story_points) * 60) *
-                                100)
+            if (total_story_poins := sum(story_points)) > 0:
+                utilization = round(time_spent_sum / (sum(story_points) * 60) *
+                                    100)
+            else:
+                utilization = 0
             table.add_row(
                 str(entity.id), str(entity.start_date), str(entity.end_date),
                 entity.goal, entity.status.name,
