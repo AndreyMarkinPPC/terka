@@ -10,7 +10,7 @@ import yaml
 from terka.adapters.repository import AbsRepository
 from terka.domain.project import Project
 from terka.domain.user import User
-import terka.domain._commands as commands
+# import terka.domain._commands as commands
 
 
 def update_config(update_pair: Dict[str, Any]):
