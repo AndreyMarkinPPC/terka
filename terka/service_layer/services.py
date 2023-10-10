@@ -99,17 +99,17 @@ def lookup_project_name(project_id: int, repo: AbsRepository) -> Optional[str]:
 
 
 
-class CommandHander:
+# class CommandHander:
 
-    def __init__(self, home_dir, config, console=Console()):
-        self.home_dir = home_dir
-        self.config = config
-        self.console =  console
+#     def __init__(self, home_dir, config, console=Console()):
+#         self.home_dir = home_dir
+#         self.config = config
+#         self.console =  console
 
-    def execute(self, command: commands.Command, entity, task_dict):
-        # TODO: create registry of commands
-        handler = commands_registry[command]
-        handler.handle(entity, task_dict)
+#     def execute(self, command: commands.Command, entity, task_dict):
+#         # TODO: create registry of commands
+#         handler = commands_registry[command]
+#         handler.handle(entity, task_dict)
         
 
 
