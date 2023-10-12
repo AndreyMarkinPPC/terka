@@ -32,6 +32,7 @@ class PrintOptions:
     show_notes: bool = True
     show_viz: bool = False
     columns: str = ""
+    expand_table: bool = True
 
 
 class Printer:
@@ -218,10 +219,12 @@ class Printer:
                         print_options,
                         composite_type,
                         kwargs=None):
-        table = Table(box=self.box, title=composite_type.upper(), expand=True)
+        table = Table(box=self.box,
+                      title=composite_type.upper(),
+                      expand=print_options.expand_table)
         non_active_entities = Table(box=self.box,
                                     title=f"INACTIVE {composite_type.upper()}",
-                                    expand=True)
+                                    expand=print_options.expand_table)
         default_columns = ("id", "name", "description", "status", "project",
                            "tasks")
         if print_options.columns:
@@ -248,14 +251,17 @@ class Printer:
                 else:
                     completed_tasks.append(task)
             printable_row = {
-                "id": f"{entity.id}", 
+                "id": f"{entity.id}",
                 "name": str(entity.name),
                 "description": entity.description,
                 "status": entity.status.name,
                 "project": project,
                 "tasks": str(len(tasks))
             }
-            printable_elements = [value for key, value in printable_row.items() if key in printable_columns]
+            printable_elements = [
+                value for key, value in printable_row.items()
+                if key in printable_columns
+            ]
             table.add_row(*printable_elements)
             if entity.status.name == "COMPLETED":
                 non_active_entities.add_row(*printable_elements)
@@ -292,10 +298,11 @@ class Printer:
                 self._print_time_utilization(time_entries)
 
     def print_sprint(self, entities, repo, print_options, kwargs=None):
-        table = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
+        table = Table(box=rich.box.SQUARE_DOUBLE_HEAD,
+                      expand=print_options.expand_table)
         columns = ("id", "start_date", "end_date", "goal", "status",
-                       "open tasks", "pct_completed", "velocity",
-                       "collaborators", "time_spent", "utilization") 
+                   "open tasks", "pct_completed", "velocity", "collaborators",
+                   "time_spent", "utilization")
         if print_options.columns:
             printable_columns = print_options.columns.split(",")
         else:
@@ -345,19 +352,22 @@ class Printer:
             else:
                 utilization = 0
             printable_row = {
-                "id": str(entity.id), 
+                "id": str(entity.id),
                 "start_date": str(entity.start_date),
-                "end_date": str(entity.end_date), 
-                "goal": entity.goal, 
+                "end_date": str(entity.end_date),
+                "goal": entity.goal,
                 "status": entity.status.name,
-                "open tasks": f"{len(open_tasks)} ({len(tasks)})", 
+                "open tasks": f"{len(open_tasks)} ({len(tasks)})",
                 "pct_completed": f"{pct_completed}%",
                 "velocity": str(round(sum(story_points), 2)),
                 "collaborators": collaborators_string,
                 "time_spent": str(time_spent),
                 "utilization": f"{utilization}%"
             }
-            printable_elements = [value for key, value in printable_row.items() if key in printable_columns]
+            printable_elements = [
+                value for key, value in printable_row.items()
+                if key in printable_columns
+            ]
             table.add_row(*printable_elements)
         if table.row_count:
             self.console.print(table)
@@ -409,14 +419,23 @@ class Printer:
                 self._print_time_utilization(time_entries)
 
     def print_project(self, entities, print_options, kwargs=None):
-        table = Table(box=rich.box.SQUARE_DOUBLE_HEAD, expand=True)
-        non_active_projects = Table(box=rich.box.SQUARE_DOUBLE_HEAD)
-        for column in ("id", "name", "description", "status", "open_tasks",
-                       "overdue", "stale", "backlog", "todo", "in_progress",
-                       "review", "done", "median_task_age"):
+        table = Table(box=rich.box.SQUARE_DOUBLE_HEAD,
+                      expand=print_options.expand_table)
+        non_active_projects = Table(box=rich.box.SQUARE_DOUBLE_HEAD,
+                                    expand=print_options.expand_table)
+        default_columns = ("id", "name", "description", "status", "open_tasks",
+                          "overdue", "stale", "backlog", "todo", "in_progress",
+                          "review", "done", "median_task_age")
+
+        if print_options.columns:
+            printable_columns = print_options.columns.split(",")
+        else:
+            printable_columns = default_columns
+        for column in printable_columns:
             table.add_column(column)
-        for column in ("id", "name", "description", "status", "open_tasks"):
-            non_active_projects.add_column(column)
+        for column in printable_columns:
+            if column in ("id", "name", "description", "status", "open_tasks"): 
+                non_active_projects.add_column(column)
         for entity in entities:
             # if entity.status.name != "ACTIVE":
             #     continue
@@ -453,16 +472,39 @@ class Printer:
                     entity_id = f"[red]{entity.id}[/red]"
                 else:
                     entity_id = f"[green]{entity.id}[/green]"
-                table.add_row(f"{entity_id}", entity.name, entity.description,
-                              entity.status.name, str(open_tasks),
-                              str(len(overdue_tasks)), str(len(stale_tasks)),
-                              str(backlog), str(todo), str(in_progress),
-                              str(review), str(done), str(median_task_age))
+                printable_row = {
+                    "id": f"{entity.id}",
+                    "name": str(entity.name),
+                    "description": entity.description,
+                    "status": entity.status.name,
+                    "open_tasks": str(open_tasks),
+                    "overdue": str(len(overdue_tasks)),
+                    "stale": str(len(stale_tasks)),
+                    "backlog": str(backlog),
+                    "todo": str(todo),
+                    "in_progress": str(in_progress),
+                    "review": str(review),
+                    "done": str(done),
+                    "median_task_age": str(median_task_age),
+                }
+                printable_elements = [
+                    value for key, value in printable_row.items()
+                    if key in printable_columns
+                ]
+                table.add_row(*printable_elements)
             else:
-                non_active_projects.add_row(str(entity.id), entity.name,
-                                            entity.description,
-                                            entity.status.name,
-                                            str(open_tasks))
+                printable_row = {
+                    "id": f"{entity.id}",
+                    "name": str(entity.name),
+                    "description": entity.description,
+                    "status": entity.status.name,
+                    "open_tasks": str(open_tasks),
+                }
+                printable_elements = [
+                    value for key, value in printable_row.items()
+                    if key in printable_columns
+                ]
+                non_active_projects.add_row(*printable_elements)
 
         if table.row_count:
             self.console.print(table)

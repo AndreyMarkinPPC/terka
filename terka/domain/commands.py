@@ -333,8 +333,14 @@ class CommandHandler:
             raise ValueError(f"Entity *{entity_type}* is not a valid entity")
         command = format_command(command)
         if command == "list":
+            if kwargs.pop("no-expand", None):
+                expand_table = False
+            else:
+                _ = kwargs.pop("expand", None)
+                expand_table = True
             print_options = printer.PrintOptions(
                 columns=kwargs.pop("columns", ""),
+                expand_table=expand_table,
                 show_tasks=False,
                 show_history=bool(kwargs.pop("show_history", False)),
                 show_commentaries=bool(kwargs.pop("show_commentaries", False)),

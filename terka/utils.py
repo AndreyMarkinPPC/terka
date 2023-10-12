@@ -105,7 +105,12 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             "file":
             new_dict.get("file") or new_dict.get("f"),
             "columns":
-            new_dict.get("columns") or new_dict.get("c")
+            new_dict.get("columns") or new_dict.get("c"),
+            "expand":
+            new_dict.get("expand"),
+            "no-expand":
+            new_dict.get("no-expand"),
+            
         }
         if "--sort" in kwargs:
             sort_index = kwargs.index("--sort")
