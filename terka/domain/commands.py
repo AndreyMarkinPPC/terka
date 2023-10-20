@@ -75,6 +75,15 @@ def new_task_template() -> str:
         collaborators: 
         """
 
+def new_composite_template(entity) -> str:
+    return f"""
+        # You are creating {entity.__name__}, enter below:
+        ---
+        name: 
+        description: 
+        project: 
+        """
+
 
 def new_sprint_template() -> str:
     today = datetime.now()
@@ -161,6 +170,8 @@ def generate_message_template(task: Optional[Task] = None,
                 message_template = new_task_template()
             if entity == Sprint:
                 message_template = new_sprint_template()
+            if entity in (Epic, Story):
+                message_template = new_composite_template(entity)
         elif kwargs and kwargs.get("status"):
             message_template = completed_task_template(task)
         else:

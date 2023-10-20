@@ -434,7 +434,7 @@ class Printer:
         for column in printable_columns:
             table.add_column(column)
         for column in printable_columns:
-            if column in ("id", "name", "description", "status", "open_tasks"): 
+            if column in ("id", "name", "description", "status", "open_tasks"):
                 non_active_projects.add_column(column)
         for entity in entities:
             # if entity.status.name != "ACTIVE":
@@ -555,7 +555,7 @@ class Printer:
                    kwargs=None):
         table = Table(box=self.box, title="TASKS")
         if story_points:
-            default_columns = ("id", "name", "description", "story points",
+            default_columns = ("id", "name", "description", "story_points",
                                "status", "priority", "project", "due_date",
                                "tags", "collaborators", "time_spent")
         else:
@@ -572,6 +572,11 @@ class Printer:
         # else:
         #     active_in_days = datetime.now() - entities[0].creation_date
         #     console.print(f"[blue]task is active {active_in_days.days} days[/blue]")
+        if print_options.columns:
+            printable_columns = print_options.columns.split(",")
+        else:
+            printable_columns = default_columns
+        printable_completed_tasks_colums = printable_columns
         entities = list(entities)
         if kwargs:
             custom_sort = custom_sort or kwargs.pop("sort", None)
@@ -592,7 +597,7 @@ class Printer:
         table, completed_tasks, completed_story_points = self._print_task(
             table=table,
             entities=entities,
-            default_columns=default_columns,
+            default_columns=printable_columns,
             repo=repo,
             story_points=story_points,
             show_window=show_window,
@@ -605,7 +610,7 @@ class Printer:
             table, *rest = self._print_task(
                 table=table,
                 entities=completed_tasks,
-                default_columns=completed_tasks_default_columns,
+                default_columns=printable_completed_tasks_colums,
                 repo=repo,
                 story_points=completed_story_points,
                 show_window=show_window,
@@ -821,16 +826,28 @@ class Printer:
                     entity_id = str(entity.id)
             else:
                 entity_id = str(entity.id)
+
+            printable_row = {
+                "id": entity_id,
+                "name": entity_name,
+                "description": entity.description,
+                "story_points": str(story_point),
+                "status": entity.status.name,
+                "priority": priority, 
+                "project": project,
+                "due_date": str(entity.due_date or completed_date),
+                "tags": tag_string,
+                "collaborators": collaborator_string,
+                "time_spent": str(time_spent)
+            }
+            printable_elements = [
+                value for key, value in printable_row.items()
+                if key in default_columns 
+            ]
             if story_points:
-                table.add_row(entity_id, entity_name, entity.description,
-                              str(story_point), entity.status.name, priority,
-                              project, str(entity.due_date or completed_date),
-                              tag_string, collaborator_string, str(time_spent))
+                table.add_row(*printable_elements)
             else:
-                table.add_row(entity_id, entity_name, entity.description,
-                              entity.status.name, priority, project,
-                              str(entity.due_date or completed_date),
-                              tag_string, collaborator_string, str(time_spent))
+                table.add_row(*printable_elements)
         if table.row_count == 1 and show_window:
             app = TerkaTask(entity=entity,
                             project=project,
