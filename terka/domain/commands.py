@@ -75,6 +75,15 @@ def new_task_template() -> str:
         collaborators: 
         """
 
+def new_composite_template(entity) -> str:
+    return f"""
+        # You are creating {entity.__name__}, enter below:
+        ---
+        name: 
+        description: 
+        project: 
+        """
+
 
 def new_composite_template(entity) -> str:
     return f"""
