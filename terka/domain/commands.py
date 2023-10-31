@@ -75,6 +75,7 @@ def new_task_template() -> str:
         collaborators: 
         """
 
+
 def new_composite_template(entity) -> str:
     return f"""
         # You are creating {entity.__name__}, enter below:
@@ -103,6 +104,16 @@ def new_sprint_template() -> str:
 
 def start_sprint_template(sprint: Sprint) -> str:
     ...
+
+
+def edit_sprint_template(sprint: Sprint) -> str:
+    return f"""
+        # You are editing sprint {sprint.id}, enter below:
+        ---
+        goal: {sprint.goal}
+        start_date: {sprint.start_date}
+        end_date: {sprint.end_date}
+        """
 
 
 def edited_task_template(task: Task) -> str:
@@ -153,17 +164,7 @@ def generate_message_template(task: Optional[Task] = None,
         if not kwargs:
             message_template = new_sprint_template()
         else:
-            message_template = f"""
-            # You are editing sprint, enter below:
-            goal: {task.goal}
-            start_date: {task.start_date}
-            end_date: {task.end_date}
-            status: {task.status.name}
-            ---
-            {current_entry.source} context:
-            id: {task.id}
-            goal: {task.goal}
-            """
+            message_template = edit_sprint_template(task)
     else:
         if not kwargs:
             if entity == Task:
@@ -962,6 +963,9 @@ class CommandHandler:
                                     if entry_type == "status":
                                         entry_value = convert_status(
                                             entry_value)
+                                    if entry_type.endswith("date"):
+                                        entry_value = datetime.strptime(
+                                            entry_value, "%Y-%m-%d")
                                     updated_entry[entry_type] = entry_value
                             except TerkaException as e:
                                 pass
@@ -1217,6 +1221,9 @@ class CommandHandler:
                                         if entry_type == "status":
                                             entry_value = convert_status(
                                                 entry_value)
+                                        if entry_type.endswith("date"):
+                                            entry_value = datetime.strptime(
+                                                entry_value, "%Y-%m-%d")
                                         updated_entry[entry_type] = entry_value
                             except TerkaException as e:
                                 pass
@@ -1253,7 +1260,8 @@ class CommandHandler:
                         float(story_points)
                     except ValueError:
                         self.console.print(
-                            "[red]Provide number when specifying story points[/red]")
+                            "[red]Provide number when specifying story points[/red]"
+                        )
                         story_points = 0
                     self.execute("update", "sprint_tasks", {
                         "id": sprint_task.id,
