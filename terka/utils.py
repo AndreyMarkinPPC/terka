@@ -110,7 +110,6 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             new_dict.get("expand"),
             "no-expand":
             new_dict.get("no-expand"),
-            
         }
         if "--sort" in kwargs:
             sort_index = kwargs.index("--sort")
@@ -224,7 +223,8 @@ def convert_date_in_task_dict(task_dict):
             elif value == "today":
                 task_dict[key] = datetime.today()
             else:
-                task_dict[key] = datetime.strptime(value, "%Y-%m-%d")
+                task_dict[key] = datetime.strptime(
+                    value, "%Y-%m-%d") if isinstance(value, str) else value
     return task_dict
 
 
