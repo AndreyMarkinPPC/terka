@@ -197,6 +197,39 @@ class TerkaProject(App):
                             collaborator_string,
                             Formatter.format_time_spent(task.total_time_spent))
                 yield table
+            with TabPane("Completed Tasks", id="completed_tasks"):
+                table = DataTable(id="completed_tasks")
+                for column in ("id", "name", "status", "priority",
+                               "completion_date", "tags", "collaborators",
+                               "time_spent"):
+                    table.add_column(column, key=column)
+                completed_tasks = [
+                    e for e in self.entity.tasks if e.completion_date
+                ]
+                for task in sorted(completed_tasks,
+                                   key=lambda x: x.completion_date,
+                                   reverse=True):
+                    if tags := task.tags:
+                        tags_text = ",".join(
+                            [tag.base_tag.text for tag in list(tags)])
+                    else:
+                        tags_text = ""
+                    if collaborators := task.collaborators:
+                        collaborators_texts = sorted([
+                            collaborator.users.name
+                            for collaborator in list(collaborators)
+                            if collaborator.users
+                        ])
+                        collaborator_string = ",".join(collaborators_texts)
+                    else:
+                        collaborator_string = ""
+                    table.add_row(
+                        str(task.id), task.name, task.status.name,
+                        task.priority.name,
+                        task.completion_date.strftime("%Y-%m-%d"), tags_text,
+                        collaborator_string,
+                        Formatter.format_time_spent(task.total_time_spent))
+                yield table
             with TabPane("Epics", id="epics"):
                 table = DataTable(id="epics")
                 table.add_columns("id", "name", "description", "status",
@@ -251,6 +284,144 @@ class TerkaProject(App):
     def action_stories(self) -> None:
         """Add a new tab."""
         self.query_one(TabbedContent).active = "stories"
+
+    def action_overview(self) -> None:
+        """Add a new tab."""
+        self.query_one(TabbedContent).active = "overview"
+
+    def action_notes(self) -> None:
+        """Add a new tab."""
+        self.query_one(TabbedContent).active = "notes"
+
+
+class TerkaSprint(App):
+
+    CSS = """
+    Tabs {
+        dock: top;
+    }
+    Screen {
+        align: center top;
+    }
+    .header {
+        margin:1 1;
+        width: 100%;
+        height: 5%;
+        background: $panel;
+        border: tall $primary;
+        content-align: center middle;
+    }
+    """
+
+    BINDINGS = [("t", "tasks", "Tasks"), ("n", "notes", "Notes"),
+                ("o", "overview", "Overview"), ("q", "quit", "Quit")]
+
+    def __init__(self, entity) -> None:
+        super().__init__()
+        self.entity = entity
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Static(
+            f"[bold]Sprint {self.entity.id}[/bold]: \n{self.entity.goal}",
+            classes="header")
+        with TabbedContent(initial="tasks"):
+            with TabPane("Tasks", id="tasks"):
+                table = DataTable(id="tasks")
+                for column in ("id", "name", "status", "priority", "due_date",
+                               "tags", "collaborators", "time_spent"):
+                    table.add_column(column, key=column)
+                for sprint_task in sorted(self.entity.tasks,
+                                          key=lambda x: x.id,
+                                          reverse=True):
+                    task = sprint_task.tasks
+                    if tags := task.tags:
+                        tags_text = ",".join([
+                            tag.base_tag.text for tag in list(tags)
+                            if not tag.base_tag.text.startswith("sprint")
+                        ])
+                    else:
+                        tags_text = ""
+                    if collaborators := task.collaborators:
+                        collaborators_texts = sorted([
+                            collaborator.users.name
+                            for collaborator in list(collaborators)
+                            if collaborator.users
+                        ])
+                        collaborator_string = ",".join(collaborators_texts)
+                    else:
+                        collaborator_string = ""
+                    if task.is_overdue:
+                        task_id = f"[red]{task.id}[/red]"
+                    elif task.is_stale:
+                        task_id = f"[yellow]{task.id}[/yellow]"
+                    else:
+                        task_id = str(task.id)
+                    if task.status.name not in ("DONE", "DELETED"):
+                        table.add_row(
+                            task_id, task.name, task.status.name,
+                            task.priority.name, task.due_date, tags_text,
+                            collaborator_string,
+                            Formatter.format_time_spent(task.total_time_spent))
+                yield table
+            with TabPane("Completed Tasks", id="completed_tasks"):
+                table = DataTable(id="completed_tasks")
+                for column in ("id", "name", "completion_date", "tags",
+                               "collaborators", "time_spent"):
+                    table.add_column(column, key=column)
+                for sprint_task in sorted(self.entity.tasks,
+                                          key=lambda x: x.id,
+                                          reverse=True):
+                    task = sprint_task.tasks
+                    if tags := task.tags:
+                        tags_text = ",".join([
+                            tag.base_tag.text for tag in list(tags)
+                            if not tag.base_tag.text.startswith("sprint")
+                        ])
+                    else:
+                        tags_text = ""
+                    if collaborators := task.collaborators:
+                        collaborators_texts = sorted([
+                            collaborator.users.name
+                            for collaborator in list(collaborators)
+                            if collaborator.users
+                        ])
+                        collaborator_string = ",".join(collaborators_texts)
+                    else:
+                        collaborator_string = ""
+                    if task.status.name in ("DONE", "DELETED"):
+                        table.add_row(
+                            str(task.id), task.name,
+                            task.completion_date.strftime("%Y-%m-%d"),
+                            tags_text, collaborator_string,
+                            Formatter.format_time_spent(task.total_time_spent))
+                yield table
+            with TabPane("Notes", id="notes"):
+                table = DataTable(id="notes")
+                table.add_columns("id", "text")
+                for task in self.entity.notes:
+                    table.add_row(str(task.id), task.text)
+                yield table
+            with TabPane("Overview", id="overview"):
+                collaborators = self.entity.collaborators
+                sorted_collaborators = ""
+                for name, value in sorted(collaborators.items(),
+                                          key=lambda x: x[1],
+                                          reverse=True):
+                    sorted_collaborators += f"  * {name}: {Formatter.format_time_spent(value)} \n"
+                yield Markdown(f"""
+# Sprint details:
+* Period: {self.entity.start_date} - {self.entity.end_date}
+* Time spend: {Formatter.format_time_spent(self.entity.total_time_spent)}
+* Collaborators:
+{sorted_collaborators}
+                """)
+
+        yield Footer()
+
+    def action_tasks(self) -> None:
+        """Add a new tab."""
+        self.query_one(TabbedContent).active = "tasks"
 
     def action_overview(self) -> None:
         """Add a new tab."""

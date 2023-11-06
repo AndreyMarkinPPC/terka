@@ -1,4 +1,5 @@
 from typing import Set
+from collections import defaultdict
 from enum import Enum
 import logging
 from datetime import datetime
@@ -59,6 +60,26 @@ class Sprint:
             logging.warning("[Sprint %d]: %d tasks haven't been completed",
                             self.id, len(incompleted_tasks))
         self.is_completed = True
+
+    @property
+    def total_time_spent(self):
+        total_time_spent_sprint = 0
+        for sprint_task in self.tasks:
+            total_time_spent_sprint += sprint_task.tasks.total_time_spent
+        return total_time_spent_sprint
+
+    @property
+    def collaborators(self):
+        collaborators = defaultdict(int)
+        for sprint_task in self.tasks:
+            if task_collaborators := sprint_task.tasks.collaborators:
+                for collaborator in task_collaborators:
+                    name = collaborator.users.name or "me"
+                    collaborators[name] += sprint_task.tasks.total_time_spent
+            else:
+                collaborators["me"] += sprint_task.tasks.total_time_spent
+        return collaborators
+
 
 
 @dataclass

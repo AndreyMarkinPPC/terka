@@ -18,7 +18,7 @@ from rich.table import Table
 from statistics import mean, median
 
 from terka.service_layer import services, views, formatter
-from terka.service_layer.ui import TerkaTask, TerkaProject
+from terka.service_layer.ui import TerkaTask, TerkaProject, TerkaSprint
 
 
 @dataclass
@@ -417,6 +417,10 @@ class Printer:
                                                 entity.start_date,
                                                 entity.end_date)
                 self._print_time_utilization(time_entries)
+        if len(entities) == 1:
+            app = TerkaSprint(entity=entities[0])
+            app.run()
+        
 
     def print_project(self, entities, print_options, kwargs=None):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD,
