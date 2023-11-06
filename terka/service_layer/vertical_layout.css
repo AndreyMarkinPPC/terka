@@ -2,8 +2,8 @@ Screen {
 	layout: grid;
 	grid-gutter: 0;
 	grid-size: 5;
-	grid-columns: 2fr 1fr 1fr 1fr 1fr;
-	grid-rows: 10% 10% 10% 30% 30% 10%;
+	grid-columns: 1fr 1fr 1fr 1fr 1fr;
+	grid-rows: 9% 5% 5% 50% 32%;
 }
 
 .body {
@@ -17,21 +17,18 @@ Screen {
 }
 
 .header_simple {
-	height: 1fr;
 	border: solid grey;
 	background: grey;
 	color: black;
 }
 
 .header_completed {
-	height: 1fr;
 	border: solid green;
 	background: green;
 	color: white;
 }
 
 .header_overdue {
-	height: 1fr;
 	border: solid red;
 	background: red;
 	color: white;

@@ -1,3 +1,4 @@
+from collections import defaultdict
 from enum import Enum
 
 
@@ -31,6 +32,26 @@ class Project:
             raise ValueError(f"{status} is invalid status")
         else:
             return status
+
+    @property
+    def total_time_spent(self):
+        total_time_spent_project = 0
+        for task in self.tasks:
+            total_time_spent_project += task.total_time_spent
+        return total_time_spent_project
+
+    @property
+    def task_collaborators(self):
+        collaborators = defaultdict(int)
+        for task in self.tasks:
+            if task_collaborators := task.collaborators:
+                for collaborator in task.collaborators:
+                    name = collaborator.users.name or "me"
+                    collaborators[name] += task.total_time_spent
+            else:
+                collaborators["me"] += task.total_time_spent
+        return collaborators
+
 
     def __str__(self):
         return f"<Project {self.id}>: {self.name} {self.tasks}"

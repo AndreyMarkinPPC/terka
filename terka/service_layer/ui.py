@@ -1,25 +1,16 @@
+from __future__ import annotations
+
+from collections import defaultdict
 from datetime import datetime
+from rich.console import Console
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import Header, Static, Input
+from textual.widgets import Input, Header, Footer, Label, Tabs, DataTable, TabbedContent, TabPane, Static, Markdown
 
-
-# TODO: extract out of printer
-def format_time_spent(time_spent: int) -> str:
-    time_spent_hours = time_spent // 60
-    time_spent_minutes = time_spent % 60
-    if time_spent_hours and time_spent_minutes:
-        time_spent = f"{time_spent_hours}H:{time_spent_minutes}M"
-    elif time_spent_hours:
-        time_spent = f"{time_spent_hours}H:00M"
-    elif time_spent_minutes:
-        time_spent = f"00H:{time_spent_minutes}M"
-    else:
-        time_spent = ""
-    return time_spent
-
+from terka.service_layer.formatter import Formatter
 
 
 class Comment(Widget):
@@ -42,11 +33,13 @@ class TerkaTask(App):
         super().__init__()
         self.entity = entity
         self.project = project
-        self.is_completed = is_completed
+        self.is_completed = True if entity.status.name in (
+            "DONE", "DELETED") else False
         self.history = history
         self.commentaries = commentaries
         self.is_overdue = datetime.today().date(
-        ) > entity.due_date if entity.due_date else False
+        ) > entity.due_date if entity.due_date and entity.status.name not in (
+            "DONE", "DELETED") else False
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -64,28 +57,26 @@ class TerkaTask(App):
                      classes="transp")
         created_days_ago = (datetime.now() - self.entity.creation_date).days
         creation_message = f"{created_days_ago} days ago" if created_days_ago > 1 else "today"
-        yield Static(f"Created {creation_message}", classes="header_simple")
+        yield Static(f"Created {creation_message}", classes="transp")
         if self.is_completed:
-            completion_date = self._get_completion_date()
+            completion_date = self.entity.completion_date
             if completion_date:
                 completed_days_ago = (datetime.now() - completion_date).days
                 completion_message = f"{completed_days_ago} days ago" if completed_days_ago > 1 else "today"
                 yield Static(
                     f"Completed {completion_message} ({completion_date.strftime('%Y-%m-%d')})",
-                    classes="header_simple")
+                    classes="transp")
             else:
-                yield Static("Completion date unknown",
-                             classes="header_simple")
+                yield Static("Completion date unknown", classes="transp")
         else:
-            yield Static(f"Due date: {self.entity.due_date}",
-                         classes="header_simple")
+            yield Static(f"Due date: {self.entity.due_date}", classes="transp")
         if sprints := self.entity.sprints:
             sprint_id = ",".join(str(s.sprint) for s in sprints)
             story_points = sprints[-1].story_points
             yield Static(
                 f"Sprints: [bold]{sprint_id}[/bold], "
                 f"SP: [bold]{story_points}[/bold], "
-                f"T: [bold]{format_time_spent(self.entity.total_time_spent)}[/bold]",
+                f"T: [bold]{Formatter.format_time_spent(self.entity.total_time_spent)}[/bold]",
                 classes="transp")
         else:
             yield Static(f"Not in sprint", classes="transp")
@@ -133,13 +124,144 @@ class TerkaTask(App):
                          id="history")
         else:
             yield Static("", classes="body", id="history")
-        yield Input(placeholder="Add a comment", classes="body", id="comment")
+        # yield Input(placeholder="Add a comment", classes="body", id="comment")
         # yield Comment()
 
     # def on_input_changed(self, event: Input.Changed) -> None:
     #     self.query_one(Comment).text = event.value
 
-    def _get_completion_date(self):
-        for event in self.history:
-            if event.new_value == "DONE":
-                return event.date
+
+class TerkaProject(App):
+
+    CSS = """
+    Tabs {
+        dock: top;
+    }
+    Screen {
+        align: center top;
+    }
+    .header {
+        margin:1 1;
+        width: 100%;
+        height: 5%;
+        background: $panel;
+        border: tall $primary;
+        content-align: center middle;
+    }
+    """
+
+    BINDINGS = [("e", "epics", "Epics"), ("t", "tasks", "Tasks"),
+                ("s", "stories", "Stories"), ("n", "notes", "Notes"),
+                ("o", "overview", "Overview"), ("q", "quit", "Quit")]
+
+    def __init__(self, entity) -> None:
+        super().__init__()
+        self.entity = entity
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Static(f"{self.entity.name}", classes="header")
+        with TabbedContent(initial="tasks"):
+            with TabPane("Tasks", id="tasks"):
+                table = DataTable(id="tasks")
+                for column in ("id", "name", "status", "priority", "due_date",
+                               "tags", "collaborators", "time_spent"):
+                    table.add_column(column, key=column)
+                for task in sorted(self.entity.tasks,
+                                   key=lambda x: x.id,
+                                   reverse=True):
+                    if task.status.name not in ("DONE", "DELETED"):
+                        if tags := task.tags:
+                            tags_text = ",".join(
+                                [tag.base_tag.text for tag in list(tags)])
+                        else:
+                            tags_text = ""
+                        if collaborators := task.collaborators:
+                            collaborators_texts = sorted([
+                                collaborator.users.name
+                                for collaborator in list(collaborators)
+                                if collaborator.users
+                            ])
+                            collaborator_string = ",".join(collaborators_texts)
+                        else:
+                            collaborator_string = ""
+                        if task.is_overdue:
+                            task_id = f"[red]{task.id}[/red]"
+                        elif task.is_stale:
+                            task_id = f"[yellow]{task.id}[/yellow]"
+                        else:
+                            task_id = str(task.id)
+                        table.add_row(
+                            task_id, task.name, task.status.name,
+                            task.priority.name, task.due_date, tags_text,
+                            collaborator_string,
+                            Formatter.format_time_spent(task.total_time_spent))
+                yield table
+            with TabPane("Epics", id="epics"):
+                table = DataTable(id="epics")
+                table.add_columns("id", "name", "description", "status",
+                                  "tasks")
+                for epic in sorted(self.entity.epics,
+                                   key=lambda x: len(x.tasks),
+                                   reverse=True):
+                    table.add_row(str(epic.id), shorten_text(epic.name),
+                                  shorten_text(epic.description),
+                                  epic.status.name, str(len(epic.tasks)))
+                yield table
+            with TabPane("Stories", id="stories"):
+                table = DataTable(id="stories")
+                table.add_columns("id", "name", "description", "status",
+                                  "tasks")
+                for story in self.entity.stories:
+                    table.add_row(str(story.id), shorten_text(story.name),
+                                  shorten_text(story.description),
+                                  story.status.name, str(len(story.tasks)))
+                yield table
+            with TabPane("Notes", id="notes"):
+                table = DataTable(id="notes")
+                table.add_columns("id", "text")
+                for task in self.entity.notes:
+                    table.add_row(str(task.id), task.text)
+                yield table
+            with TabPane("Overview", id="overview"):
+                collaborators = self.entity.task_collaborators
+                sorted_collaborators = ""
+                for name, value in sorted(collaborators.items(),
+                                          key=lambda x: x[1],
+                                          reverse=True):
+                    sorted_collaborators += f"  * {name}: {Formatter.format_time_spent(value)} \n"
+                yield Markdown(f"""
+# Project details:
+* Repo: {self.entity.description}
+* Time spend: {Formatter.format_time_spent(self.entity.total_time_spent)}
+* Collaborators:
+{sorted_collaborators}
+                """)
+
+        yield Footer()
+
+    def action_epics(self) -> None:
+        """Add a new tab."""
+        self.query_one(TabbedContent).active = "epics"
+
+    def action_tasks(self) -> None:
+        """Add a new tab."""
+        self.query_one(TabbedContent).active = "tasks"
+
+    def action_stories(self) -> None:
+        """Add a new tab."""
+        self.query_one(TabbedContent).active = "stories"
+
+    def action_overview(self) -> None:
+        """Add a new tab."""
+        self.query_one(TabbedContent).active = "overview"
+
+    def action_notes(self) -> None:
+        """Add a new tab."""
+        self.query_one(TabbedContent).active = "notes"
+
+
+def shorten_text(text: str | None, limit: int = 80) -> str | None:
+    if text and len(text) > limit:
+        text = text[:limit]
+    return text

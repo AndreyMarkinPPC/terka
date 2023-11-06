@@ -17,8 +17,8 @@ from rich.markdown import Markdown
 from rich.table import Table
 from statistics import mean, median
 
-from terka.service_layer import services, views
-from terka.service_layer.ui import TerkaTask
+from terka.service_layer import services, views, formatter
+from terka.service_layer.ui import TerkaTask, TerkaProject
 
 
 @dataclass
@@ -341,7 +341,7 @@ class Printer:
                 for entry in task.time_spent
             ])
 
-            time_spent = self._format_time_spent(time_spent_sum)
+            time_spent = formatter.Formatter.format_time_spent(time_spent_sum)
             if (total_tasks := len(tasks)) > 0:
                 pct_completed = round(
                     (len(tasks) - len(open_tasks)) / len(tasks) * 100)
@@ -424,8 +424,9 @@ class Printer:
         non_active_projects = Table(box=rich.box.SQUARE_DOUBLE_HEAD,
                                     expand=print_options.expand_table)
         default_columns = ("id", "name", "description", "status", "open_tasks",
-                          "overdue", "stale", "backlog", "todo", "in_progress",
-                          "review", "done", "median_task_age")
+                           "overdue", "stale", "backlog", "todo",
+                           "in_progress", "review", "done", "median_task_age",
+                           "time_spent")
 
         if print_options.columns:
             printable_columns = print_options.columns.split(",")
@@ -448,14 +449,8 @@ class Printer:
                 ]
                 stale_tasks = []
                 for task in entity.tasks:
-                    if (event_history :=
-                            task.history) and task.status.name in (
-                                "TODO", "IN_PROGRESS", "REVIEW"):
-                        for event in event_history:
-                            if max([
-                                    event.date for event in event_history
-                            ]) < (datetime.today() - timedelta(days=5)):
-                                stale_tasks.append(task)
+                    if task.is_stale:
+                        stale_tasks.append(task)
                 stale_tasks = list(set(stale_tasks))
                 median_task_age = round(
                     median([(datetime.now() - task.creation_date).days
@@ -473,19 +468,34 @@ class Printer:
                 else:
                     entity_id = f"[green]{entity.id}[/green]"
                 printable_row = {
-                    "id": f"{entity.id}",
-                    "name": str(entity.name),
-                    "description": entity.description,
-                    "status": entity.status.name,
-                    "open_tasks": str(open_tasks),
-                    "overdue": str(len(overdue_tasks)),
-                    "stale": str(len(stale_tasks)),
-                    "backlog": str(backlog),
-                    "todo": str(todo),
-                    "in_progress": str(in_progress),
-                    "review": str(review),
-                    "done": str(done),
-                    "median_task_age": str(median_task_age),
+                    "id":
+                    f"{entity.id}",
+                    "name":
+                    str(entity.name),
+                    "description":
+                    entity.description,
+                    "status":
+                    entity.status.name,
+                    "open_tasks":
+                    str(open_tasks),
+                    "overdue":
+                    str(len(overdue_tasks)),
+                    "stale":
+                    str(len(stale_tasks)),
+                    "backlog":
+                    str(backlog),
+                    "todo":
+                    str(todo),
+                    "in_progress":
+                    str(in_progress),
+                    "review":
+                    str(review),
+                    "done":
+                    str(done),
+                    "median_task_age":
+                    str(median_task_age),
+                    "time_spent":
+                    formatter.Formatter.format_time_spent(entity.total_time_spent),
                 }
                 printable_elements = [
                     value for key, value in printable_row.items()
@@ -543,6 +553,18 @@ class Printer:
             if "time" in viz:
                 time_entries = views.time_spent(self.repo.session, tasks)
                 self._print_time_utilization(time_entries)
+        if len(entities) == 1:
+            collaborators = defaultdict(int)
+            for task in entities[0].tasks:
+                if task_collaborators := task.collaborators:
+                    for collaborator in task.collaborators:
+                        name = collaborator.users.name
+                        collaborators[name] = +task.total_time_spent
+                else:
+                    collaborators["me"] = +task.total_time_spent
+
+            app = TerkaProject(entity=entities[0])
+            app.run()
 
     def print_task(self,
                    entities,
@@ -657,24 +679,6 @@ class Printer:
 
     def _count_task_status(self, tasks, status: str) -> int:
         return len([task for task in tasks if task.status.name == status])
-
-    def _calculate_time_spent(self, entity) -> str:
-        time_spent_sum = sum(
-            [entry.time_spent_minutes for entry in entity.time_spent])
-        return self._format_time_spent(time_spent_sum)
-
-    def _format_time_spent(self, time_spent: int) -> str:
-        time_spent_hours = time_spent // 60
-        time_spent_minutes = time_spent % 60
-        if time_spent_hours and time_spent_minutes:
-            time_spent = f"{time_spent_hours}H:{time_spent_minutes}M"
-        elif time_spent_hours:
-            time_spent = f"{time_spent_hours}H:00M"
-        elif time_spent_minutes:
-            time_spent = f"00H:{time_spent_minutes}M"
-        else:
-            time_spent = ""
-        return time_spent
 
     def _get_filtered_entities(self, entities, kwargs):
         if kwargs:
@@ -796,7 +800,8 @@ class Printer:
                 project = None
             priority = entity.priority.name if hasattr(entity.priority,
                                                        "name") else "UNKNOWN"
-            time_spent = self._calculate_time_spent(entity)
+            time_spent = formatter.Formatter.format_time_spent(
+                entity.total_time_spent)
             if entity.status.name in ("DELETED", "DONE") and all_tasks:
                 completed_tasks.append(entity)
                 if story_points:
@@ -814,16 +819,10 @@ class Printer:
                     completed_date = max(completed_events).strftime("%Y-%m-%d")
             if not all_tasks:
                 entity_id = str(entity.id)
-            elif entity.due_date and entity.due_date <= date.today():
+            elif entity.is_overdue:
                 entity_id = f"[red]{entity.id}[/red]"
-            elif event_history and entity.status.name in ("TODO",
-                                                          "IN_PROGRESS",
-                                                          "REVIEW"):
-                if max([event.date for event in event_history
-                        ]) < (datetime.today() - timedelta(days=5)):
-                    entity_id = f"[yellow]{entity.id}[/yellow]"
-                else:
-                    entity_id = str(entity.id)
+            elif entity.is_stale:
+                entity_id = f"[yellow]{entity.id}[/yellow]"
             else:
                 entity_id = str(entity.id)
 
@@ -833,7 +832,7 @@ class Printer:
                 "description": entity.description,
                 "story_points": str(story_point),
                 "status": entity.status.name,
-                "priority": priority, 
+                "priority": priority,
                 "project": project,
                 "due_date": str(entity.due_date or completed_date),
                 "tags": tag_string,
@@ -842,7 +841,7 @@ class Printer:
             }
             printable_elements = [
                 value for key, value in printable_row.items()
-                if key in default_columns 
+                if key in default_columns
             ]
             if story_points:
                 table.add_row(*printable_elements)

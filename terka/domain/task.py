@@ -1,5 +1,5 @@
 from enum import Enum
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 
 class TaskStatus(Enum):
@@ -72,6 +72,27 @@ class Task:
         if self.time_spent:
             return sum([t.time_spent_minutes for t in self.time_spent])
         return 0
+
+    @property
+    def completion_date(self) -> datetime | None:
+        for event in self.history:
+            if event.new_value in ("DONE", "DELETED"):
+                return event.date
+
+    @property
+    def is_stale(self):
+        if self.history and self.status.name in ("TODO", "IN_PROGRESS",
+                                                 "REVIEW"):
+            if max([event.date for event in self.history
+                    ]) < (datetime.today() - timedelta(days=5)):
+                return True
+        return False
+
+    @property
+    def is_overdue(self):
+        if self.due_date and self.due_date <= date.today():
+            return True
+        return False
 
     def __repr__(self):
         return f"<Task {self.id}>: {self.name}, {self.status.name}, {self.creation_date}"
