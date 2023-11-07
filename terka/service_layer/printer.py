@@ -336,33 +336,23 @@ class Printer:
                 task for task in tasks
                 if task.status.name not in ("DONE", "DELETED")
             ]
-            time_spent_sum = sum([
-                entry.time_spent_minutes for task in tasks
-                for entry in task.time_spent
-            ])
-
-            time_spent = formatter.Formatter.format_time_spent(time_spent_sum)
             if (total_tasks := len(tasks)) > 0:
                 pct_completed = round(
                     (len(tasks) - len(open_tasks)) / len(tasks) * 100)
             else:
                 pct_completed = 0
-            if (total_story_points := sum(story_points) * 60) > 0:
-                utilization = round(time_spent_sum / total_story_points * 100)
-            else:
-                utilization = 0
             printable_row = {
                 "id": str(entity.id),
                 "start_date": str(entity.start_date),
                 "end_date": str(entity.end_date),
                 "goal": entity.goal,
                 "status": entity.status.name,
-                "open tasks": f"{len(open_tasks)} ({len(tasks)})",
-                "pct_completed": f"{pct_completed}%",
-                "velocity": str(round(sum(story_points), 2)),
+                "open tasks": f"{len(entity.open_tasks)} ({len(entity.tasks)})",
+                "pct_completed": f"{round(entity.pct_completed * 100, 2)}%",
+                "velocity": str(round(entity.velocity, 2)),
                 "collaborators": collaborators_string,
-                "time_spent": str(time_spent),
-                "utilization": f"{utilization}%"
+                "time_spent": str(formatter.Formatter.format_time_spent(entity.total_time_spent)),
+                "utilization": f"{round(entity.utilization * 100)}%"
             }
             printable_elements = [
                 value for key, value in printable_row.items()
@@ -420,7 +410,7 @@ class Printer:
         if len(entities) == 1:
             app = TerkaSprint(entity=entities[0])
             app.run()
-        
+
 
     def print_project(self, entities, print_options, kwargs=None):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD,

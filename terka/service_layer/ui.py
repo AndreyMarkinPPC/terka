@@ -7,6 +7,7 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
+from textual.screen import Screen
 from textual.widget import Widget
 from textual.widgets import Input, Header, Footer, Label, Tabs, DataTable, TabbedContent, TabPane, Static, Markdown
 
@@ -150,9 +151,10 @@ class TerkaProject(App):
     }
     """
 
-    BINDINGS = [("e", "epics", "Epics"), ("t", "tasks", "Tasks"),
-                ("s", "stories", "Stories"), ("n", "notes", "Notes"),
-                ("o", "overview", "Overview"), ("q", "quit", "Quit")]
+    BINDINGS = [("b", "backlog", "Backlog"), ("t", "tasks", "Tasks"),
+                ("e", "epics", "Epics"), ("s", "stories", "Stories"),
+                ("n", "notes", "Notes"), ("o", "overview", "Overview"),
+                ("q", "quit", "Quit")]
 
     def __init__(self, entity) -> None:
         super().__init__()
@@ -162,15 +164,50 @@ class TerkaProject(App):
         yield Header()
         yield Static(f"{self.entity.name}", classes="header")
         with TabbedContent(initial="tasks"):
-            with TabPane("Tasks", id="tasks"):
+            with TabPane("Backlog", id="backlog"):
+                table = DataTable(id="backlog")
+                for column in ("id", "name", "priority", "due_date", "created_at", "tags",
+                               "collaborators", "time_spent"):
+                    table.add_column(column, key=column)
+                for task in sorted(self.entity.tasks,
+                                   key=lambda x: x.id,
+                                   reverse=True):
+                    if task.status.name == "BACKLOG":
+                        if tags := task.tags:
+                            tags_text = ",".join(
+                                [tag.base_tag.text for tag in list(tags)])
+                        else:
+                            tags_text = ""
+                        if collaborators := task.collaborators:
+                            collaborators_texts = sorted([
+                                collaborator.users.name
+                                for collaborator in list(collaborators)
+                                if collaborator.users
+                            ])
+                            collaborator_string = ",".join(collaborators_texts)
+                        else:
+                            collaborator_string = ""
+                        if task.is_overdue:
+                            task_id = f"[red]{task.id}[/red]"
+                        elif task.is_stale:
+                            task_id = f"[yellow]{task.id}[/yellow]"
+                        else:
+                            task_id = str(task.id)
+                        table.add_row(
+                            task_id, task.name, task.priority.name,
+                            task.due_date, task.creation_date.strftime("%Y-%m-%d"),
+                            tags_text, collaborator_string,
+                            Formatter.format_time_spent(task.total_time_spent))
+                yield table
+            with TabPane("Open Tasks", id="tasks"):
                 table = DataTable(id="tasks")
                 for column in ("id", "name", "status", "priority", "due_date",
                                "tags", "collaborators", "time_spent"):
                     table.add_column(column, key=column)
                 for task in sorted(self.entity.tasks,
-                                   key=lambda x: x.id,
+                                   key=lambda x: x.status.name,
                                    reverse=True):
-                    if task.status.name not in ("DONE", "DELETED"):
+                    if task.status.name in ("TODO", "IN_PROGRESS", "REVIEW"):
                         if tags := task.tags:
                             tags_text = ",".join(
                                 [tag.base_tag.text for tag in list(tags)])
@@ -254,7 +291,7 @@ class TerkaProject(App):
                 table = DataTable(id="notes")
                 table.add_columns("id", "text")
                 for task in self.entity.notes:
-                    table.add_row(str(task.id), task.text)
+                    table.add_row(str(task.id), task.name)
                 yield table
             with TabPane("Overview", id="overview"):
                 collaborators = self.entity.task_collaborators
@@ -276,6 +313,10 @@ class TerkaProject(App):
     def action_epics(self) -> None:
         """Add a new tab."""
         self.query_one(TabbedContent).active = "epics"
+
+    def action_backlog(self) -> None:
+        """Add a new tab."""
+        self.query_one(TabbedContent).active = "backlog"
 
     def action_tasks(self) -> None:
         """Add a new tab."""
@@ -400,7 +441,7 @@ class TerkaSprint(App):
                 table = DataTable(id="notes")
                 table.add_columns("id", "text")
                 for task in self.entity.notes:
-                    table.add_row(str(task.id), task.text)
+                    table.add_row(str(task.id), task.name)
                 yield table
             with TabPane("Overview", id="overview"):
                 collaborators = self.entity.collaborators
@@ -412,7 +453,11 @@ class TerkaSprint(App):
                 yield Markdown(f"""
 # Sprint details:
 * Period: {self.entity.start_date} - {self.entity.end_date}
+* Open tasks: {len(self.entity.open_tasks)} ({len(self.entity.tasks)}) 
+* Pct Completed: {round(self.entity.pct_completed, 2) :.0%}
+* Velocity: {self.entity.velocity}
 * Time spend: {Formatter.format_time_spent(self.entity.total_time_spent)}
+* Utilization: {round(self.entity.utilization, 2) :.0%}
 * Collaborators:
 {sorted_collaborators}
                 """)
@@ -430,6 +475,24 @@ class TerkaSprint(App):
     def action_notes(self) -> None:
         """Add a new tab."""
         self.query_one(TabbedContent).active = "notes"
+
+
+# TODO: implement
+# class TerkaProjectScreen(TerkaProject):
+#     ...
+
+# class TerkaSprintScreen(TerkaSprint):
+#     ...
+
+# class Terka(App):
+#     BINDINGS = [
+#         ("1", "switch_mode('sprint')", "Sprint"),
+#         ("2", "switch_mode('projects')", "Projects"),
+#     ]
+#     MODES = {"project": TerkaProjectScreen, "sprint": TerkaSprintScreen}
+
+#     def on_mount(self) -> None:
+#         self.switch_mode("project")
 
 
 def shorten_text(text: str | None, limit: int = 80) -> str | None:

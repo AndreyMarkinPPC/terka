@@ -26,7 +26,7 @@ class Sprint:
                  **kwargs) -> None:
         if not start_date and not end_date:
             raise ValueError("Please add start and end date of the sprint")
-        if start_date.date()  < datetime.today().date():
+        if start_date.date() < datetime.today().date():
             raise ValueError(f"start date cannot be less than today")
         if not start_date:
             raise ValueError(
@@ -62,11 +62,35 @@ class Sprint:
         self.is_completed = True
 
     @property
+    def velocity(self) -> float:
+        return sum([t.story_points for t in self.tasks])
+
+    @property
+    def utilization(self) -> float:
+        if total_time_spent := self.total_time_spent:
+            return total_time_spent / (self.velocity * 60)
+        return 0
+
+    @property
     def total_time_spent(self):
         total_time_spent_sprint = 0
         for sprint_task in self.tasks:
             total_time_spent_sprint += sprint_task.tasks.total_time_spent
         return total_time_spent_sprint
+
+    @property
+    def open_tasks(self):
+        return [
+            task for task in self.tasks
+            if task.tasks.status.name not in ("DONE", "DELETED")
+        ]
+
+    @property
+    def pct_completed(self) -> float:
+        if (total_tasks := len(self.tasks)) > 0:
+            return (total_tasks - len(self.open_tasks)) / total_tasks
+        return 0
+
 
     @property
     def collaborators(self):
@@ -79,7 +103,6 @@ class Sprint:
             else:
                 collaborators["me"] += sprint_task.tasks.total_time_spent
         return collaborators
-
 
 
 @dataclass
