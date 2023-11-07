@@ -6,7 +6,7 @@ README = (HERE.parent / "README.md").read_text()
 
 setup(
     name="terka",
-    version="1.19.3",
+    version="1.19.4",
     description="CLI utility for creating and managing tasks in a terminal",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -23,6 +23,7 @@ setup(
         "rich",
         "textual==0.41.0",
         "plotext==5.2.8",
+        "textual-plotext==0.2.1",
         "pandas",
         "matplotlib",
     ],

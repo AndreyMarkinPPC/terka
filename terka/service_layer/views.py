@@ -15,7 +15,7 @@ def time_spent(
     session,
     tasks: List[Task],
     start_date: str = _n_days_ago(7),
-    end_date: str = _n_days_ago(0)
+    end_date: str = _n_days_ago(-1)
 ) -> List[Dict[str, str]]:
     tasks = ",".join([str(task.id) for task in tasks])
     results = session.execute(

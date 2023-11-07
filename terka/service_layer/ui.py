@@ -6,11 +6,13 @@ from rich.console import Console
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual_plotext import PlotextPlot
 from textual.reactive import reactive
 from textual.screen import Screen
 from textual.widget import Widget
 from textual.widgets import Input, Header, Footer, Label, Tabs, DataTable, TabbedContent, TabPane, Static, Markdown
 
+from terka.service_layer import services, views
 from terka.service_layer.formatter import Formatter
 
 
@@ -166,8 +168,9 @@ class TerkaProject(App):
         with TabbedContent(initial="tasks"):
             with TabPane("Backlog", id="backlog"):
                 table = DataTable(id="backlog")
-                for column in ("id", "name", "priority", "due_date", "created_at", "tags",
-                               "collaborators", "time_spent"):
+                for column in ("id", "name", "priority", "due_date",
+                               "created_at", "tags", "collaborators",
+                               "time_spent"):
                     table.add_column(column, key=column)
                 for task in sorted(self.entity.tasks,
                                    key=lambda x: x.id,
@@ -195,8 +198,9 @@ class TerkaProject(App):
                             task_id = str(task.id)
                         table.add_row(
                             task_id, task.name, task.priority.name,
-                            task.due_date, task.creation_date.strftime("%Y-%m-%d"),
-                            tags_text, collaborator_string,
+                            task.due_date,
+                            task.creation_date.strftime("%Y-%m-%d"), tags_text,
+                            collaborator_string,
                             Formatter.format_time_spent(task.total_time_spent))
                 yield table
             with TabPane("Open Tasks", id="tasks"):
@@ -344,6 +348,10 @@ class TerkaSprint(App):
     Screen {
         align: center top;
     }
+    .plotext {
+        width: 100%;
+        height: 20;
+    }
     .header {
         margin:1 1;
         width: 100%;
@@ -355,11 +363,40 @@ class TerkaSprint(App):
     """
 
     BINDINGS = [("t", "tasks", "Tasks"), ("n", "notes", "Notes"),
-                ("o", "overview", "Overview"), ("q", "quit", "Quit")]
+                ("o", "overview", "Overview"), ("q", "quit", "Quit"),
+                ("P", "sort_by_project", "Sort by Project"),
+                ("S", "sort_by_status", "Sort by Status")]
 
-    def __init__(self, entity) -> None:
+    current_sorts: set = set()
+
+    def __init__(self, entity, repo) -> None:
         super().__init__()
         self.entity = entity
+        self.repo = repo
+        self.tasks = list()
+
+    def sort_reverse(self, sort_type: str):
+        """Determine if `sort_type` is ascending or descending."""
+        reverse = sort_type in self.current_sorts
+        if reverse:
+            self.current_sorts.remove(sort_type)
+        else:
+            self.current_sorts.add(sort_type)
+        return reverse
+
+    def action_sort_by_project(self) -> None:
+        table = self.query_one("#tasks_table", DataTable)
+        table.sort(
+            "project",
+            reverse=self.sort_reverse("project"),
+        )
+
+    def action_sort_by_status(self) -> None:
+        table = self.query_one("#tasks_table", DataTable)
+        table.sort(
+            "status",
+            reverse=self.sort_reverse("status"),
+        )
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -368,14 +405,16 @@ class TerkaSprint(App):
             classes="header")
         with TabbedContent(initial="tasks"):
             with TabPane("Tasks", id="tasks"):
-                table = DataTable(id="tasks")
-                for column in ("id", "name", "status", "priority", "due_date",
-                               "tags", "collaborators", "time_spent"):
+                table = DataTable(id="tasks_table")
+                for column in ("id", "name", "status", "priority", "project",
+                               "due_date", "tags", "collaborators",
+                               "time_spent"):
                     table.add_column(column, key=column)
                 for sprint_task in sorted(self.entity.tasks,
-                                          key=lambda x: x.id,
+                                          key=lambda x: x.tasks.status.value,
                                           reverse=True):
                     task = sprint_task.tasks
+                    self.tasks.append(task)
                     if tags := task.tags:
                         tags_text = ",".join([
                             tag.base_tag.text for tag in list(tags)
@@ -398,17 +437,23 @@ class TerkaSprint(App):
                         task_id = f"[yellow]{task.id}[/yellow]"
                     else:
                         task_id = str(task.id)
+                    try:
+                        project_obj = services.lookup_project_name(
+                            task.project, self.repo)
+                        project = project_obj.name
+                    except:
+                        project = None
                     if task.status.name not in ("DONE", "DELETED"):
                         table.add_row(
                             task_id, task.name, task.status.name,
-                            task.priority.name, task.due_date, tags_text,
-                            collaborator_string,
+                            task.priority.name, project, task.due_date,
+                            tags_text, collaborator_string,
                             Formatter.format_time_spent(task.total_time_spent))
                 yield table
             with TabPane("Completed Tasks", id="completed_tasks"):
                 table = DataTable(id="completed_tasks")
-                for column in ("id", "name", "completion_date", "tags",
-                               "collaborators", "time_spent"):
+                for column in ("id", "name", "project", "completion_date",
+                               "tags", "collaborators", "time_spent"):
                     table.add_column(column, key=column)
                 for sprint_task in sorted(self.entity.tasks,
                                           key=lambda x: x.id,
@@ -430,9 +475,15 @@ class TerkaSprint(App):
                         collaborator_string = ",".join(collaborators_texts)
                     else:
                         collaborator_string = ""
+                    try:
+                        project_obj = services.lookup_project_name(
+                            task.project, self.repo)
+                        project = project_obj.name
+                    except:
+                        project = None
                     if task.status.name in ("DONE", "DELETED"):
                         table.add_row(
-                            str(task.id), task.name,
+                            str(task.id), task.name, project,
                             task.completion_date.strftime("%Y-%m-%d"),
                             tags_text, collaborator_string,
                             Formatter.format_time_spent(task.total_time_spent))
@@ -443,6 +494,22 @@ class TerkaSprint(App):
                 for task in self.entity.notes:
                     table.add_row(str(task.id), task.name)
                 yield table
+            with TabPane("Time", id="time"):
+                plotext = PlotextPlot(classes="plotext")
+                plt = plotext.plt
+                time_entries = views.time_spent(
+                    self.repo.session, self.tasks)
+                dates = [entry.get("date") for entry in time_entries]
+                times = [
+                    entry.get("time_spent_hours") / 60
+                    for entry in time_entries
+                ]
+                plt.date_form('Y-m-d')
+                plt.title(
+                    f"Time tracker - {Formatter.format_time_spent(self.entity.total_time_spent)} spent"
+                )
+                plt.bar(dates, times)
+                yield plotext
             with TabPane("Overview", id="overview"):
                 collaborators = self.entity.collaborators
                 sorted_collaborators = ""

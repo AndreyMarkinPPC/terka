@@ -408,7 +408,7 @@ class Printer:
                                                 entity.end_date)
                 self._print_time_utilization(time_entries)
         if len(entities) == 1:
-            app = TerkaSprint(entity=entities[0])
+            app = TerkaSprint(entity=entities[0], repo=self.repo)
             app.run()
 
 
