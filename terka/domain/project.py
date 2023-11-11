@@ -15,9 +15,9 @@ class Project:
 
     def __init__(self,
                  name: str,
-                 description: str = None,
-                 created_by: str = None,
-                 status: str = "ACTIVE"):
+                 description: str | None = None,
+                 created_by: str | None = None,
+                 status: str = "ACTIVE") -> None:
         self._project_id = Project._next_project_id
         Project._next_project_id += 1
         self.name = name
@@ -34,14 +34,14 @@ class Project:
             return status
 
     @property
-    def total_time_spent(self):
+    def total_time_spent(self) -> int:
         total_time_spent_project = 0
         for task in self.tasks:
             total_time_spent_project += task.total_time_spent
         return total_time_spent_project
 
     @property
-    def task_collaborators(self):
+    def task_collaborators(self) -> dict[str, int]:
         collaborators = defaultdict(int)
         for task in self.tasks:
             if task_collaborators := task.collaborators:
@@ -52,6 +52,15 @@ class Project:
                 collaborators["me"] += task.total_time_spent
         return collaborators
 
+    def daily_time_entries_hours(self,
+                                 last_n_days: int = 14) -> dict[str, float]:
+        entries: dict[str, float] = defaultdict(float)
+        for task in self.tasks:
+            task_entries = task.daily_time_entries_hours(
+                last_n_days=last_n_days)
+            for day, hours in task_entries.items():
+                entries[day] += hours
+        return entries
 
     def __str__(self):
         return f"<Project {self.id}>: {self.name} {self.tasks}"

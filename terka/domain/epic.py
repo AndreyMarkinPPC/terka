@@ -10,6 +10,7 @@ class EpicStatus(Enum):
     ACTIVE = 1
     COMPLETED = 2
 
+
 class Epic:
 
     def __init__(self,
@@ -44,6 +45,16 @@ class Epic:
             logging.warning("[Epic %d]: %d tasks haven't been completed",
                             self.id, len(incompleted_tasks))
         self.is_completed = True
+
+    def daily_time_entries_hours(self,
+                                 last_n_days: int = 14) -> dict[str, float]:
+        entries: dict[str, float] = defaultdict(float)
+        for task in self.tasks:
+            task_entries = task.daily_time_entries_hours(
+                last_n_days=last_n_days)
+            for day, hours in task_entries.items():
+                entries[day] += hours
+        return entries
 
 
 @dataclass

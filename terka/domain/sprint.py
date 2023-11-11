@@ -2,7 +2,7 @@ from typing import Set
 from collections import defaultdict
 from enum import Enum
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from dataclasses import dataclass
 
 from .task import Task
@@ -103,6 +103,15 @@ class Sprint:
             else:
                 collaborators["me"] += sprint_task.tasks.total_time_spent
         return collaborators
+
+    def daily_time_entries_hours(self) -> dict[str, float]:
+        entries: dict[str, float] = defaultdict(float)
+        for task in self.tasks:
+            task_entries = task.tasks.daily_time_entries_hours(
+                self.start_date, self.end_date)
+            for day, hours in task_entries.items():
+                entries[day] += hours
+        return entries
 
 
 @dataclass

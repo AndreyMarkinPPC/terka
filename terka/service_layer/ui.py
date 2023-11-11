@@ -161,6 +161,7 @@ class TerkaProject(App):
     BINDINGS = [("b", "backlog", "Backlog"), ("t", "tasks", "Tasks"),
                 ("e", "epics", "Epics"), ("s", "stories", "Stories"),
                 ("n", "notes", "Notes"), ("o", "overview", "Overview"),
+                ("T", "time", "Time"),
                 ("q", "quit", "Quit")]
 
     def __init__(self, entity, repo) -> None:
@@ -308,21 +309,14 @@ class TerkaProject(App):
             with TabPane("Time", id="time"):
                 plotext = PlotextPlot(classes="plotext")
                 plt = plotext.plt
-                time_entries = views.time_spent(
-                    session=self.repo.session,
-                    tasks=self.tasks,
-                    start_date=views.n_days_ago(60),
-                    end_date=views.n_days_ago(-1))
-                dates = [entry.get("date") for entry in time_entries]
-                times = [
-                    entry.get("time_spent_hours") / 60
-                    for entry in time_entries
-                ]
+                n_days = 14
+                time = self.entity.daily_time_entries_hours(n_days)
                 plt.date_form('Y-m-d')
                 plt.title(
-                    f"Time tracker - {Formatter.format_time_spent(self.entity.total_time_spent)} spent"
+                    f"Time tracker - {round(sum(time.values()))} hours spent"
+                    f" for the last {n_days} days"
                 )
-                plt.bar(dates, times)
+                plt.bar(time.keys(), time.values())
                 yield plotext
             with TabPane("Overview", id="overview"):
                 collaborators = self.entity.task_collaborators
@@ -342,29 +336,25 @@ class TerkaProject(App):
         yield Footer()
 
     def action_epics(self) -> None:
-        """Add a new tab."""
         self.query_one(TabbedContent).active = "epics"
 
     def action_backlog(self) -> None:
-        """Add a new tab."""
         self.query_one(TabbedContent).active = "backlog"
 
     def action_tasks(self) -> None:
-        """Add a new tab."""
         self.query_one(TabbedContent).active = "tasks"
 
     def action_stories(self) -> None:
-        """Add a new tab."""
         self.query_one(TabbedContent).active = "stories"
 
     def action_overview(self) -> None:
-        """Add a new tab."""
         self.query_one(TabbedContent).active = "overview"
 
     def action_notes(self) -> None:
-        """Add a new tab."""
         self.query_one(TabbedContent).active = "notes"
 
+    def action_time(self) -> None:
+        self.query_one(TabbedContent).active = "time"
 
 class TerkaSprint(App):
 
@@ -392,7 +382,8 @@ class TerkaSprint(App):
     BINDINGS = [("t", "tasks", "Tasks"), ("n", "notes", "Notes"),
                 ("o", "overview", "Overview"), ("q", "quit", "Quit"),
                 ("P", "sort_by_project", "Sort by Project"),
-                ("S", "sort_by_status", "Sort by Status")]
+                ("S", "sort_by_status", "Sort by Status"),
+                ("T", "time", "Time")]
 
     current_sorts: set = set()
 
@@ -528,38 +519,20 @@ class TerkaSprint(App):
             with TabPane("Time", id="time"):
                 plotext = PlotextPlot(classes="plotext")
                 plt = plotext.plt
-                sprint_time_entries = views.time_spent(
-                    session=self.repo.session,
-                    tasks=self.tasks,
-                    start_date=self.entity.start_date,
-                    end_date=self.entity.end_date)
+                sprint_time = self.entity.daily_time_entries_hours()
                 non_sprint_time_entries = views.time_spent(
                     session=self.repo.session,
                     tasks=self.tasks,
                     start_date=self.entity.start_date,
                     end_date=self.entity.end_date,
                     excluded_tasks_only=True)
-                sprint_dates = [
-                    entry.get("date") for entry in sprint_time_entries
-                ]
-                non_sprint_dates = [
-                    entry.get("date") for entry in non_sprint_time_entries
-                ]
-                min_date = min(sprint_dates + non_sprint_dates)
-                max_date = max(sprint_dates + non_sprint_dates)
-                dates = [
-                    date.strftime("%Y-%m-%d") for date in pd.date_range(
-                        min_date, max_date).to_pydatetime().tolist()
-                ]
-
-                sprint_times = get_times(dates, sprint_time_entries)
-                non_sprint_times = get_times(dates, non_sprint_time_entries)
+                non_sprint_times = get_times(sprint_time.keys(), non_sprint_time_entries)
 
                 plt.date_form('Y-m-d')
                 plt.title(
                     f"Time tracker - {Formatter.format_time_spent(self.entity.total_time_spent)} spent"
                 )
-                plt.stacked_bar(dates, [sprint_times, non_sprint_times],
+                plt.stacked_bar(sprint_time.keys(), [sprint_time.values(), non_sprint_times],
                                 label=["sprint", "non-sprint"])
                 yield plotext
             with TabPane("Overview", id="overview"):
@@ -586,6 +559,10 @@ class TerkaSprint(App):
     def action_tasks(self) -> None:
         """Add a new tab."""
         self.query_one(TabbedContent).active = "tasks"
+
+    def action_time(self) -> None:
+        """Add a new tab."""
+        self.query_one(TabbedContent).active = "time"
 
     def action_overview(self) -> None:
         """Add a new tab."""

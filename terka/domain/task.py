@@ -1,5 +1,7 @@
 from enum import Enum
+from collections import defaultdict
 from datetime import date, datetime, timedelta
+import pandas as pd
 
 
 class TaskStatus(Enum):
@@ -25,15 +27,15 @@ class Task:
 
     def __init__(self,
                  name: str,
-                 description: str = None,
+                 description: str | None = None,
                  creation_date: datetime = datetime.now(),
-                 project: int = None,
-                 assignee: int = None,
-                 created_by: int = None,
-                 due_date: datetime = None,
+                 project: int | None = None,
+                 assignee: int | None = None,
+                 created_by: int | None = None,
+                 due_date: datetime | None = None,
                  status: str = "BACKLOG",
                  priority: str = "NORMAL",
-                 **kwargs):
+                 **kwargs) -> None:
         if not name:
             raise ValueError("task name cannot be empty!")
         if not isinstance(creation_date, datetime):
@@ -72,6 +74,29 @@ class Task:
         if self.time_spent:
             return sum([t.time_spent_minutes for t in self.time_spent])
         return 0
+
+    def daily_time_entries_hours(
+            self,
+            start_date: str | date | None = None,
+            end_date: str | date | None = None,
+            last_n_days: int | None = None) -> dict[str, float]:
+        if last_n_days:
+            start_date = (datetime.today() - timedelta(last_n_days)).date()
+            end_date = datetime.today().date()
+        elif isinstance(start_date, str) and isinstance(end_date, str):
+            start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+        dates = [
+            date.strftime("%Y-%m-%d") for date in pd.date_range(
+                start_date, end_date).to_pydatetime().tolist()
+        ]
+        entries = dict.fromkeys(dates, 0.0)
+        for entry in self.time_spent:
+            creation_date = entry.creation_date.date()
+            if creation_date >= start_date and creation_date <= end_date:
+                day = creation_date.strftime("%Y-%m-%d")
+                entries[day] += entry.time_spent_minutes / 60
+        return entries
 
     @property
     def completion_date(self) -> datetime | None:

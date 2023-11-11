@@ -294,7 +294,7 @@ class Printer:
             self.print_commentaries(commentaries)
         if viz := print_options.show_viz:
             if "time" in viz:
-                time_entries = views.time_spent(self.repo.session, tasks)
+                time_entries = entity.daily_time_entries_hours()
                 self._print_time_utilization(time_entries)
 
     def print_sprint(self, entities, repo, print_options, kwargs=None):
@@ -403,9 +403,7 @@ class Printer:
                 # plt.plot_size(50, 15)
                 # plt.show()
             if "time" in viz:
-                time_entries = views.time_spent(self.repo.session, tasks,
-                                                entity.start_date,
-                                                entity.end_date)
+                time_entries = entity.daily_time_entries_hours()
                 self._print_time_utilization(time_entries)
         if len(entities) == 1:
             app = TerkaSprint(entity=entities[0], repo=self.repo)
@@ -545,7 +543,7 @@ class Printer:
             self.print_note(notes, "project")
         if viz := print_options.show_viz:
             if "time" in viz:
-                time_entries = views.time_spent(self.repo.session, tasks)
+                time_entries = entity.daily_time_entries_hours()
                 self._print_time_utilization(time_entries)
         if len(entities) == 1:
             collaborators = defaultdict(int)
@@ -638,7 +636,7 @@ class Printer:
                 self.console.print(table)
         if viz := print_options.show_viz:
             if "time" in viz:
-                time_entries = views.time_spent(self.repo.session, entities)
+                time_entries = entity.daily_time_entries_hours(last_n_days=14)
                 self._print_time_utilization(time_entries)
 
     def _get_attributes(self, obj) -> List[Tuple[str, str]]:
@@ -883,12 +881,10 @@ class Printer:
         return joined[["date", "task", "status"]]
 
     def _print_time_utilization(self, time_entries) -> None:
-        dates = [entry.get("date") for entry in time_entries]
-        times = [entry.get("time_spent_hours") / 60 for entry in time_entries]
         plt.date_form('Y-m-d')
         plt.plot_size(100, 15)
-        plt.title(f"Time tracker - {format_hour_minute(sum(times))} spent")
-        plt.bar(dates, times)
+        plt.title(f"Time tracker - {format_hour_minute(sum(time_entries.values()))} spent")
+        plt.bar(time_entries.keys(), time_entries.values())
         plt.show()
 
 
