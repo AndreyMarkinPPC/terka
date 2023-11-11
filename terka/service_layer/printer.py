@@ -557,7 +557,7 @@ class Printer:
                 else:
                     collaborators["me"] = +task.total_time_spent
 
-            app = TerkaProject(entity=entities[0])
+            app = TerkaProject(entity=entities[0], repo=self.repo)
             app.run()
 
     def print_task(self,

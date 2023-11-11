@@ -7,29 +7,33 @@ from sqlalchemy import text
 from terka.domain.task import Task
 
 
-def _n_days_ago(n: int) -> str:
+def n_days_ago(n: int) -> str:
     return (datetime.today() - timedelta(n)).strftime("%Y-%m-%d")
 
 
 def time_spent(
     session,
-    tasks: List[Task],
-    start_date: str = _n_days_ago(7),
-    end_date: str = _n_days_ago(-1)
+    tasks: Optional[List[Task]],
+    start_date: str = n_days_ago(7),
+    end_date: str = n_days_ago(-1),
+    excluded_tasks_only: bool = False
 ) -> List[Dict[str, str]]:
     tasks = ",".join([str(task.id) for task in tasks])
-    results = session.execute(
-        text(f"""
+    query = f"""
     SELECT
         STRFTIME("%Y-%m-%d", creation_date) AS date,
         SUM(time_spent_minutes) AS time_spent_hours
     FROM time_tracker_entries
     WHERE
-        task IN ({tasks})
-        AND creation_date >= "{start_date}"
+        creation_date >= "{start_date}"
         AND creation_date <= "{end_date}"
-    GROUP BY 1
-    """))
+    """
+    if excluded_tasks_only:
+        query += f" AND task NOT IN ({tasks})"
+    else:
+        query += f" AND task IN ({tasks})"
+    query += "GROUP BY 1"
+    results = session.execute(text(query))
     return [dict(r) for r in results]
 
 

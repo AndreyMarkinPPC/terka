@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime
+import pandas as pd
 from rich.console import Console
 from rich.text import Text
 from textual.app import App, ComposeResult
@@ -143,6 +144,10 @@ class TerkaProject(App):
     Screen {
         align: center top;
     }
+    .plotext {
+        width: 100%;
+        height: 20;
+    }
     .header {
         margin:1 1;
         width: 100%;
@@ -158,9 +163,11 @@ class TerkaProject(App):
                 ("n", "notes", "Notes"), ("o", "overview", "Overview"),
                 ("q", "quit", "Quit")]
 
-    def __init__(self, entity) -> None:
+    def __init__(self, entity, repo) -> None:
         super().__init__()
         self.entity = entity
+        self.repo = repo
+        self.tasks = list()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -211,6 +218,7 @@ class TerkaProject(App):
                 for task in sorted(self.entity.tasks,
                                    key=lambda x: x.status.name,
                                    reverse=True):
+                    self.tasks.append(task)
                     if task.status.name in ("TODO", "IN_PROGRESS", "REVIEW"):
                         if tags := task.tags:
                             tags_text = ",".join(
@@ -297,6 +305,25 @@ class TerkaProject(App):
                 for task in self.entity.notes:
                     table.add_row(str(task.id), task.name)
                 yield table
+            with TabPane("Time", id="time"):
+                plotext = PlotextPlot(classes="plotext")
+                plt = plotext.plt
+                time_entries = views.time_spent(
+                    session=self.repo.session,
+                    tasks=self.tasks,
+                    start_date=views.n_days_ago(60),
+                    end_date=views.n_days_ago(-1))
+                dates = [entry.get("date") for entry in time_entries]
+                times = [
+                    entry.get("time_spent_hours") / 60
+                    for entry in time_entries
+                ]
+                plt.date_form('Y-m-d')
+                plt.title(
+                    f"Time tracker - {Formatter.format_time_spent(self.entity.total_time_spent)} spent"
+                )
+                plt.bar(dates, times)
+                yield plotext
             with TabPane("Overview", id="overview"):
                 collaborators = self.entity.task_collaborators
                 sorted_collaborators = ""
@@ -406,9 +433,9 @@ class TerkaSprint(App):
         with TabbedContent(initial="tasks"):
             with TabPane("Tasks", id="tasks"):
                 table = DataTable(id="tasks_table")
-                for column in ("id", "name", "status", "priority", "project",
-                               "due_date", "tags", "collaborators",
-                               "time_spent"):
+                for column in ("id", "name", "status", "priority",
+                               "story_points", "project", "due_date", "tags",
+                               "collaborators", "time_spent"):
                     table.add_column(column, key=column)
                 for sprint_task in sorted(self.entity.tasks,
                                           key=lambda x: x.tasks.status.value,
@@ -445,15 +472,17 @@ class TerkaSprint(App):
                         project = None
                     if task.status.name not in ("DONE", "DELETED"):
                         table.add_row(
-                            task_id, task.name, task.status.name,
-                            task.priority.name, project, task.due_date,
-                            tags_text, collaborator_string,
+                            task_id, task.name,
+                            task.status.name, task.priority.name,
+                            str(sprint_task.story_points), project,
+                            task.due_date, tags_text, collaborator_string,
                             Formatter.format_time_spent(task.total_time_spent))
                 yield table
             with TabPane("Completed Tasks", id="completed_tasks"):
                 table = DataTable(id="completed_tasks")
                 for column in ("id", "name", "project", "completion_date",
-                               "tags", "collaborators", "time_spent"):
+                               "tags", "collaborators", "story_points",
+                               "time_spent"):
                     table.add_column(column, key=column)
                 for sprint_task in sorted(self.entity.tasks,
                                           key=lambda x: x.id,
@@ -486,6 +515,8 @@ class TerkaSprint(App):
                             str(task.id), task.name, project,
                             task.completion_date.strftime("%Y-%m-%d"),
                             tags_text, collaborator_string,
+                            Formatter.format_time_spent(
+                                round(sprint_task.story_points * 60)),
                             Formatter.format_time_spent(task.total_time_spent))
                 yield table
             with TabPane("Notes", id="notes"):
@@ -497,18 +528,39 @@ class TerkaSprint(App):
             with TabPane("Time", id="time"):
                 plotext = PlotextPlot(classes="plotext")
                 plt = plotext.plt
-                time_entries = views.time_spent(
-                    self.repo.session, self.tasks)
-                dates = [entry.get("date") for entry in time_entries]
-                times = [
-                    entry.get("time_spent_hours") / 60
-                    for entry in time_entries
+                sprint_time_entries = views.time_spent(
+                    session=self.repo.session,
+                    tasks=self.tasks,
+                    start_date=self.entity.start_date,
+                    end_date=self.entity.end_date)
+                non_sprint_time_entries = views.time_spent(
+                    session=self.repo.session,
+                    tasks=self.tasks,
+                    start_date=self.entity.start_date,
+                    end_date=self.entity.end_date,
+                    excluded_tasks_only=True)
+                sprint_dates = [
+                    entry.get("date") for entry in sprint_time_entries
                 ]
+                non_sprint_dates = [
+                    entry.get("date") for entry in non_sprint_time_entries
+                ]
+                min_date = min(sprint_dates + non_sprint_dates)
+                max_date = max(sprint_dates + non_sprint_dates)
+                dates = [
+                    date.strftime("%Y-%m-%d") for date in pd.date_range(
+                        min_date, max_date).to_pydatetime().tolist()
+                ]
+
+                sprint_times = get_times(dates, sprint_time_entries)
+                non_sprint_times = get_times(dates, non_sprint_time_entries)
+
                 plt.date_form('Y-m-d')
                 plt.title(
                     f"Time tracker - {Formatter.format_time_spent(self.entity.total_time_spent)} spent"
                 )
-                plt.bar(dates, times)
+                plt.stacked_bar(dates, [sprint_times, non_sprint_times],
+                                label=["sprint", "non-sprint"])
                 yield plotext
             with TabPane("Overview", id="overview"):
                 collaborators = self.entity.collaborators
@@ -520,7 +572,7 @@ class TerkaSprint(App):
                 yield Markdown(f"""
 # Sprint details:
 * Period: {self.entity.start_date} - {self.entity.end_date}
-* Open tasks: {len(self.entity.open_tasks)} ({len(self.entity.tasks)}) 
+* Open tasks: {len(self.entity.open_tasks)} ({len(self.entity.tasks)})
 * Pct Completed: {round(self.entity.pct_completed, 2) :.0%}
 * Velocity: {self.entity.velocity}
 * Time spend: {Formatter.format_time_spent(self.entity.total_time_spent)}
@@ -566,3 +618,16 @@ def shorten_text(text: str | None, limit: int = 80) -> str | None:
     if text and len(text) > limit:
         text = text[:limit]
     return text
+
+
+def get_times(dates: list[str],
+              time_entries: list[dict[str, str | int]]) -> list[float]:
+    times: list[float] = []
+    for date in dates:
+        value_for_date = 0
+        for entry in time_entries:
+            if entry.get("date") == date:
+                value_for_date = entry.get("time_spent_hours") / 60
+                break
+        times.append(value_for_date)
+    return times
