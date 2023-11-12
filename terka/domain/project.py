@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import date
 from enum import Enum
 
 
@@ -17,13 +18,15 @@ class Project:
                  name: str,
                  description: str | None = None,
                  created_by: str | None = None,
-                 status: str = "ACTIVE") -> None:
+                 status: str = "ACTIVE",
+                 workspace: int | None  = None) -> None:
         self._project_id = Project._next_project_id
         Project._next_project_id += 1
         self.name = name
         self.description = description
         self.created_by = created_by
         self.status = status
+        self.workspace = workspace
 
     def _validate_status(self, status):
         if status not in [
@@ -52,12 +55,15 @@ class Project:
                 collaborators["me"] += task.total_time_spent
         return collaborators
 
-    def daily_time_entries_hours(self,
-                                 last_n_days: int = 14) -> dict[str, float]:
+    def daily_time_entries_hours(
+            self,
+            start_date: str | date | None = None,
+            end_date: str | date | None = None,
+            last_n_days: int | None = None) -> dict[str, float]:
         entries: dict[str, float] = defaultdict(float)
         for task in self.tasks:
             task_entries = task.daily_time_entries_hours(
-                last_n_days=last_n_days)
+                start_date, end_date, last_n_days)
             for day, hours in task_entries.items():
                 entries[day] += hours
         return entries

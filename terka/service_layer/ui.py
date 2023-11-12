@@ -5,13 +5,14 @@ from datetime import datetime
 import pandas as pd
 from rich.console import Console
 from rich.text import Text
+from textual import on
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual_plotext import PlotextPlot
 from textual.reactive import reactive
 from textual.screen import Screen
 from textual.widget import Widget
-from textual.widgets import Input, Header, Footer, Label, Tabs, DataTable, TabbedContent, TabPane, Static, Markdown
+from textual.widgets import Input, Header, Footer, Label, Tabs, DataTable, TabbedContent, TabPane, Static, Markdown, Pretty
 
 from terka.service_layer import services, views
 from terka.service_layer.formatter import Formatter
@@ -128,11 +129,15 @@ class TerkaTask(App):
                          id="history")
         else:
             yield Static("", classes="body", id="history")
+        # TODO: implement during next release
         # yield Input(placeholder="Add a comment", classes="body", id="comment")
-        # yield Comment()
+        # yield Pretty("")
 
-    # def on_input_changed(self, event: Input.Changed) -> None:
-    #     self.query_one(Comment).text = event.value
+    @on(Input.Submitted)
+    def submit_input(self, event: Input.Submitted) -> None:
+        self.query_one(Pretty).update("Comment added")
+        input = self.query_one(Input)
+        input.value = ""
 
 
 class TerkaProject(App):
@@ -161,8 +166,7 @@ class TerkaProject(App):
     BINDINGS = [("b", "backlog", "Backlog"), ("t", "tasks", "Tasks"),
                 ("e", "epics", "Epics"), ("s", "stories", "Stories"),
                 ("n", "notes", "Notes"), ("o", "overview", "Overview"),
-                ("T", "time", "Time"),
-                ("q", "quit", "Quit")]
+                ("T", "time", "Time"), ("q", "quit", "Quit")]
 
     def __init__(self, entity, repo) -> None:
         super().__init__()
@@ -310,12 +314,11 @@ class TerkaProject(App):
                 plotext = PlotextPlot(classes="plotext")
                 plt = plotext.plt
                 n_days = 14
-                time = self.entity.daily_time_entries_hours(n_days)
+                time = self.entity.daily_time_entries_hours(last_n_days=n_days)
                 plt.date_form('Y-m-d')
                 plt.title(
                     f"Time tracker - {round(sum(time.values()))} hours spent"
-                    f" for the last {n_days} days"
-                )
+                    f" for the last {n_days} days")
                 plt.bar(time.keys(), time.values())
                 yield plotext
             with TabPane("Overview", id="overview"):
@@ -356,6 +359,7 @@ class TerkaProject(App):
     def action_time(self) -> None:
         self.query_one(TabbedContent).active = "time"
 
+
 class TerkaSprint(App):
 
     CSS = """
@@ -387,11 +391,14 @@ class TerkaSprint(App):
 
     current_sorts: set = set()
 
-    def __init__(self, entity, repo) -> None:
+    def __init__(self, entity, repo, config) -> None:
         super().__init__()
         self.entity = entity
         self.repo = repo
+        self.config = config
         self.tasks = list()
+        self.workspace = services.get_workplace_by_name(
+            config.get("workspace"), repo)
 
     def sort_reverse(self, sort_type: str):
         """Determine if `sort_type` is ascending or descending."""
@@ -520,19 +527,21 @@ class TerkaSprint(App):
                 plotext = PlotextPlot(classes="plotext")
                 plt = plotext.plt
                 sprint_time = self.entity.daily_time_entries_hours()
-                non_sprint_time_entries = views.time_spent(
-                    session=self.repo.session,
-                    tasks=self.tasks,
+                all_workspace_time = self.workspace.daily_time_entries_hours(
                     start_date=self.entity.start_date,
-                    end_date=self.entity.end_date,
-                    excluded_tasks_only=True)
-                non_sprint_times = get_times(sprint_time.keys(), non_sprint_time_entries)
+                    end_date=self.entity.end_date)
+                non_sprint_times = [
+                    all_times - sprint_times
+                    for all_times, sprint_times in zip(
+                        all_workspace_time.values(), sprint_time.values())
+                ]
 
                 plt.date_form('Y-m-d')
                 plt.title(
                     f"Time tracker - {Formatter.format_time_spent(self.entity.total_time_spent)} spent"
                 )
-                plt.stacked_bar(sprint_time.keys(), [sprint_time.values(), non_sprint_times],
+                plt.stacked_bar(sprint_time.keys(),
+                                [sprint_time.values(), non_sprint_times],
                                 label=["sprint", "non-sprint"])
                 yield plotext
             with TabPane("Overview", id="overview"):
@@ -557,19 +566,15 @@ class TerkaSprint(App):
         yield Footer()
 
     def action_tasks(self) -> None:
-        """Add a new tab."""
         self.query_one(TabbedContent).active = "tasks"
 
     def action_time(self) -> None:
-        """Add a new tab."""
         self.query_one(TabbedContent).active = "time"
 
     def action_overview(self) -> None:
-        """Add a new tab."""
         self.query_one(TabbedContent).active = "overview"
 
     def action_notes(self) -> None:
-        """Add a new tab."""
         self.query_one(TabbedContent).active = "notes"
 
 

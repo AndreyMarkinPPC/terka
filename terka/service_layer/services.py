@@ -10,6 +10,7 @@ import yaml
 from terka.adapters.repository import AbsRepository
 from terka.domain.project import Project
 from terka.domain.user import User
+from terka.domain.workspace import Workspace
 # import terka.domain._commands as commands
 
 
@@ -78,26 +79,34 @@ def lookup_project_id(project_name: str, repo: AbsRepository) -> int:
 
 
 def lookup_user_id(user_name: str, repo: AbsRepository) -> Optional[int]:
-    user = repo.list(User, {"name": user_name})
-    if user:
-        return user[0].id
+    if user := repo.get(User, user_name):
+        return user.id
     return None
 
 
 def lookup_user_name(user_id: str, repo: AbsRepository) -> Optional[str]:
-    user = repo.list(User, {"id": user_id})
-    if user:
-        return user[0].name
+    if user := repo.get_by_id(User, user_id):
+        return user.name
     return None
+
 
 
 def lookup_project_name(project_id: int, repo: AbsRepository) -> Optional[str]:
-    project = repo.list(Project, {"id": project_id})
-    if project:
-        return project[0]
+    if project := repo.get_by_id(Project, project_id):
+        return project.id
     return None
 
 
+def lookup_workspace_id(workspace_name: str, repo: AbsRepository) -> Optional[int]:
+    if workspace := repo.get(Workspace, workspace_name):
+        return workspace.id
+    return None
+
+def get_workplace_by_name(workspace_name: str, repo: AbsRepository) -> Optional[Workspace]:
+    return repo.get(Workspace, workspace_name)
+
+def get_workplace_by_id(workspace_id: int, repo: AbsRepository) -> Optional[Workspace]:
+    return repo.get_by_id(Workspace, workspace_id)
 
 # class CommandHander:
 
@@ -110,7 +119,6 @@ def lookup_project_name(project_id: int, repo: AbsRepository) -> Optional[str]:
 #         # TODO: create registry of commands
 #         handler = commands_registry[command]
 #         handler.handle(entity, task_dict)
-        
 
 
 class ServiceCommandHander:
@@ -129,6 +137,10 @@ class ServiceCommandHander:
             self.focus(entity, task_dict)
         elif command == "unfocus":
             self.unfocus()
+        elif command == "switch" and entity == "workspace":
+            self.switch(task_dict.get("id"))
+        elif command == "set" and entity == "workspace":
+            self.set(task_dict.get("id"))
         elif command == "log":
             self.log(task_dict)
         else:
@@ -203,3 +215,22 @@ class ServiceCommandHander:
             date, source, level = info.split("][")
             table.add_row(re.sub("\[", "", date), source, level, message)
         self.console.print(table)
+
+    def switch(self, workspace: str):
+        if not self.config.get("workspace"):
+            self.config["workspace"] = "Default"  # Default workspace
+        else:
+            self.config["workspace"] = workspace
+        with open(f"{self.home_dir}/.terka/config.yaml",
+                  "w",
+                  encoding="utf-8") as f:
+            yaml.dump(self.config, f)
+        logging.info("switched to workspace: %d", workspace)
+
+    def set_workspace(self, workspace: str):
+        self.config["workspace"] = workspace
+        with open(f"{self.home_dir}/.terka/config.yaml",
+                  "w",
+                  encoding="utf-8") as f:
+            yaml.dump(self.config, f)
+        logging.info("set workspace: %d", workspace)

@@ -43,6 +43,9 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             "project":
             new_dict.get("p") or new_dict.get("project")
             or new_dict.get("project_name"),
+            "workspace":
+            new_dict.get("w") or new_dict.get("workspace")
+            or new_dict.get("workspace_name") or config.get("workspace"),
             "assignee":
             new_dict.get("a") or new_dict.get("assignee"),
             "due_date":
@@ -209,6 +212,9 @@ def update_task_dict(task_dict: Dict[str, str],
     if (project := task_dict.get("project")):
         project_id = services.lookup_project_id(project, repo)
         task_dict["project"] = project_id
+    if (workspace := task_dict.get("workspace")):
+        workspace_id = services.lookup_workspace_id(workspace, repo)
+        task_dict["workspace"] = workspace_id
     if (assignee := task_dict.get("assignee")):
         task_dict["assignee"] = services.lookup_user_id(assignee, repo)
     task_dict = convert_date_in_task_dict(task_dict)

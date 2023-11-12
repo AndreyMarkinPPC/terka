@@ -37,10 +37,11 @@ class PrintOptions:
 
 class Printer:
 
-    def __init__(self, repo, box=rich.box.SIMPLE) -> None:
+    def __init__(self, repo, box=rich.box.SIMPLE, config = None) -> None:
         self.console = Console()
         self.box = box
         self.repo = repo
+        self.config = config
 
     def print_new_object(self, obj, project=None):
         table = Table(box=self.box)
@@ -406,7 +407,7 @@ class Printer:
                 time_entries = entity.daily_time_entries_hours()
                 self._print_time_utilization(time_entries)
         if len(entities) == 1:
-            app = TerkaSprint(entity=entities[0], repo=self.repo)
+            app = TerkaSprint(entity=entities[0], repo=self.repo, config=self.config)
             app.run()
 
 

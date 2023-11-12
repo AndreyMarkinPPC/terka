@@ -145,7 +145,7 @@ class SqlAlchemyRepository(AbsRepository):
         self.session.add(element)
 
     def _get(self, element, element_name):
-        return self.session.query(element).filter_by(name=element_name).first()
+        return self.session.query(element).filter_by(name=element_name).one_or_none()
 
     def _get_by_element_id(self, element, element_id):
-        return (self.session.query(element).filter_by(id=element_id).first())
+        return (self.session.query(element).filter_by(id=element_id).one_or_none())

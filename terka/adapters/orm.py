@@ -27,6 +27,7 @@ from terka.domain.sprint import Sprint, SprintStatus, SprintTask
 from terka.domain.time_tracker import TimeTrackerEntry
 from terka.domain.epic import Epic, EpicTask, EpicStatus
 from terka.domain.story import Story, StoryTask, StoryStatus
+from terka.domain.workspace import Workspace
 
 from terka.domain.external_connectors.asana import AsanaTask, AsanaProject
 
@@ -46,12 +47,20 @@ tasks = Table("tasks", metadata,
               Column("status", Enum(TaskStatus)),
               Column("priority", Enum(TaskPriority)))
 
-projects = Table("projects", metadata,
-                 Column("id", Integer, primary_key=True, autoincrement=True),
-                 Column("name", String(255)), Column("description",
-                                                     String(255)),
-                 Column("status", Enum(ProjectStatus)))
+projects = Table(
+    "projects",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(255)),
+    Column("description", String(255)),
+    Column("status", Enum(ProjectStatus)),
+    Column("workspace", ForeignKey("workspaces.id"), nullable=True),
+)
 
+workspaces = Table("workspaces", metadata,
+                   Column("id", Integer, primary_key=True, autoincrement=True),
+                   Column("name", String(255)),
+                   Column("description", String(255)))
 task_events = Table(
     "task_events",
     metadata,
@@ -368,6 +377,10 @@ def start_mappers():
                              relationship(time_tracker_mapper,
                                           collection_class=list,
                                           cascade="all, delete-orphan"),
+                             # "project_":
+                             # relationship("Project",
+                             #              back_populates="projects"
+                             #              )
                          })
     epic_tasks_mapper = mapper(EpicTask,
                                epic_tasks,
@@ -446,7 +459,11 @@ def start_mappers():
                                              cascade="all, delete-orphan"),
                                 "history":
                                 relationship(project_event_mapper,
-                                             collection_class=list)
+                                             collection_class=list),
+                                 # "workspace_":
+                                 # relationship(Workspace,
+                                 #              back_populates="workspaces"
+                                 #              )
                             })
     sprint_tasks_mapper = mapper(SprintTask,
                                  sprint_tasks,
@@ -471,3 +488,10 @@ def start_mappers():
                                relationship(sprint_tasks_mapper,
                                             collection_class=list),
                            })
+    workspace_mapper = mapper(Workspace,
+                              workspaces,
+                              properties={
+                                  "projects":
+                                  relationship(project_mapper,
+                                               collection_class=list),
+                              })

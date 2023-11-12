@@ -26,6 +26,7 @@ from terka.domain.time_tracker import TimeTrackerEntry
 from terka.domain.epic import Epic, EpicTask
 from terka.domain.story import Story, StoryTask
 from terka.domain.external_connectors.asana import AsanaTask, AsanaProject
+from terka.domain.workspace import Workspace
 
 from terka.service_layer import services, printer
 from terka.service_layer.ui import TerkaTask
@@ -317,22 +318,32 @@ class NoteHandler(BaseHandler):
         return super().handle(entity)
 
 
+class WorkspaceHandler(BaseHandler):
+
+    def handle(self, entity):
+        if entity in "workspaces":
+            logger.debug("Handling workspace")
+            return Workspace, "workspace"
+        return super().handle(entity)
+
+
 class CommandHandler:
 
     def __init__(self, repo: AbsRepository):
         self.repo = repo
         self.handler = self._init_handlers()
         self.home_dir = os.path.expanduser('~')
-        self.printer = printer.Printer(repo)
         self.console = Console()
         self.config = self._read_config()
+        self.printer = printer.Printer(repo=repo, config=self.config)
 
     def _init_handlers(self):
         handler_chain = BaseHandler(None)
         for handler in [
                 TaskHandler, ProjectHandler, UserHandler, TagHandler,
                 SprintHandler, SprintTaskHandler, TimeTrackerHandler,
-                EpicHandler, StoryHandler, SprintNoteHandler, NoteHandler
+                EpicHandler, StoryHandler, SprintNoteHandler, NoteHandler,
+                WorkspaceHandler
         ]:
             new_handler = handler(handler_chain)
             handler_chain = new_handler
