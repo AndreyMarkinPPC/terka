@@ -126,13 +126,14 @@ def edit_sprint_template(sprint: Sprint) -> str:
         """
 
 
-def edited_task_template(task: Task) -> str:
+def edited_task_template(task: Task, project: str | None = None) -> str:
     return f"""
         # You are editing task {task.id}, enter below:
         ---
         status: {task.status.name}
         name: {task.name}
         description: {task.description if task.description else ""}
+        project: {project or ""}
         sprints: {task.sprints[-1].sprint if task.sprints else ""}
         epics: {task.epics[-1].epic if task.epics else ""}
         stories: {task.stories[-1].story if task.stories else ""}
@@ -143,7 +144,7 @@ def edited_task_template(task: Task) -> str:
         """
 
 
-def completed_task_template(task: Task) -> str:
+def completed_task_template(task: Task, project: str | None = None) -> str:
     return f"""
         # You are closing task {task.id}, enter below:
         ---
@@ -151,6 +152,7 @@ def completed_task_template(task: Task) -> str:
         time_spent: 0 (task total_time_spent {task.total_time_spent})
         comment: 
         name: {task.name}
+        project: {project or ""}
         description: {task.description if task.description else ""}
         sprints: {task.sprints[-1].sprint if task.sprints else ""}
         epics: {task.epics[-1].epic if task.epics else ""}
@@ -166,10 +168,9 @@ def generate_message_template(task: Optional[Task] = None,
                               entity=None) -> str:
     if task:
         if isinstance(task, (Task, Story, Epic)):
-            project = services.lookup_project_name(task.project, repo)
-            project_name = project.name
+            project = task.project
         elif isinstance(task, Project):
-            project_name = task.name
+            project = task.name
     if isinstance(task, Sprint):
         if not kwargs:
             message_template = new_sprint_template()
@@ -184,9 +185,9 @@ def generate_message_template(task: Optional[Task] = None,
             if entity in (Epic, Story):
                 message_template = new_composite_template(entity)
         elif kwargs and kwargs.get("status"):
-            message_template = completed_task_template(task)
+            message_template = completed_task_template(task, project)
         else:
-            message_template = edited_task_template(task)
+            message_template = edited_task_template(task, project)
     return re.sub("\n +", "\n", message_template.lstrip())
 
 

@@ -237,12 +237,8 @@ class Printer:
         for column in printable_columns:
             non_active_entities.add_column(column, style="bold")
         for i, entity in enumerate(entities):
-            try:
-                project_obj = services.lookup_project_name(
-                    entity.project, repo)
-                project = project_obj.name
-            except:
-                project = None
+            project = services.lookup_project_name(
+                entity.project, repo)
             tasks = []
             completed_tasks = []
             for entity_task in entity.tasks:
@@ -785,12 +781,8 @@ class Printer:
                 comments.sort(key=lambda c: c.date, reverse=False)
             if history := entity.history:
                 history.sort(key=lambda c: c.date, reverse=False)
-            try:
-                project_obj = services.lookup_project_name(
-                    entity.project, repo)
-                project = project_obj.name
-            except:
-                project = None
+            project = services.lookup_project_name(
+                entity.project, repo)
             priority = entity.priority.name if hasattr(entity.priority,
                                                        "name") else "UNKNOWN"
             time_spent = formatter.Formatter.format_time_spent(

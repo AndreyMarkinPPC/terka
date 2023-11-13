@@ -469,12 +469,8 @@ class TerkaSprint(App):
                         task_id = f"[yellow]{task.id}[/yellow]"
                     else:
                         task_id = str(task.id)
-                    try:
-                        project_obj = services.lookup_project_name(
-                            task.project, self.repo)
-                        project = project_obj.name
-                    except:
-                        project = None
+                    project = services.lookup_project_name(
+                        task.project, self.repo)
                     if task.status.name not in ("DONE", "DELETED"):
                         table.add_row(
                             task_id, task.name,
@@ -509,12 +505,8 @@ class TerkaSprint(App):
                         collaborator_string = ",".join(collaborators_texts)
                     else:
                         collaborator_string = ""
-                    try:
-                        project_obj = services.lookup_project_name(
-                            task.project, self.repo)
-                        project = project_obj.name
-                    except:
-                        project = None
+                    project = services.lookup_project_name(
+                        task.project, self.repo)
                     if task.status.name in ("DONE", "DELETED"):
                         table.add_row(
                             str(task.id), task.name, project,
