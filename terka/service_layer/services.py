@@ -93,7 +93,7 @@ def lookup_user_name(user_id: str, repo: AbsRepository) -> Optional[str]:
 
 def lookup_project_name(project_id: int, repo: AbsRepository) -> Optional[str]:
     if project := repo.get_by_id(Project, project_id):
-        return project.id
+        return project.name
     return None
 
 
@@ -107,6 +107,12 @@ def get_workplace_by_name(workspace_name: str, repo: AbsRepository) -> Optional[
 
 def get_workplace_by_id(workspace_id: int, repo: AbsRepository) -> Optional[Workspace]:
     return repo.get_by_id(Workspace, workspace_id)
+
+def get_project_by_name(project_name: str, repo: AbsRepository) -> Optional[Project]:
+    return repo.get(Project, project_name)
+
+def get_project_by_id(project_id: int, repo: AbsRepository) -> Optional[Project]:
+    return repo.get_by_id(Project, project_id)
 
 # class CommandHander:
 

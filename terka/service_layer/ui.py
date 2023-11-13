@@ -168,11 +168,16 @@ class TerkaProject(App):
                 ("n", "notes", "Notes"), ("o", "overview", "Overview"),
                 ("T", "time", "Time"), ("q", "quit", "Quit")]
 
-    def __init__(self, entity, repo) -> None:
+    def __init__(self, entity, repo, config) -> None:
         super().__init__()
         self.entity = entity
         self.repo = repo
+        self.config = config
         self.tasks = list()
+
+    def on_mount(self) -> None:
+        self.title = f"Project: {self.entity.name}"
+        self.sub_title = f'Workspace: {self.config.get("workspace")}'
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -397,8 +402,6 @@ class TerkaSprint(App):
         self.repo = repo
         self.config = config
         self.tasks = list()
-        self.workspace = services.get_workplace_by_name(
-            config.get("workspace"), repo)
 
     def sort_reverse(self, sort_type: str):
         """Determine if `sort_type` is ascending or descending."""
@@ -422,6 +425,10 @@ class TerkaSprint(App):
             "status",
             reverse=self.sort_reverse("status"),
         )
+
+    def on_mount(self) -> None:
+        self.title = "Sprint"
+        self.sub_title = f'Workspace: {self.config.get("workspace")}'
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -527,7 +534,9 @@ class TerkaSprint(App):
                 plotext = PlotextPlot(classes="plotext")
                 plt = plotext.plt
                 sprint_time = self.entity.daily_time_entries_hours()
-                all_workspace_time = self.workspace.daily_time_entries_hours(
+                workspace = services.get_workplace_by_name(
+                    self.config.get("workspace"), self.repo)
+                all_workspace_time = workspace.daily_time_entries_hours(
                     start_date=self.entity.start_date,
                     end_date=self.entity.end_date)
                 non_sprint_times = [

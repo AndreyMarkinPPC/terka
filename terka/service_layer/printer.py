@@ -556,7 +556,7 @@ class Printer:
                 else:
                     collaborators["me"] = +task.total_time_spent
 
-            app = TerkaProject(entity=entities[0], repo=self.repo)
+            app = TerkaProject(entity=entities[0], repo=self.repo, config=self.config)
             app.run()
 
     def print_task(self,
@@ -652,7 +652,7 @@ class Printer:
                         (name, services.lookup_user_name(value, self.repo)))
                 elif name == "project":
                     project = services.lookup_project_name(value, self.repo)
-                    attributes.append((name, project.name))
+                    attributes.append((name, project))
                 elif hasattr(value, "name"):
                     attributes.append((name, value.name))
                 elif isinstance(value, datetime):
