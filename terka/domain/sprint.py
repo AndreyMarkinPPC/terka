@@ -67,9 +67,10 @@ class Sprint:
 
     @property
     def utilization(self) -> float:
-        if total_time_spent := self.total_time_spent:
-            return total_time_spent / (self.velocity * 60)
-        return 0
+        if not (velocity := self.velocity) or not (total_time_spent :=
+                                                   self.total_time_spent):
+            return 0
+        return total_time_spent / (velocity * 60)
 
     @property
     def total_time_spent(self):
@@ -90,7 +91,6 @@ class Sprint:
         if (total_tasks := len(self.tasks)) > 0:
             return (total_tasks - len(self.open_tasks)) / total_tasks
         return 0
-
 
     @property
     def collaborators(self):
