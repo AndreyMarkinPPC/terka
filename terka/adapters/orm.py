@@ -15,19 +15,22 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import mapper, registry, relationship, validates, declarative_base, backref
 
-from terka.domain.task import Task, TaskStatus, TaskPriority
-from terka.domain.user import User
-from terka.domain.project import Project, ProjectStatus
-from terka.domain.event_history import TaskEvent, ProjectEvent, EventType
-from terka.domain.commentary import TaskCommentary, ProjectCommentary, EpicCommentary, StoryCommentary, SprintCommentary
-from terka.domain.notes import TaskNote, ProjectNote, EpicNote, StoryNote, SprintNote
-from terka.domain.tag import BaseTag, TaskTag, ProjectTag
-from terka.domain.collaborators import TaskCollaborator, ProjectCollaborator
-from terka.domain.sprint import Sprint, SprintStatus, SprintTask
-from terka.domain.time_tracker import TimeTrackerEntry
-from terka.domain.epic import Epic, EpicTask, EpicStatus
-from terka.domain.story import Story, StoryTask, StoryStatus
-from terka.domain.workspace import Workspace
+from terka.domain.models import (collaborator, commentary, epic, event_history,
+                                 note, project, sprint, story, tag, task,
+                                 time_tracker, user, workspace)
+# from terka.domain.task import Task, TaskStatus, TaskPriority
+# from terka.domain.user import User
+# from terka.domain.project import Project, ProjectStatus
+# from terka.domain.event_history import TaskEvent, ProjectEvent, EventType
+# from terka.domain.commentary import TaskCommentary, ProjectCommentary, EpicCommentary, StoryCommentary, SprintCommentary
+# from terka.domain.notes import TaskNote, ProjectNote, EpicNote, StoryNote, SprintNote
+# from terka.domain.tag import BaseTag, TaskTag, ProjectTag
+# from terka.domain.collaborators import TaskCollaborator, ProjectCollaborator
+# from terka.domain.sprint import Sprint, SprintStatus, SprintTask
+# from terka.domain.time_tracker import TimeTrackerEntry
+# from terka.domain.epic import Epic, EpicTask, EpicStatus
+# from terka.domain.story import Story, StoryTask, StoryStatus
+# from terka.domain.workspace import Workspace
 
 from terka.domain.external_connectors.asana import AsanaTask, AsanaProject
 
@@ -44,8 +47,8 @@ tasks = Table("tasks", metadata,
               Column("assignee", ForeignKey("users.id"), nullable=True),
               Column("created_by", ForeignKey("users.id"), nullable=True),
               Column("due_date", Date, nullable=True),
-              Column("status", Enum(TaskStatus)),
-              Column("priority", Enum(TaskPriority)))
+              Column("status", Enum(task.TaskStatus)),
+              Column("priority", Enum(task.TaskPriority)))
 
 projects = Table(
     "projects",
@@ -53,7 +56,7 @@ projects = Table(
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("name", String(255)),
     Column("description", String(255)),
-    Column("status", Enum(ProjectStatus)),
+    Column("status", Enum(project.ProjectStatus)),
     Column("workspace", ForeignKey("workspaces.id"), nullable=True),
 )
 
@@ -67,7 +70,7 @@ task_events = Table(
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("task", ForeignKey("tasks.id"), nullable=True),
     Column("date", DateTime, nullable=False),
-    Column("type", Enum(EventType)),
+    Column("type", Enum(event_history.EventType)),
     Column("old_value", String(225)),
     Column("new_value", String(225)),
 )
@@ -78,7 +81,7 @@ project_events = Table(
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("project", ForeignKey("projects.id"), nullable=True),
     Column("date", DateTime, nullable=False),
-    Column("type", Enum(EventType)),
+    Column("type", Enum(event_history.EventType)),
     Column("old_value", String(225)),
     Column("new_value", String(225)),
 )
@@ -229,7 +232,7 @@ sprints = Table("sprints", metadata,
                 Column("id", Integer, primary_key=True, autoincrement=True),
                 Column("start_date", Date, nullable=False),
                 Column("end_date", Date, nullable=False),
-                Column("status", Enum(SprintStatus)),
+                Column("status", Enum(sprint.SprintStatus)),
                 Column("goal", String(225), nullable=True))
 
 sprint_tasks = Table(
@@ -258,7 +261,7 @@ epics = Table("epics", metadata,
               Column("description", String(1000), nullable=True),
               Column("project", ForeignKey("projects.id"), nullable=True),
               Column("assignee", ForeignKey("users.id"), nullable=True),
-              Column("status", Enum(EpicStatus)),
+              Column("status", Enum(epic.EpicStatus)),
               Column("created_by", ForeignKey("users.id"), nullable=True))
 
 epic_tasks = Table("epic_tasks", metadata,
@@ -273,7 +276,7 @@ stories = Table("stories", metadata,
                 Column("description", String(1000), nullable=True),
                 Column("project", ForeignKey("projects.id"), nullable=True),
                 Column("assignee", ForeignKey("users.id"), nullable=True),
-                Column("status", Enum(StoryStatus)),
+                Column("status", Enum(story.StoryStatus)),
                 Column("created_by", ForeignKey("users.id"), nullable=True))
 
 story_tasks = Table(
@@ -306,35 +309,40 @@ asana_projects = Table(
     Column("sync_date", DateTime, nullable=True))
 
 
-def start_mappers():
+def start_mappers(engine=None):
     asana_task_mapper = mapper(AsanaTask, asana_tasks)
     asana_project_mapper = mapper(AsanaProject, asana_projects)
 
-    task_commentary_mapper = mapper(TaskCommentary, task_commentaries)
-    project_commentary_mapper = mapper(ProjectCommentary, project_commentaries)
-    epic_commentary_mapper = mapper(EpicCommentary, epic_commentaries)
-    story_commentary_mapper = mapper(StoryCommentary, story_commentaries)
-    sprint_commentary_mapper = mapper(SprintCommentary, sprint_commentaries)
+    task_commentary_mapper = mapper(commentary.TaskCommentary,
+                                    task_commentaries)
+    project_commentary_mapper = mapper(commentary.ProjectCommentary,
+                                       project_commentaries)
+    epic_commentary_mapper = mapper(commentary.EpicCommentary,
+                                    epic_commentaries)
+    story_commentary_mapper = mapper(commentary.StoryCommentary,
+                                     story_commentaries)
+    sprint_commentary_mapper = mapper(commentary.SprintCommentary,
+                                      sprint_commentaries)
 
-    task_note_mapper = mapper(TaskNote, task_notes)
-    project_note_mapper = mapper(ProjectNote, project_notes)
-    epic_note_mapper = mapper(EpicNote, epic_notes)
-    story_note_mapper = mapper(StoryNote, story_notes)
-    sprint_note_mapper = mapper(SprintNote, sprint_notes)
+    task_note_mapper = mapper(note.TaskNote, task_notes)
+    project_note_mapper = mapper(note.ProjectNote, project_notes)
+    epic_note_mapper = mapper(note.EpicNote, epic_notes)
+    story_note_mapper = mapper(note.StoryNote, story_notes)
+    sprint_note_mapper = mapper(note.SprintNote, sprint_notes)
 
-    task_event_mapper = mapper(TaskEvent, task_events)
-    project_event_mapper = mapper(ProjectEvent, project_events)
-    user_mapper = mapper(User, users)
+    task_event_mapper = mapper(event_history.TaskEvent, task_events)
+    project_event_mapper = mapper(event_history.ProjectEvent, project_events)
+    user_mapper = mapper(user.User, users)
 
-    tag_mapper = mapper(BaseTag, tags)
-    task_tag_mapper = mapper(TaskTag,
+    tag_mapper = mapper(tag.BaseTag, tags)
+    task_tag_mapper = mapper(tag.TaskTag,
                              task_tags,
                              properties={
                                  "base_tag":
                                  relationship(tag_mapper,
                                               collection_class=list)
                              })
-    project_tag_mapper = mapper(ProjectTag,
+    project_tag_mapper = mapper(tag.ProjectTag,
                                 project_tags,
                                 properties={
                                     "base_tag":
@@ -342,47 +350,49 @@ def start_mappers():
                                                  collection_class=list)
                                 })
     task_collaborator_mapper = mapper(
-        TaskCollaborator,
+        collaborator.TaskCollaborator,
         task_collaborators,
         properties={"users": relationship(user_mapper, collection_class=list)})
     project_collaborator_mapper = mapper(
-        ProjectCollaborator,
+        collaborator.ProjectCollaborator,
         project_collaborators,
         properties={"users": relationship(user_mapper, collection_class=list)})
-    time_tracker_mapper = mapper(TimeTrackerEntry, time_tracker_entries)
-    task_mapper = mapper(Task,
-                         tasks,
-                         properties={
-                             "collaborators":
-                             relationship(task_collaborator_mapper,
-                                          collection_class=set,
-                                          cascade="all, delete-orphan"),
-                             "tags":
-                             relationship(task_tag_mapper,
-                                          collection_class=set,
-                                          cascade="all, delete-orphan"),
-                             "commentaries":
-                             relationship(task_commentary_mapper,
-                                          collection_class=list,
-                                          cascade="all, delete-orphan"),
-                             "notes":
-                             relationship(task_note_mapper,
-                                          collection_class=set,
-                                          cascade="all, delete-orphan"),
-                             "history":
-                             relationship(task_event_mapper,
-                                          collection_class=list,
-                                          cascade="all, delete-orphan"),
-                             "time_spent":
-                             relationship(time_tracker_mapper,
-                                          collection_class=list,
-                                          cascade="all, delete-orphan"),
-                             # "project_":
-                             # relationship("Project",
-                             #              back_populates="projects"
-                             #              )
-                         })
-    epic_tasks_mapper = mapper(EpicTask,
+    time_tracker_mapper = mapper(time_tracker.TimeTrackerEntry,
+                                 time_tracker_entries)
+    task_mapper = mapper(
+        task.Task,
+        tasks,
+        properties={
+            "collaborators":
+            relationship(task_collaborator_mapper,
+                         collection_class=set,
+                         cascade="all, delete-orphan"),
+            "tags":
+            relationship(task_tag_mapper,
+                         collection_class=set,
+                         cascade="all, delete-orphan"),
+            "commentaries":
+            relationship(task_commentary_mapper,
+                         collection_class=list,
+                         cascade="all, delete-orphan"),
+            "notes":
+            relationship(task_note_mapper,
+                         collection_class=set,
+                         cascade="all, delete-orphan"),
+            "history":
+            relationship(task_event_mapper,
+                         collection_class=list,
+                         cascade="all, delete-orphan"),
+            "time_spent":
+            relationship(time_tracker_mapper,
+                         collection_class=list,
+                         cascade="all, delete-orphan"),
+            # "project_":
+            # relationship("Project",
+            #              back_populates="projects"
+            #              )
+        })
+    epic_tasks_mapper = mapper(epic.EpicTask,
                                epic_tasks,
                                properties={
                                    "tasks":
@@ -390,7 +400,7 @@ def start_mappers():
                                                 backref=backref("epics"),
                                                 collection_class=list)
                                })
-    epic_mapper = mapper(Epic,
+    epic_mapper = mapper(epic.Epic,
                          epics,
                          properties={
                              "commentaries":
@@ -406,7 +416,7 @@ def start_mappers():
                                           backref=backref("epics"),
                                           collection_class=list)
                          })
-    story_tasks_mapper = mapper(StoryTask,
+    story_tasks_mapper = mapper(story.StoryTask,
                                 story_tasks,
                                 properties={
                                     "tasks":
@@ -414,7 +424,7 @@ def start_mappers():
                                                  backref=backref("stories"),
                                                  collection_class=list)
                                 })
-    story_mapper = mapper(Story,
+    story_mapper = mapper(story.Story,
                           stories,
                           properties={
                               "commentaries":
@@ -429,43 +439,40 @@ def start_mappers():
                               relationship(story_tasks_mapper,
                                            collection_class=list)
                           })
-    project_mapper = mapper(Project,
-                            projects,
-                            properties={
-                                "collaborators":
-                                relationship(project_collaborator_mapper,
-                                             collection_class=set,
-                                             cascade="all, delete-orphan"),
-                                "tasks":
-                                relationship(task_mapper,
-                                             collection_class=set),
-                                "epics":
-                                relationship(epic_mapper,
-                                             collection_class=set),
-                                "stories":
-                                relationship(story_mapper,
-                                             collection_class=set),
-                                "tags":
-                                relationship(project_tag_mapper,
-                                             collection_class=set,
-                                             cascade="all, delete-orphan"),
-                                "commentaries":
-                                relationship(project_commentary_mapper,
-                                             collection_class=list,
-                                             cascade="all, delete-orphan"),
-                                "notes":
-                                relationship(project_note_mapper,
-                                             collection_class=set,
-                                             cascade="all, delete-orphan"),
-                                "history":
-                                relationship(project_event_mapper,
-                                             collection_class=list),
-                                 # "workspace_":
-                                 # relationship(Workspace,
-                                 #              back_populates="workspaces"
-                                 #              )
-                            })
-    sprint_tasks_mapper = mapper(SprintTask,
+    project_mapper = mapper(
+        project.Project,
+        projects,
+        properties={
+            "collaborators":
+            relationship(project_collaborator_mapper,
+                         collection_class=set,
+                         cascade="all, delete-orphan"),
+            "tasks":
+            relationship(task_mapper, collection_class=set),
+            "epics":
+            relationship(epic_mapper, collection_class=set),
+            "stories":
+            relationship(story_mapper, collection_class=set),
+            "tags":
+            relationship(project_tag_mapper,
+                         collection_class=set,
+                         cascade="all, delete-orphan"),
+            "commentaries":
+            relationship(project_commentary_mapper,
+                         collection_class=list,
+                         cascade="all, delete-orphan"),
+            "notes":
+            relationship(project_note_mapper,
+                         collection_class=set,
+                         cascade="all, delete-orphan"),
+            "history":
+            relationship(project_event_mapper, collection_class=list),
+            # "workspace_":
+            # relationship(Workspace,
+            #              back_populates="workspaces"
+            #              )
+        })
+    sprint_tasks_mapper = mapper(sprint.SprintTask,
                                  sprint_tasks,
                                  properties={
                                      "tasks":
@@ -473,7 +480,7 @@ def start_mappers():
                                                   backref=backref("sprints"),
                                                   collection_class=list)
                                  })
-    sprint_mapper = mapper(Sprint,
+    sprint_mapper = mapper(sprint.Sprint,
                            sprints,
                            properties={
                                "commentaries":
@@ -488,10 +495,12 @@ def start_mappers():
                                relationship(sprint_tasks_mapper,
                                             collection_class=list),
                            })
-    workspace_mapper = mapper(Workspace,
+    workspace_mapper = mapper(workspace.Workspace,
                               workspaces,
                               properties={
                                   "projects":
                                   relationship(project_mapper,
                                                collection_class=list),
                               })
+    if engine:
+        metadata.create_all(engine)

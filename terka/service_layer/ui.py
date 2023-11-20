@@ -1,19 +1,26 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime
 import pandas as pd
 from rich.console import Console
 from rich.text import Text
+import subprocess
 from textual import on
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Grid, Horizontal, Vertical
 from textual_plotext import PlotextPlot
 from textual.reactive import reactive
-from textual.screen import Screen
+from textual.screen import ModalScreen, Screen
+from textual.validation import Number
 from textual.widget import Widget
-from textual.widgets import Input, Header, Footer, Label, Tabs, DataTable, TabbedContent, TabPane, Static, Markdown, Pretty
+from textual.widgets import Button, Input, Header, Footer, Label, Tabs, DataTable, TabbedContent, TabPane, Static, Markdown, Pretty, Select
 
+from terka.domain import _commands, events, models
+# from terka.domain.task import Task
+# from terka.domain.project import Project
+# from terka.domain.sprint import Sprint
 from terka.service_layer import services, views
 from terka.service_layer.formatter import Formatter
 
@@ -146,8 +153,32 @@ class TerkaProject(App):
     Tabs {
         dock: top;
     }
-    Screen {
+    QuitScreen {
+        align: center middle;
+    }
+    TaskComplete {
         align: center top;
+    }
+    #dialog {
+        grid-size: 2;
+        grid-gutter: 1 2;
+        grid-rows: 1fr 3;
+        padding: 0 1;
+        width: 60;
+        height: 20;
+        border: thick $background 80%;
+        background: $surface;
+    }
+
+    #question {
+        column-span: 2;
+        height: 1fr;
+        width: 1fr;
+        content-align: center middle;
+    }
+
+    Button {
+        width: 100%;
     }
     .plotext {
         width: 100%;
@@ -166,18 +197,48 @@ class TerkaProject(App):
     BINDINGS = [("b", "backlog", "Backlog"), ("t", "tasks", "Tasks"),
                 ("e", "epics", "Epics"), ("s", "stories", "Stories"),
                 ("n", "notes", "Notes"), ("o", "overview", "Overview"),
-                ("T", "time", "Time"), ("q", "quit", "Quit")]
+                ("T", "time", "Time"), ("q", "quit", "Quit"),
+                ("E", "task_edit", "Edit"), ("r", "refresh", "Refresh"),
+                ("d", "task_complete", "Done")]
 
-    def __init__(self, entity, repo, config) -> None:
+    def __init__(self, repo, config, project_id, bus) -> None:
         super().__init__()
-        self.entity = entity
         self.repo = repo
         self.config = config
+        self.bus = bus
         self.tasks = list()
+        self.selected_task = None
+        self.project_id = project_id
+        self.entity = self.get_entity()
+
+    def get_entity(self):
+        return self.repo.get(models.project.Project, self.project_id)
+
+    def action_refresh(self):
+        self.entity = self.get_entity()
 
     def on_mount(self) -> None:
         self.title = f"Project: {self.entity.name}"
         self.sub_title = f'Workspace: {self.config.get("workspace")}'
+
+    def action_task_complete(self) -> None:
+        self.push_screen(TaskComplete(), self.task_complete_callback)
+
+    def action_task_edit(self) -> None:
+        task_edit = TaskEdit()
+        self.push_screen(task_edit, self.task_complete_callback)
+
+    def task_complete_callback(self, result: TaskCompletionInfo):
+        # TODO: implement
+        # self.publisher.publish(TaskCompleted(self.selected_task))
+        self.bus.handle(
+            _commands.CompleteTask(id=self.selected_task,
+                                   comment=result.comment,
+                                   hours=result.hours))
+        # self.repo.update(Task, self.selected_task, {"status": "DONE"})
+        # self.repo.session.commit()
+        # self.entity = self.get_entity()
+        self.notify(f"Task: {self.selected_task} is completed!")
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -213,12 +274,16 @@ class TerkaProject(App):
                             task_id = f"[yellow]{task.id}[/yellow]"
                         else:
                             task_id = str(task.id)
-                        table.add_row(
-                            task_id, task.name, task.priority.name,
-                            task.due_date,
-                            task.creation_date.strftime("%Y-%m-%d"), tags_text,
-                            collaborator_string,
-                            Formatter.format_time_spent(task.total_time_spent))
+                        table.add_row(task_id,
+                                      task.name,
+                                      task.priority.name,
+                                      task.due_date,
+                                      task.creation_date.strftime("%Y-%m-%d"),
+                                      tags_text,
+                                      collaborator_string,
+                                      Formatter.format_time_spent(
+                                          task.total_time_spent),
+                                      key=task.id)
                 yield table
             with TabPane("Open Tasks", id="tasks"):
                 table = DataTable(id="tasks")
@@ -228,7 +293,7 @@ class TerkaProject(App):
                 for task in sorted(self.entity.tasks,
                                    key=lambda x: x.status.name,
                                    reverse=True):
-                    self.tasks.append(task)
+                    # self.tasks.append(task)
                     if task.status.name in ("TODO", "IN_PROGRESS", "REVIEW"):
                         if tags := task.tags:
                             tags_text = ",".join(
@@ -250,11 +315,16 @@ class TerkaProject(App):
                             task_id = f"[yellow]{task.id}[/yellow]"
                         else:
                             task_id = str(task.id)
-                        table.add_row(
-                            task_id, task.name, task.status.name,
-                            task.priority.name, task.due_date, tags_text,
-                            collaborator_string,
-                            Formatter.format_time_spent(task.total_time_spent))
+                        table.add_row(task_id,
+                                      task.name,
+                                      task.status.name,
+                                      task.priority.name,
+                                      task.due_date,
+                                      tags_text,
+                                      collaborator_string,
+                                      Formatter.format_time_spent(
+                                          task.total_time_spent),
+                                      key=task.id)
                 yield table
             with TabPane("Completed Tasks", id="completed_tasks"):
                 table = DataTable(id="completed_tasks")
@@ -364,12 +434,120 @@ class TerkaProject(App):
     def action_time(self) -> None:
         self.query_one(TabbedContent).active = "time"
 
+    def action_done(self):
+        self.selected_task = 0
+
+    def on_data_table_cell_highlighted(self, event: DataTable.CellHighlighted):
+        self.selected_task = event.cell_key.row_key.value
+
+    def on_data_table_cell_selected(self, event: DataTable.CellSelected):
+        self.selected_task = event.cell_key.row_key.value
+        # subprocess.run(["/home/am/envs/terka-textual/bin/terka", "done", "task", "1911"])
+        # exit(str(event.cell_key.row_key.value))
+
+
+@dataclass
+class TaskCompletionInfo:
+    comment: str | None = None
+    hours: int | None = None
+
+
+class TaskComplete(ModalScreen[str]):
+
+    def compose(self) -> ComposeResult:
+        yield Grid(
+            Label(f"Complete task", id="question"),
+            Input(placeholder="Add comment", id="comment"),
+            Input(placeholder="Add time spent",
+                  validators=[Number()],
+                  id="hours"),
+            Button("Yes", id="yes"),
+            Button("No", id="no"),
+            id="dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "yes":
+            comment = self.query_one("#comment", Input)
+            hours = self.query_one("#hours", Input)
+            self.dismiss(TaskCompletionInfo(comment.value, hours.value))
+        else:
+            self.app.pop_screen()
+
+    @on(Input.Submitted)
+    def submit_input(self, event: Input.Submitted) -> None:
+        exit(self)
+
+
+class TaskEdit(ModalScreen[str]):
+
+    def compose(self) -> ComposeResult:
+        yield Grid(
+            Label(f"Edit task", id="question"),
+            Input(placeholder="", id="name"),
+            Input(placeholder="", id="description"),
+            Select(((line, line) for line in ["TODO", "IN_PROGRESS"]),
+                   prompt="status",
+                   id="status"),
+            Select(
+                ((line, line) for line in ["LOW", "NORMAL", "HIGH", "URGENT"]),
+                prompt="priority",
+                id="priority"),
+            Input(placeholder="Add comment", id="comment"),
+            Input(placeholder="Add time spent",
+                  validators=[Number()],
+                  id="hours"),
+            Button("Yes", id="yes"),
+            Button("No", id="no"),
+            id="dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "yes":
+            comment = self.query_one("#comment", Input)
+            hours = self.query_one("#hours", Input)
+            exit(f"Comment: {comment.value}, hours: {hours.value}")
+            self.app.exit()
+        else:
+            self.app.pop_screen()
+
+    @on(Input.Submitted)
+    def submit_input(self, event: Input.Submitted) -> None:
+        exit(self)
+
 
 class TerkaSprint(App):
 
     CSS = """
     Tabs {
         dock: top;
+    }
+    QuitScreen {
+        align: center middle;
+    }
+    TaskComplete {
+        align: center top;
+    }
+    #dialog {
+        grid-size: 2;
+        grid-gutter: 1 2;
+        grid-rows: 1fr 3;
+        padding: 0 1;
+        width: 60;
+        height: 20;
+        border: thick $background 80%;
+        background: $surface;
+    }
+
+    #question {
+        column-span: 2;
+        height: 1fr;
+        width: 1fr;
+        content-align: center middle;
+    }
+
+    Button {
+        width: 100%;
     }
     Screen {
         align: center top;
@@ -392,16 +570,36 @@ class TerkaSprint(App):
                 ("o", "overview", "Overview"), ("q", "quit", "Quit"),
                 ("P", "sort_by_project", "Sort by Project"),
                 ("S", "sort_by_status", "Sort by Status"),
-                ("T", "time", "Time")]
+                ("E", "task_edit", "Edit"), ("r", "refresh", "Refresh"),
+                ("d", "task_complete", "Done"), ("T", "time", "Time")]
 
     current_sorts: set = set()
 
-    def __init__(self, entity, repo, config) -> None:
+    def __init__(self, repo, config, sprint_id, bus) -> None:
         super().__init__()
-        self.entity = entity
         self.repo = repo
         self.config = config
-        self.tasks = list()
+        self.bus = bus
+        self.selected_task = None
+        self.sprint_id = sprint_id
+        self.entity = self.get_entity()
+        self.tasks = self.get_tasks()
+
+    def get_entity(self):
+        return self.repo.get_by_id(models.sprint.Sprint, self.sprint_id)
+
+    def get_tasks(self):
+        for sprint_task in self.entity.tasks:
+            if sprint_task.tasks.status.name not in ("DONE", "DELETED"):
+                yield sprint_task.tasks
+
+    def action_refresh(self):
+        self.entity = self.get_entity()
+        previous_tasks = list(self.tasks)
+        self.tasks = list(self.get_tasks())
+        new_tasks = list(self.tasks)
+        exit(f"{len(new_tasks)}, {len(previous_tasks)}")
+        self.notify("Refreshing data...")
 
     def sort_reverse(self, sort_type: str):
         """Determine if `sort_type` is ascending or descending."""
@@ -411,6 +609,16 @@ class TerkaSprint(App):
         else:
             self.current_sorts.add(sort_type)
         return reverse
+
+    def action_task_complete(self) -> None:
+        self.push_screen(TaskComplete(), self.task_complete_callback)
+
+    def task_complete_callback(self, result: TaskCompletionInfo):
+        self.bus.handle(
+            _commands.CompleteTask(id=self.selected_task,
+                                   comment=result.comment,
+                                   hours=result.hours))
+        self.notify(f"Task: {self.selected_task} is completed!")
 
     def action_sort_by_project(self) -> None:
         table = self.query_one("#tasks_table", DataTable)
@@ -446,7 +654,7 @@ class TerkaSprint(App):
                                           key=lambda x: x.tasks.status.value,
                                           reverse=True):
                     task = sprint_task.tasks
-                    self.tasks.append(task)
+                    # self.tasks.append(task)
                     if tags := task.tags:
                         tags_text = ",".join([
                             tag.base_tag.text for tag in list(tags)
@@ -472,12 +680,18 @@ class TerkaSprint(App):
                     project = services.lookup_project_name(
                         task.project, self.repo)
                     if task.status.name not in ("DONE", "DELETED"):
-                        table.add_row(
-                            task_id, task.name,
-                            task.status.name, task.priority.name,
-                            str(sprint_task.story_points), project,
-                            task.due_date, tags_text, collaborator_string,
-                            Formatter.format_time_spent(task.total_time_spent))
+                        table.add_row(task_id,
+                                      task.name,
+                                      task.status.name,
+                                      task.priority.name,
+                                      str(sprint_task.story_points),
+                                      project,
+                                      task.due_date,
+                                      tags_text,
+                                      collaborator_string,
+                                      Formatter.format_time_spent(
+                                          task.total_time_spent),
+                                      key=task.id)
                 yield table
             with TabPane("Completed Tasks", id="completed_tasks"):
                 table = DataTable(id="completed_tasks")
@@ -509,12 +723,16 @@ class TerkaSprint(App):
                         task.project, self.repo)
                     if task.status.name in ("DONE", "DELETED"):
                         table.add_row(
-                            str(task.id), task.name, project,
+                            str(task.id),
+                            task.name,
+                            project,
                             task.completion_date.strftime("%Y-%m-%d"),
-                            tags_text, collaborator_string,
+                            tags_text,
+                            collaborator_string,
                             Formatter.format_time_spent(
                                 round(sprint_task.story_points * 60)),
-                            Formatter.format_time_spent(task.total_time_spent))
+                            Formatter.format_time_spent(task.total_time_spent),
+                            key=task.id)
                 yield table
             with TabPane("Notes", id="notes"):
                 table = DataTable(id="notes")
@@ -525,26 +743,28 @@ class TerkaSprint(App):
             with TabPane("Time", id="time"):
                 plotext = PlotextPlot(classes="plotext")
                 plt = plotext.plt
-                sprint_time = self.entity.daily_time_entries_hours()
-                workspace = services.get_workplace_by_name(
-                    self.config.get("workspace"), self.repo)
-                all_workspace_time = workspace.daily_time_entries_hours(
-                    start_date=self.entity.start_date,
-                    end_date=self.entity.end_date)
-                non_sprint_times = [
-                    all_times - sprint_times
-                    for all_times, sprint_times in zip(
-                        all_workspace_time.values(), sprint_time.values())
-                ]
+                if not (sprint_time := self.entity.daily_time_entries_hours()):
+                    yield Static("No time tracked")
+                else:
+                    workspace = services.get_workplace_by_name(
+                        self.config.get("workspace"), self.repo)
+                    all_workspace_time = workspace.daily_time_entries_hours(
+                        start_date=self.entity.start_date,
+                        end_date=self.entity.end_date)
+                    non_sprint_times = [
+                        all_times - sprint_times
+                        for all_times, sprint_times in zip(
+                            all_workspace_time.values(), sprint_time.values())
+                    ]
 
-                plt.date_form('Y-m-d')
-                plt.title(
-                    f"Time tracker - {Formatter.format_time_spent(self.entity.total_time_spent)} spent"
-                )
-                plt.stacked_bar(sprint_time.keys(),
-                                [sprint_time.values(), non_sprint_times],
-                                label=["sprint", "non-sprint"])
-                yield plotext
+                    plt.date_form('Y-m-d')
+                    plt.title(
+                        f"Time tracker - {Formatter.format_time_spent(self.entity.total_time_spent)} spent"
+                    )
+                    plt.stacked_bar(sprint_time.keys(),
+                                    [sprint_time.values(), non_sprint_times],
+                                    label=["sprint", "non-sprint"])
+                    yield plotext
             with TabPane("Overview", id="overview"):
                 collaborators = self.entity.collaborators
                 sorted_collaborators = ""
@@ -577,6 +797,12 @@ class TerkaSprint(App):
 
     def action_notes(self) -> None:
         self.query_one(TabbedContent).active = "notes"
+
+    def on_data_table_cell_highlighted(self, event: DataTable.CellHighlighted):
+        self.selected_task = event.cell_key.row_key.value
+
+    def on_data_table_cell_selected(self, event: DataTable.CellSelected):
+        self.selected_task = event.cell_key.row_key.value
 
 
 # TODO: implement

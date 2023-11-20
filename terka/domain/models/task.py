@@ -129,4 +129,5 @@ class Task:
         return False
 
     def __repr__(self):
+        # TODO: Fix: status is string, not Enum
         return f"<Task {self.id}>: {self.name}, {self.status.name}, {self.creation_date}"

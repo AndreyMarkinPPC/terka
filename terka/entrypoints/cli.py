@@ -19,7 +19,9 @@ from sqlalchemy.orm import sessionmaker, clear_mappers
 from terka.adapters.orm import metadata, start_mappers
 from terka.adapters.repository import SqlAlchemyRepository
 
+from terka import bootstrap
 from terka.domain import commands
+from terka.domain import _commands
 from terka.domain.commands import CommandHandler
 from terka.utils import (
     format_task_dict,
@@ -27,7 +29,12 @@ from terka.utils import (
     update_task_dict,
     create_task_dict,
 )
-from terka.service_layer import services
+from terka.service_layer import exceptions, services, unit_of_work
+from terka.service_layer.ui import TerkaTask, TerkaProject, TerkaSprint
+from terka.utils import format_command, format_entity
+
+HOME_DIR = os.path.expanduser("~")
+DB_URL = f"sqlite:////{HOME_DIR}/.terka/tasks.db"
 
 
 def init_db(home_dir):
@@ -72,20 +79,43 @@ def main():
     if task_id or project_name:
         focus_type = "task" if task_id else "project"
         logger.warning("Using terka in focus mode")
-        logger.warning(f"Current focus is {focus_type}: {task_id or project_name}")
+        logger.warning(
+            f"Current focus is {focus_type}: {task_id or project_name}")
 
     task_dict = format_task_dict(config, args, kwargs)
     logger.debug(task_dict)
 
-    service_command_handler = services.ServiceCommandHander(home_dir, config, console)
+    service_command_handler = services.ServiceCommandHander(
+        home_dir, config, console)
     service_command_handler.execute(command, entity, task_dict)
 
     engine = init_db(home_dir)
-    start_mappers()
+    # # start_mappers()
     Session = sessionmaker(engine)
+    with Session() as session:
+        repo = SqlAlchemyRepository(session)
+        bus = bootstrap.bootstrap(
+            uow=unit_of_work.SqlAlchemyUnitOfWork(DB_URL))
+        if command == "show":
+            if entity == "sprint":
+                app = TerkaSprint(repo=repo,
+                                  config=config,
+                                  sprint_id=task_dict.get("id"),
+                                  bus=bus)
+                app.run()
+            if entity == "project":
+                app = TerkaProject(repo=repo,
+                                   config=config,
+                                   project_id=task_dict.get("id"),
+                                   bus=bus)
+                app.run()
+            exit()
+        _CommandHandler(bus).execute(command, entity, task_dict)
+        exit()
 
     with Session() as session:
-        file_handler = logging.FileHandler(filename=f"{home_dir}/.terka/terka.log")
+        file_handler = logging.FileHandler(
+            filename=f"{home_dir}/.terka/terka.log")
         file_handler.setLevel(logging.DEBUG)
         stdout_handler = logging.StreamHandler(stream=sys.stdout)
         stdout_handler.setLevel(logging.WARNING)
@@ -135,26 +165,31 @@ def main():
         if not command and not entity:
             is_interactive = True
             interactive_message = (
-                f"[green]>>> Running terka in an interactive mode[/green]"
-            )
+                f"[green]>>> Running terka in an interactive mode[/green]")
             if task_id:
                 interactive_message = f"{interactive_message} (focus task {task_id})"
             elif project_name:
                 interactive_message = (
-                    f"{interactive_message} (focus project {project_name})"
-                )
+                    f"{interactive_message} (focus project {project_name})")
             console.print(interactive_message)
             command = input("enter command: ")
             command, entity, task_dict = process_command(command, config, repo)
         try:
+            if entity == "project" and command == "show":
+                app = TerkaProject(repo=repo,
+                                   config=config,
+                                   project_id=task_dict.get("id"),
+                                   bus=bus)
+                app.run()
+                exit()
+
             command_handler.execute(command, entity, task_dict)
         except (ValueError, commands.TerkaException) as e:
             console.print(f"[red]{e}[/red]")
 
         while is_interactive:
             interactive_message = (
-                f"[green]>>> Running terka in an interactive mode[/green]"
-            )
+                f"[green]>>> Running terka in an interactive mode[/green]")
             config = load_config(home_dir)
             task_id = config.get("task_id")
             project_name = config.get("project_name")
@@ -162,8 +197,7 @@ def main():
                 interactive_message = f"{interactive_message} (focus task {task_id})"
             elif project_name:
                 interactive_message = (
-                    f"{interactive_message} (focus project {project_name})"
-                )
+                    f"{interactive_message} (focus project {project_name})")
             console.print(interactive_message)
             command = input("enter command: ")
             command, entity, task_dict = process_command(command, config, repo)
@@ -174,6 +208,23 @@ def main():
             except commands.TerkaException as e:
                 console.print(f"[red]{e}[/red]")
                 exit()
+
+
+class _CommandHandler:
+
+    def __init__(self, bus) -> None:
+        self.bus = bus
+
+    def execute(self, command: str, entity: str, task_dict: dict) -> None:
+        command = format_command(command)
+        entity = format_entity(entity)
+        _command = f"{command.capitalize()}{entity.capitalize()}"
+        try:
+            self.bus.handle(
+                getattr(_commands, _command).from_kwargs(**task_dict))
+        except AttributeError as e:
+            raise exceptions.TerkaCommandException(
+                f"Unknown command: `terka {command} {entity}`") from None
 
 
 def load_config(home_dir):

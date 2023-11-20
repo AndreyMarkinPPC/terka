@@ -8,9 +8,7 @@ import re
 import yaml
 
 from terka.adapters.repository import AbsRepository
-from terka.domain.project import Project
-from terka.domain.user import User
-from terka.domain.workspace import Workspace
+from terka.domain import models
 # import terka.domain._commands as commands
 
 
@@ -42,7 +40,7 @@ def lookup_project_id(project_name: str, repo: AbsRepository) -> int:
     returned_projects = []
     returned_projects_set = set()
     for project_name in projects:
-        if not (project := repo.list(Project, project_name)):
+        if not (project := repo.list(models.project.Project, project_name)):
             print(
                 f"Creating new project: {project_name}. Do you want to continue (Y/n)?"
             )
@@ -54,7 +52,7 @@ def lookup_project_id(project_name: str, repo: AbsRepository) -> int:
                     f"Creating new project: {project_name}. Do you want to continue (Y/n)?"
                 )
                 answer = input()
-            project = Project(project_name)
+            project = models.project.Project(project_name)
             repo.add(project)
             repo.session.commit()
         if isinstance(project, list):
@@ -78,41 +76,52 @@ def lookup_project_id(project_name: str, repo: AbsRepository) -> int:
     return returned_projects
 
 
-def lookup_user_id(user_name: str, repo: AbsRepository) -> Optional[int]:
-    if user := repo.get(User, user_name):
+def lookup_user_id(user_name: str, repo: AbsRepository) -> int | None:
+    if user := repo.get(models.user.User, user_name):
         return user.id
     return None
 
 
-def lookup_user_name(user_id: str, repo: AbsRepository) -> Optional[str]:
-    if user := repo.get_by_id(User, user_id):
+def lookup_user_name(user_id: str, repo: AbsRepository) -> str | None:
+    if user := repo.get_by_id(models.user.User, user_id):
         return user.name
     return None
 
 
-
-def lookup_project_name(project_id: int, repo: AbsRepository) -> Optional[str]:
-    if project := repo.get_by_id(Project, project_id):
+def lookup_project_name(project_id: int, repo: AbsRepository) -> str | None:
+    if project := repo.get_by_id(models.project.Project, project_id):
         return project.name
     return None
 
 
-def lookup_workspace_id(workspace_name: str, repo: AbsRepository) -> Optional[int]:
-    if workspace := repo.get(Workspace, workspace_name):
+def lookup_workspace_id(workspace_name: str,
+                        repo: AbsRepository) -> int | None:
+    if workspace := repo.get(models.workspace.Workspace, workspace_name):
         return workspace.id
     return None
 
-def get_workplace_by_name(workspace_name: str, repo: AbsRepository) -> Optional[Workspace]:
-    return repo.get(Workspace, workspace_name)
 
-def get_workplace_by_id(workspace_id: int, repo: AbsRepository) -> Optional[Workspace]:
-    return repo.get_by_id(Workspace, workspace_id)
+def get_workplace_by_name(
+        workspace_name: str,
+        repo: AbsRepository) -> models.workspace.Workspace | None:
+    return repo.get(models.workspace.Workspace, workspace_name)
 
-def get_project_by_name(project_name: str, repo: AbsRepository) -> Optional[Project]:
-    return repo.get(Project, project_name)
 
-def get_project_by_id(project_id: int, repo: AbsRepository) -> Optional[Project]:
-    return repo.get_by_id(Project, project_id)
+def get_workplace_by_id(
+        workspace_id: int,
+        repo: AbsRepository) -> models.workspace.Workspace | None:
+    return repo.get_by_id(models.workspace.Workspace, workspace_id)
+
+
+def get_project_by_name(project_name: str,
+                        repo: AbsRepository) -> models.project.Project | None:
+    return repo.get(models.project.Project, project_name)
+
+
+def get_project_by_id(project_id: int,
+                      repo: AbsRepository) -> models.project.Project | None:
+    return repo.get_by_id(models.project.Project, project_id)
+
 
 # class CommandHander:
 
@@ -132,8 +141,7 @@ class ServiceCommandHander:
     def __init__(self, home_dir, config, console=Console()):
         self.home_dir = home_dir
         self.config = config
-        self.console =  console
-
+        self.console = console
 
     def execute(self, command, entity, task_dict):
         is_service_command = True
@@ -154,7 +162,6 @@ class ServiceCommandHander:
         if is_service_command:
             exit()
 
-
     def init_terka(self,
                    terka_folder: str = ".terka",
                    default_user: str = "admin",
@@ -173,7 +180,8 @@ class ServiceCommandHander:
             else:
                 exit()
         elif not os.path.exists(os.path.join(path, default_config)):
-            answer = input(f"Config.yaml not found in {path}, Create it? [Y/n]")
+            answer = input(
+                f"Config.yaml not found in {path}, Create it? [Y/n]")
             if "y" in answer.lower():
                 with open(os.path.join(path, default_config), "w") as f:
                     yaml.dump({"user": default_user}, f)
@@ -191,8 +199,7 @@ class ServiceCommandHander:
             self.config["project_name"] = kwargs["id"]
             if "task_id" in self.config.keys():
                 del self.config["task_id"]
-        with open(f"{self.home_dir}/.terka/config.yaml",
-                  "w",
+        with open(f"{self.home_dir}/.terka/config.yaml", "w",
                   encoding="utf-8") as f:
             yaml.dump(self.config, f)
         logging.info("<focus> %s: %s", entity_type, "")
@@ -202,8 +209,7 @@ class ServiceCommandHander:
             del self.config["task_id"]
         if "project_name" in self.config.keys():
             del self.config["project_name"]
-        with open(f"{self.home_dir}/.terka/config.yaml",
-                  "w",
+        with open(f"{self.home_dir}/.terka/config.yaml", "w",
                   encoding="utf-8") as f:
             yaml.dump(self.config, f)
         loging.info("<unfocus> %s: %s", "", "")
@@ -227,16 +233,14 @@ class ServiceCommandHander:
             self.config["workspace"] = "Default"  # Default workspace
         else:
             self.config["workspace"] = workspace
-        with open(f"{self.home_dir}/.terka/config.yaml",
-                  "w",
+        with open(f"{self.home_dir}/.terka/config.yaml", "w",
                   encoding="utf-8") as f:
             yaml.dump(self.config, f)
         logging.info("switched to workspace: %d", workspace)
 
     def set_workspace(self, workspace: str):
         self.config["workspace"] = workspace
-        with open(f"{self.home_dir}/.terka/config.yaml",
-                  "w",
+        with open(f"{self.home_dir}/.terka/config.yaml", "w",
                   encoding="utf-8") as f:
             yaml.dump(self.config, f)
         logging.info("set workspace: %d", workspace)
