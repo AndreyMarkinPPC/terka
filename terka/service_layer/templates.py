@@ -35,13 +35,13 @@ def new_composite_template(entity) -> str:
         """
 
 
-def new_composite_template(entity) -> str:
+def new_project_template() -> str:
     return f"""
-        # You are creating {entity.__name__}, enter below:
+        # You are creating new project, enter below:
         ---
         name: 
         description: 
-        project: 
+        workspace: 
         """
 
 
@@ -113,39 +113,44 @@ def completed_task_template(task: models.task.Task,
         """
 
 
-def generate_message_template(task: models.task.Task = None,
-                              repo=None,
-                              kwargs: dict[str, str] | None = None,
-                              entity=None) -> str:
-    if task:
+def generate_message_template(entity,
+                              kwargs: dict[str, str] | None = None) -> str:
+    if not isinstance(entity, type):
         if isinstance(
-                task,
+                entity,
             (models.task.Task, models.story.Story, models.epic.Epic)):
-            project = task.project
-        elif isinstance(task, models.project.Project):
-            project = task.name
-    if isinstance(task, models.sprint.Sprint):
-        if not kwargs:
-            message_template = new_sprint_template()
-        else:
-            message_template = edit_sprint_template(task)
+            project = entity.project
+        elif isinstance(entity, models.project.Project):
+            project = entity.name
+        if isinstance(entity, models.sprint.Sprint):
+            if not kwargs:
+                message_template = new_sprint_template()
+            else:
+                message_template = edit_sprint_template(entity)
+        elif isinstance(entity, models.project.Project):
+            message_template = new_project_template(entity)
+        elif isinstance(entity, models.task.Task):
+            message_template = edited_task_template(entity, project)
     else:
         if not kwargs:
             if entity == models.task.Task:
                 message_template = new_task_template()
+            if entity == models.project.Project:
+                message_template = new_project_template()
             if entity == models.sprint.Sprint:
                 message_template = new_sprint_template()
             if entity in (models.epic.Epic, models.story.Story):
                 message_template = new_composite_template(entity)
         elif kwargs and kwargs.get("status"):
-            message_template = completed_task_template(task, project)
+            message_template = completed_task_template(entity,
+                                                       project)
         else:
-            message_template = edited_task_template(task, project)
+            message_template = edited_task_template(entity, project)
     return re.sub("\n +", "\n", message_template.lstrip())
 
 
 def flush_message(entity):
-    message_template = generate_message_template(entity=entity)
+    message_template = generate_message_template(entity)
     with tempfile.NamedTemporaryFile(suffix=".tmp") as tf:
         tf.write(message_template.encode("utf-8"))
         tf.flush()
@@ -159,6 +164,8 @@ def create_command_from_editor(entity, command):
     new_entry = flush_message(entity)
     new_entry = new_entry.decode("utf-8").rstrip()
     command_arguments: dict = {}
+    if entity_id := entity.id:
+        command_arguments.update({"id": entity_id})
     for i, row in enumerate(new_entry.split("\n")):
         if not row.startswith("#") and row:
             if row.startswith("--"):

@@ -1,16 +1,19 @@
 from typing import Dict, Literal, Optional, Type
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 
 @dataclass
 class Command:
 
+    def get_only_set_attributes(self) -> dict:
+        return {key: value for key, value in asdict(self).items() if value}
+
     @classmethod
     def from_kwargs(cls, **kwargs: dict) -> Type["Command"]:
-        return cls(
-            **
-            {k: v
-             for k, v in kwargs.items() if k in cls.__match_args__ and v})
+        return cls(**{
+            k: v
+            for k, v in kwargs.items() if k in cls.__match_args__ and v
+        })
 
 
 @dataclass
@@ -61,8 +64,24 @@ class DeleteTask(Command):
 
 
 @dataclass
-class UpdateTask(CreateTask):
-    ...
+class UpdateTask(Command):
+    id: int
+    name: str | None = None
+    description: str | None = None
+    project: str | None = None
+    tags: str | None = None
+    collaborators: str | None = None
+    assignee: str | None = None
+    due_date: str | None = None
+    status: str | None= None 
+    priority: str | None = None 
+    sprint_id: str | None = None
+    epic_id: str | None = None
+    story_id: str | None = None
+
+
+    def __bool__(self) -> bool:
+        return False
 
 
 @dataclass
@@ -92,6 +111,12 @@ class AddTask(Command):
 
 @dataclass
 class NoteTask(Command):
+    id: int
+    text: str
+
+
+@dataclass
+class CommentTask(Command):
     id: int
     text: str
 
@@ -168,7 +193,7 @@ class Report(Command):
 
 @dataclass
 class CreateProject(Command):
-    name: str
+    name: str | None = None
     description: str | None = None
     workspace: int = 1
     status: str = "ACTIVE"
