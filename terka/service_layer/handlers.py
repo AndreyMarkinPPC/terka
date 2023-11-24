@@ -1,30 +1,55 @@
+from typing import Type
+from collections import defaultdict
 from dataclasses import asdict
 from datetime import datetime
+import functools
 
 from terka.adapters import publisher
 from terka.domain import _commands, events, models
 from terka.service_layer import exceptions, templates, unit_of_work
 
+COMMAND_HANDLERS = {}
+EVENT_HANDLERS = defaultdict(list) 
+
+
+def register(cmd=None, event=None):
+    def fn(func):
+        @functools.wraps(func)
+        def inner_function(cmd, handler):
+            return func(cmd, handler)
+        if cmd:
+            COMMAND_HANDLERS[cmd] = inner_function 
+        elif event:
+            EVENT_HANDLERS[event].append(inner_function)
+        return inner_function
+    return fn
+
+
+
+class Handler:
+
+    def __init__(self, uow: unit_of_work.AbstractUnitOfWork,
+                 publisher: publisher.BasePublisher = None) -> None:
+        self.uow = uow
+        self.publisher = publisher
+
 
 class SprintCommandHandlers:
 
-    @staticmethod
-    def create(cmd: _commands.CreateSprint,
-               uow: unit_of_work.AbstractUnitOfWork,
-               publisher: publisher.BasePublisher) -> None:
+    @register(cmd=_commands.CreateSprint)
+    def create(cmd: _commands.CreateSprint, handler: Handler) -> None:
         if not cmd:
             cmd = templates.create_command_from_editor(models.sprint.Sprint,
-                                                       _commands.CreateSprint)
-        with uow:
+                                                       type(cmd))
+        with handler.uow as uow:
             # TODO: Add code for checking existing sprints
             new_sprint = models.sprint.Sprint(**asdict(cmd))
             uow.tasks.add(new_sprint)
             uow.commit()
 
-    @staticmethod
-    def start(cmd: _commands.StartSprint, uow: unit_of_work.AbstractUnitOfWork,
-              publisher: publisher.BasePublisher) -> None:
-        with uow:
+    @register(cmd=_commands.StartSprint)
+    def start(self, cmd: _commands.StartSprint, handler: Handler) -> None:
+        with handler.uow as uow:
             if not (existing_sprint := uow.tasks.get_by_id(
                     models.sprint.Sprint, cmd.id)):
                 raise exceptions.EntityNotFound(
@@ -69,10 +94,8 @@ class SprintCommandHandlers:
 
 class SprintEventHandlers:
 
-    @staticmethod
-    def assign_story_points(event: events.SprintTaskStoryPointAssigned,
-                            uow: unit_of_work.AbstractUnitOfWork) -> None:
-        with uow:
+    def assign_story_points(event: events.SprintTaskStoryPointAssigned, handler: Handler) -> None:
+        with handler.uow as uow:
             uow.tasks.update(models.sprint.SprintTask, event.id,
                              {"story_points": event.story_points})
             uow.commit()
@@ -80,37 +103,40 @@ class SprintEventHandlers:
 
 class TaskCommandHandlers:
 
-    @staticmethod
     def _convert_project(cmd: _commands.Command,
                          uow: unit_of_work.AbstractUnitOfWork):
-        if not (project_name := cmd.project).isnumeric():
-            if not (existing_project := uow.tasks.get(models.project.Project,
-                                                      project_name)):
+        if not (project_name := cmd.project):
+            cmd.project = None 
+            return cmd 
+        if project_name.isnumeric():
+            cmd.project = int(project_name)
+            return cmd
+        if not (existing_project := uow.tasks.get(models.project.Project,
+                                                  project_name)):
+            print(f"Creating new project: {project_name}. "
+                  "Do you want to continue (Y/n)?")
+            answer = input()
+            while answer.lower() != "y":
+                print("Provide a project name: ")
+                project_name = input()
                 print(f"Creating new project: {project_name}. "
                       "Do you want to continue (Y/n)?")
                 answer = input()
-                while answer.lower() != "y":
-                    print("Provide a project name: ")
-                    project_name = input()
-                    print(f"Creating new project: {project_name}. "
-                          "Do you want to continue (Y/n)?")
-                    answer = input()
-                project_id = ProjectCommandHandlers.create(
-                    cmd=_commands.CreateProject(name=project_name),
-                    uow=uow,
-                    publisher=publisher)
-                cmd.project = project_id
-            else:
-                cmd.project = int(existing_project.id)
+            project_id = ProjectCommandHandlers.create(
+                cmd=_commands.CreateProject(name=project_name),
+                uow=uow,
+                publisher=publisher)
+            cmd.project = project_id
+        else:
+            cmd.project = int(existing_project.id)
         return cmd
 
-    @staticmethod
-    def create(cmd: _commands.CreateTask, uow: unit_of_work.AbstractUnitOfWork,
-               publisher: publisher.BasePublisher) -> None:
+    @register(cmd=_commands.CreateTask)
+    def create(cmd: _commands.CreateTask, handler: Handler) -> None:
         if not cmd.name:
             cmd = templates.create_command_from_editor(models.task.Task,
                                                        _commands.CreateTask)
-        with uow:
+        with handler.uow as uow:
             cmd = TaskCommandHandlers._convert_project(cmd, uow)
             new_task = models.task.Task(**asdict(cmd))
             uow.tasks.add(new_task)
@@ -141,30 +167,27 @@ class TaskCommandHandlers:
                         events.TaskAddedToStory(id=new_task.id,
                                                 story_id=story_id))
             uow.commit()
-            publisher.publish("Topic", events.TaskCompleted(new_task.id))
+            handler.publisher.publish("Topic", events.TaskCompleted(new_task.id))
 
-    @staticmethod
-    def update(cmd: _commands.UpdateTask, uow: unit_of_work.AbstractUnitOfWork,
-               publisher: publisher.BasePublisher) -> None:
-        with uow:
+    @register(cmd=_commands.UpdateTask)
+    def update(cmd: _commands.UpdateTask, handler: Handler) -> None:
+        with self.handler.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
                     models.task.Task, cmd.id)):
                 raise exceptions.EntityNotFound(
                     f"Task id {cmd.id} is not found")
             if not cmd.name:
-                cmd = templates.create_command_from_editor(existing_task,
-                                                           _commands.UpdateTask)
+                cmd = templates.create_command_from_editor(
+                    existing_task, _commands.UpdateTask)
                 cmd.id = existing_task.id
             cmd = TaskCommandHandlers._convert_project(cmd, uow)
             uow.tasks.update(models.task.Task, cmd.id,
                              cmd.get_only_set_attributes())
             uow.commit()
 
-    @staticmethod
-    def collaborate(cmd: _commands.CollaborateTask,
-                    uow: unit_of_work.AbstractUnitOfWork,
-                    publisher: publisher.BasePublisher) -> None:
-        with uow:
+    @register(cmd=_commands.CollaborateTask)
+    def collaborate(cmd: _commands.CollaborateTask, handler: Handler) -> None:
+        with handler.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
                     models.task.Task, cmd.id)):
                 raise exceptions.EntityNotFound(
@@ -186,10 +209,8 @@ class TaskCommandHandlers:
                         id=cmd.id, collaborator_id=user_id))
                 uow.commit()
 
-    @staticmethod
-    def add(cmd: _commands.AddTask, uow: unit_of_work.AbstractUnitOfWork,
-            publisher: publisher.BasePublisher) -> None:
-
+    @register(cmd=_commands.AddTask)
+    def add(cmd: _commands.AddTask, handler: Handler) -> None:
         entity_name = cmd.entity_type
         entity_module = getattr(models, entity_name)
         entity = getattr(entity_module, entity_name.capitalize())
@@ -197,7 +218,7 @@ class TaskCommandHandlers:
                                    f"{entity_name.capitalize()}Task")
         entity_dict = {"task": cmd.id}
         entity_dict[cmd.entity_type] = cmd.entity_id
-        with uow:
+        with handler.uow as uow:
             if not uow.tasks.get_by_id(entity, cmd.entity_id):
                 raise exceptions.EntityNotFound(
                     f"{entity_name} id {cmd.entity_id} is not found")
@@ -209,16 +230,13 @@ class TaskCommandHandlers:
             uow.tasks.add(entity_task)
             uow.commit()
 
-    @staticmethod
-    def assign(cmd: _commands.AssignTask, uow: unit_of_work.AbstractUnitOfWork,
-               publisher: publisher.BasePublisher) -> None:
+    @register(cmd=_commands.AssignTask)
+    def assign(cmd: _commands.AssignTask, handler: Handler) -> None:
         ...
 
-    @staticmethod
-    def complete(cmd: _commands.CompleteTask,
-                 uow: unit_of_work.AbstractUnitOfWork,
-                 publisher: publisher.BasePublisher) -> None:
-        with uow:
+    @register(cmd=_commands.CompleteTask)
+    def complete(cmd: _commands.CompleteTask, handler: Handler) -> None:
+        with handler.uow as uow:
             uow.tasks.update(models.task.Task, cmd.id, {"status": "DONE"})
             task_completed_event = events.TaskCompleted(cmd.id)
             uow.published_events.append(task_completed_event)
@@ -229,12 +247,11 @@ class TaskCommandHandlers:
                 uow.published_events.append(
                     events.TaskHoursSubmitted(id=cmd.id, hours=hours))
             uow.commit()
-            publisher.publish("Topic", task_completed_event)
+            handler.publisher.publish("Topic", task_completed_event)
 
-    @staticmethod
-    def delete(cmd: _commands.DeleteTask, uow: unit_of_work.AbstractUnitOfWork,
-               publisher: publisher.BasePublisher) -> None:
-        with uow:
+    @register(cmd=_commands.DeleteTask)
+    def delete(cmd: _commands.DeleteTask, handler: Handler) -> None:
+        with handler.uow as uow:
             if cmd.entity_type and cmd.entity_id:
                 ...
             else:
@@ -248,27 +265,24 @@ class TaskCommandHandlers:
                 uow.published_events.append(
                     events.TaskHoursSubmitted(id=cmd.id, hours=hours))
             uow.commit()
-        publisher.publish("Topic", events.TaskCompleted(cmd.id))
+        handler.publisher.publish("Topic", events.TaskCompleted(cmd.id))
 
     # @staticmethod
     # def collaborate(cmd: _commands.TaskCollaboratorAdded, uow: unit_of_work.AbstractUnitOfWork,
     #         publisher: publisher.BasePublisher) -> None:
     #     ...
-    @staticmethod
-    def comment(cmd: _commands.CommentTask,
-                uow: unit_of_work.AbstractUnitOfWork,
-                publisher: publisher.BasePublisher) -> None:
-        with uow:
+    @register(cmd=_commands.CommentTask)
+    def comment(cmd: _commands.CommentTask, handler: Handler) -> None:
+        with handler.uow as uow:
             uow.tasks.add(
                 models.commentary.TaskCommentary(id=cmd.id, text=cmd.text))
             uow.tasks.update(models.task.Task, cmd.id,
                              {"modification_date": datetime.now()})
             uow.commit()
 
-    @staticmethod
-    def tag(cmd: _commands.TagTask, uow: unit_of_work.AbstractUnitOfWork,
-            publisher: publisher.BasePublisher) -> None:
-        with uow:
+    @register(cmd=_commands.TagTask)
+    def tag(cmd: _commands.TagTask, handler: Handler) -> None:
+        with handler.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
                     models.task.Task, cmd.id)):
                 raise exceptions.EntityNotFound(
@@ -289,18 +303,16 @@ class TaskCommandHandlers:
                 uow.commit()
 
 
-class TaskEventHandlers:
+class TaskEventHandlers(Handler):
 
-    @staticmethod
-    def created(event: events.TaskCreated,
-                uow: unit_of_work.AbstractUnitOfWork) -> None:
+    @register(event=events.TaskCreated)
+    def created(event: events.TaskCreated, handler: Handler) -> None:
         # TODO: Decide what to do here
         ...
 
-    @staticmethod
-    def completed(event: events.TaskCompleted,
-                  uow: unit_of_work.AbstractUnitOfWork) -> None:
-        with uow:
+    @register(event=events.TaskCompleted)
+    def completed(event: events.TaskCompleted, handler: Handler) -> None:
+        with handler.uow as uow:
             task_event = models.event_history.TaskEvent(task_id=event.id,
                                                         event_type="STATUS",
                                                         old_value="",
@@ -308,10 +320,9 @@ class TaskEventHandlers:
             uow.tasks.add(task_event)
             uow.commit()
 
-    @staticmethod
-    def updated(event: events.TaskUpdated,
-                uow: unit_of_work.AbstractUnitOfWork) -> None:
-        with uow:
+    @register(event=events.TaskUpdated)
+    def updated(self, event: events.TaskUpdated, handler: Handler) -> None:
+        with handler.uow as uow:
             # TODO: Don't perform the actual update, but rather save TaskEvent
             uow.tasks.update(models.task.Task, event.id,
                              event.update_mask.get_only_set_attributes())
@@ -322,10 +333,9 @@ class TaskEventHandlers:
             uow.tasks.add(task_event)
             uow.commit()
 
-    @staticmethod
-    def deleted(event: events.TaskDeleted,
-                uow: unit_of_work.AbstractUnitOfWork) -> None:
-        with uow:
+    @register(event=events.TaskDeleted)
+    def deleted(event: events.TaskDeleted, handler: Handler) -> None:
+        with handler.uow as uow:
             task_event = models.event_history.TaskEvent(task_id=event.id,
                                                         event_type="STATUS",
                                                         old_value="",
@@ -333,67 +343,58 @@ class TaskEventHandlers:
             uow.tasks.add(task_event)
             uow.commit()
 
-    @staticmethod
-    def tag_added(event: events.TaskTagAdded,
-                  uow: unit_of_work.AbstractUnitOfWork) -> None:
+    @register(event=events.TaskTagAdded)
+    def tag_added(event: events.TaskTagAdded, handler: Handler) -> None:
         TaskCommandHandlers.tag(cmd=_commands.TagTask(**asdict(event)),
-                                uow=uow)
+                                handler=handler)
 
-    @staticmethod
-    def comment_added(event: events.TaskCommentAdded,
-                      uow: unit_of_work.AbstractUnitOfWork) -> None:
+    @register(event=events.TaskCommentAdded)
+    def comment_added(event: events.TaskCommentAdded, handler: Handler) -> None:
         TaskCommandHandlers.comment(cmd=_commands.CommentTask(**asdict(event)),
-                                    uow=uow)
+                                    handler=handler)
 
-    @staticmethod
-    def collaborator_added(event: events.TaskCollaboratorAdded,
-                           uow: unit_of_work.AbstractUnitOfWork) -> None:
+    @register(event=events.TaskCollaboratorAdded)
+    def collaborator_added(event: events.TaskCollaboratorAdded, handler: Handler) -> None:
         TaskCommandHandlers.collaborate(
-            cmd=_commands.CollaborateTask(**asdict(event)), uow=uow)
+            cmd=_commands.CollaborateTask(**asdict(event)), handler=handler)
 
-    @staticmethod
-    def hours_submitted(event: events.TaskHoursSubmitted,
-                        uow: unit_of_work.AbstractUnitOfWork) -> None:
-        with uow:
+    @register(event=events.TaskHoursSubmitted)
+    def hours_submitted(event: events.TaskHoursSubmitted, handler: Handler) -> None:
+        with handler.uow as uow:
             uow.tasks.add(
                 models.time_tracker.TimeTrackerEntry(
                     task=event.id, time_spent_minutes=event.hours))
             uow.commit()
 
-    @staticmethod
-    def added_to_epic(event: events.TaskAddedToEpic,
-                      uow: unit_of_work.AbstractUnitOfWork) -> None:
+    @register(event=events.TaskAddedToEpic)
+    def added_to_epic(event: events.TaskAddedToEpic, handler: Handler) -> None:
         TaskCommandHandlers.add(cmd=_commands.AddTask(id=event.id,
                                                       entity_type="epic",
                                                       entity_id=event.epic_id),
-                                uow=uow)
+                                handler=handler)
 
-    @staticmethod
-    def added_to_sprint(event: events.TaskAddedToSprint,
-                        uow: unit_of_work.AbstractUnitOfWork) -> None:
+    @register(event=events.TaskAddedToSprint)
+    def added_to_sprint(event: events.TaskAddedToSprint, handler: Handler) -> None:
         TaskCommandHandlers.add(cmd=_commands.AddTask(
             id=event.id, entity_type="sprint", entity_id=event.sprint_id),
-                                uow=uow)
+                                handler=handler)
 
-    @staticmethod
-    def added_to_story(event: events.TaskAddedToStory,
-                       uow: unit_of_work.AbstractUnitOfWork) -> None:
+    @register(event=events.TaskAddedToStory)
+    def added_to_story(event: events.TaskAddedToStory, handler: Handler) -> None:
         TaskCommandHandlers.add(cmd=_commands.AddTask(
             id=event.id, entity_type="story", entity_id=event.story_id),
-                                uow=uow)
+                                handler=handler)
 
 
 class ProjectCommandHandlers:
 
-    @staticmethod
-    def create(cmd: _commands.CreateProject,
-               uow: unit_of_work.AbstractUnitOfWork,
-               publisher: publisher.BasePublisher) -> int:
+    @register(cmd=_commands.CreateProject)
+    def create(cmd: _commands.CreateProject, handler: Handler) -> None:
         if not cmd.name:
             cmd = templates.create_command_from_editor(models.project.Project,
                                                        _commands.CreateProject)
         project_id = None
-        with uow:
+        with handler.uow as uow:
             new_project = models.project.Project(**asdict(cmd))
             uow.tasks.add(new_project)
             uow.flush()
@@ -401,48 +402,13 @@ class ProjectCommandHandlers:
             new_event = events.ProjectCreated(project_id)
             uow.published_events.append(new_event)
             uow.commit()
-            publisher.publish("Topic", new_event)
+            handler.publisher.publish("Topic", new_event)
         return project_id
 
 
 class ProjectEventHandlers:
 
-    @staticmethod
-    def created(event: events.ProjectCreated,
-                uow: unit_of_work.AbstractUnitOfWork) -> None:
+    @register(event=events.ProjectCreated)
+    def created(event: events.ProjectCreated, handler: Handler) -> None:
         # TODO: Decide what to do here
         ...
-
-
-EVENT_HANDLERS = {
-    events.TaskCreated: [TaskEventHandlers.created],
-    events.TaskCompleted: [TaskEventHandlers.completed],
-    events.TaskUpdated: [TaskEventHandlers.updated],
-    events.TaskDeleted: [TaskEventHandlers.deleted],
-    events.TaskCommentAdded: [TaskEventHandlers.comment_added],
-    events.TaskCollaboratorAdded: [TaskEventHandlers.collaborator_added],
-    events.TaskHoursSubmitted: [TaskEventHandlers.hours_submitted],
-    events.TaskTagAdded: [TaskEventHandlers.tag_added],
-    events.TaskAddedToEpic:
-    [TaskEventHandlers.added_to_epic, TaskCommandHandlers.tag],
-    events.TaskAddedToSprint:
-    [TaskEventHandlers.added_to_sprint, TaskCommandHandlers.tag],
-    events.TaskAddedToStory:
-    [TaskEventHandlers.added_to_story, TaskCommandHandlers.tag],
-    events.ProjectCreated: [ProjectEventHandlers.created],
-    events.SprintTaskStoryPointAssigned:
-    [SprintEventHandlers.assign_story_points],
-}
-
-COMMAND_HANDLERS = {
-    _commands.CompleteTask: TaskCommandHandlers.complete,
-    _commands.DeleteTask: TaskCommandHandlers.delete,
-    _commands.CreateTask: TaskCommandHandlers.create,
-    _commands.UpdateTask: TaskCommandHandlers.update,
-    _commands.AddTask: TaskCommandHandlers.add,
-    _commands.CommentTask: TaskCommandHandlers.comment,
-    _commands.TagTask: TaskCommandHandlers.tag,
-    _commands.CreateProject: ProjectCommandHandlers.create,
-    _commands.CreateSprint: SprintCommandHandlers.create,
-    _commands.StartSprint: SprintCommandHandlers.start,
-}
