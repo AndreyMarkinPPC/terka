@@ -154,6 +154,7 @@ class UpdateTask(Command):
     due_date: str | None = None
     status: str | None = None
     priority: str | None = None
+
     # sprint_id: str | None = None
     # epic_id: str | None = None
     # story_id: str | None = None
@@ -290,6 +291,12 @@ class CommentEpic(Comment):
     ...
 
 
+@dataclass
+class AddEpic(Command):
+    id: int
+    sprint_id: int
+
+
 # STORIES
 @dataclass
 class CreateStory(Command):
@@ -319,6 +326,12 @@ class UpdateStory(Command):
 @dataclass
 class CommentStory(Comment):
     ...
+
+
+@dataclass
+class AddStory(Command):
+    id: int
+    sprint_id: int
 
 
 # WORKSPACES

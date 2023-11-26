@@ -121,7 +121,8 @@ class TaskCommandHandlers:
             uow.flush()
             uow.published_events.append(events.TaskCreated(new_task.id))
             uow.commit()
-            TaskCommandHandlers._process_extra_args(new_task.id, all_params, uow)
+            TaskCommandHandlers._process_extra_args(new_task.id, all_params,
+                                                    uow)
             handler.publisher.publish("Topic",
                                       events.TaskCompleted(new_task.id))
 
@@ -179,12 +180,12 @@ class TaskCommandHandlers:
             if not uow.tasks.get_by_id(entity, cmd.entity_id):
                 raise exceptions.EntityNotFound(
                     f"{entity_name} id {cmd.entity_id} is not found")
-            if uow.tasks.list(entity_task_type, entity_dict):
-                raise exceptions.TaskAddedToEntity(
-                    f"task {event.id} already added to "
-                    f"{entity_name} {cmd.entity_id}")
-            entity_task = entity_task_type(**entity_dict)
-            uow.tasks.add(entity_task)
+            if not uow.tasks.list(entity_task_type, entity_dict):
+                # raise exceptions.TaskAddedToEntity(
+                #     f"task {cmd.id} already added to "
+                #     f"{entity_name} {cmd.entity_id}")
+                entity_task = entity_task_type(**entity_dict)
+                uow.tasks.add(entity_task)
             uow.commit()
 
     @register(cmd=_commands.AssignTask)
@@ -224,10 +225,6 @@ class TaskCommandHandlers:
             uow.commit()
         handler.publisher.publish("Topic", events.TaskCompleted(cmd.id))
 
-    # @staticmethod
-    # def collaborate(cmd: _commands.TaskCollaboratorAdded, uow: unit_of_work.AbstractUnitOfWork,
-    #         publisher: publisher.BasePublisher) -> None:
-    #     ...
     @register(cmd=_commands.CommentTask)
     def comment(cmd: _commands.CommentTask, handler: Handler) -> None:
         with handler.uow as uow:
@@ -262,8 +259,8 @@ class TaskCommandHandlers:
     def _process_extra_args(id, all_params, uow):
         if tags := all_params.get("tags"):
             for tag in tags.split(","):
-                uow.published_events.append(
-                    events.TaskTagAdded(id=id, tag=tag))
+                uow.published_events.append(events.TaskTagAdded(id=id,
+                                                                tag=tag))
         if collaborators := all_params.get("collaborators"):
             for collaborator_name in collaborators.split(","):
                 uow.published_events.append(
@@ -272,8 +269,7 @@ class TaskCommandHandlers:
         if sprints := all_params.get("sprints"):
             for sprint_id in sprints.split(","):
                 uow.published_events.append(
-                    events.TaskAddedToSprint(id=id,
-                                             sprint_id=sprint_id))
+                    events.TaskAddedToSprint(id=id, sprint_id=sprint_id))
         if epics := all_params.get("epics"):
             for epic_id in epics.split(","):
                 uow.published_events.append(
@@ -553,6 +549,23 @@ class EpicCommandHandlers:
                 models.commentary.EpicCommentary(id=cmd.id, text=cmd.text))
             uow.commit()
 
+    @register(cmd=_commands.AddEpic)
+    def add(cmd: _commands.AddEpic, handler: Handler) -> None:
+        with handler.uow as uow:
+            if not (existing_epic := uow.tasks.get_by_id(
+                    models.epic.Epic, cmd.id)):
+                raise exceptions.EntityNotFound(f"Epic {cmd.id} is not found")
+            if not uow.tasks.get_by_id(models.sprint.Sprint, cmd.sprint_id):
+                raise exceptions.EntityNotFound(
+                    f"Sprint {cmd.sprint_id} is not found")
+            for epic_task in existing_epic.tasks:
+                task = epic_task.tasks
+                if task.status.name not in ("DONE", "DELETED"):
+                    TaskCommandHandlers.add(
+                        _commands.AddTask(id=task.id,
+                                          entity_type="sprint",
+                                          entity_id=cmd.sprint_id), handler)
+
 
 class EpicEventHandlers:
     ...
@@ -600,6 +613,23 @@ class StoryCommandHandlers:
             uow.tasks.add(
                 models.commentary.StoryCommentary(id=cmd.id, text=cmd.text))
             uow.commit()
+
+    @register(cmd=_commands.AddStory)
+    def add(cmd: _commands.AddStory, handler: Handler) -> None:
+        with handler.uow as uow:
+            if not (existing_story := uow.tasks.get_by_id(
+                    models.story.Story, cmd.id)):
+                raise exceptions.EntityNotFound(f"Story {cmd.id} is not found")
+            if not uow.tasks.get_by_id(models.sprint.Sprint, cmd.sprint_id):
+                raise exceptions.EntityNotFound(
+                    f"Sprint {cmd.sprint_id} is not found")
+            for story_task in existing_story.tasks:
+                task = story_task.tasks
+                if task.status.name not in ("DONE", "DELETED"):
+                    TaskCommandHandlers.add(
+                        _commands.AddTask(id=task.id,
+                                          entity_type="sprint",
+                                          entity_id=cmd.sprint_id), handler)
 
 
 class WorkspaceCommandHandlers:
