@@ -7,6 +7,37 @@ class Event:
     ...
 
 
+# Base
+@dataclass
+class Created(Event):
+    id: int
+
+
+@dataclass
+class Completed(Event):
+    id: int
+    comment: str | None = None
+
+
+@dataclass
+class Deleted(Event):
+    id: int
+    comment: str | None = None
+
+
+@dataclass
+class Updated(Event):
+    id: int
+
+
+@dataclass
+class Commented(Event):
+    id: int
+    text: str
+
+
+
+# TASKS
 @dataclass
 class TaskEvent(Event):
     ...
@@ -28,14 +59,12 @@ class TaskCreated(TaskEvent):
 
 
 @dataclass
-class TaskCompleted(TaskEvent):
-    id: int
-    comment: str | None = None
+class TaskCompleted(Completed):
     hours: int | None = None
 
 
 @dataclass
-class TaskDeleted(TaskCompleted):
+class TaskDeleted(Deleted):
     ...
 
 
@@ -101,12 +130,77 @@ class TaskAddedToStory(TaskEvent):
     story_id: int
 
 
+# PROJECTS
 @dataclass
-class ProjectCreated(ProjectEvent):
-    id: int
+class ProjectCreated(Created):
+    ...
+
+@dataclass
+class ProjectCompleted(Completed):
+    ...
+    
+@dataclass
+class ProjectDeleted(Deleted):
+    ...
+
+@dataclass
+class ProjectCommented(Commented):
+    ...
 
 
 @dataclass
 class SprintTaskStoryPointAssigned(SprintEvent):
     id: int
     story_points: float
+
+
+# EPICS
+@dataclass
+class EpicCreated(Created):
+    ...
+
+
+@dataclass
+class EpicCompleted(Completed):
+    ...
+
+
+@dataclass
+class EpicDeleted(Deleted):
+    ...
+
+
+@dataclass
+class EpicUpdated(Updated):
+    ...
+
+
+@dataclass
+class EpicCommented(Commented):
+    ...
+
+
+# STORIES
+@dataclass
+class StoryCreated(Created):
+    ...
+
+
+@dataclass
+class StoryCompleted(Completed):
+    ...
+
+
+@dataclass
+class StoryDeleted(Deleted):
+    ...
+
+
+@dataclass
+class StoryUpdated(Updated):
+    ...
+
+
+@dataclass
+class StoryCommented(Commented):
+    ...

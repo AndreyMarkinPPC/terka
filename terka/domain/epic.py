@@ -9,13 +9,14 @@ from terka.domain.task import Task
 class EpicStatus(Enum):
     ACTIVE = 1
     COMPLETED = 2
+    DELETED = 3
 
 
 class Epic:
 
     def __init__(self,
-                 name: str,
-                 description: str = None,
+                 name: str | None = None,
+                 description: str | None = None,
                  creation_date: datetime = datetime.now(),
                  project: int = None,
                  assignee: int = None,
@@ -23,7 +24,7 @@ class Epic:
                  created_by: int = None,
                  **kwargs) -> None:
         if not name:
-            raise ValueError("task name cannot be empty!")
+            raise ValueError("epic name cannot be empty!")
         if not isinstance(creation_date, datetime):
             raise ValueError(
                 "creation_date should be of type datetime.datetime!")

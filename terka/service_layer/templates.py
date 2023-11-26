@@ -1,9 +1,10 @@
+from typing import Type
 from datetime import datetime, timedelta
 import re
 from subprocess import run
 import tempfile
 
-from terka.domain import models
+from terka.domain import models, _commands
 from terka.utils import convert_date, convert_status
 
 
@@ -94,6 +95,21 @@ def edited_task_template(task: models.task.Task,
         """
 
 
+def edited_project_template(task: models.project.Project,
+                            workspace: int) -> str:
+    return f"""
+        # You are editing project {task.id}, enter below:
+        ---
+        status: {task.status.name}
+        name: {task.name}
+        description: {task.description if task.description else ""}
+        workspace: {workspace}
+        tags: {task.tags.pop() if task.tags else ""}
+        collaborators: {task.collaborators.pop() if task.collaborators else ""}
+        comment: 
+        """
+
+
 def completed_task_template(task: models.task.Task,
                             project: str | None = None) -> str:
     return f"""
@@ -122,13 +138,14 @@ def generate_message_template(entity,
             project = entity.project
         elif isinstance(entity, models.project.Project):
             project = entity.name
+            workspace = entity.workspace
         if isinstance(entity, models.sprint.Sprint):
             if not kwargs:
                 message_template = new_sprint_template()
             else:
                 message_template = edit_sprint_template(entity)
         elif isinstance(entity, models.project.Project):
-            message_template = new_project_template(entity)
+            message_template = edited_project_template(entity, workspace)
         elif isinstance(entity, models.task.Task):
             message_template = edited_task_template(entity, project)
     else:
@@ -142,8 +159,7 @@ def generate_message_template(entity,
             if entity in (models.epic.Epic, models.story.Story):
                 message_template = new_composite_template(entity)
         elif kwargs and kwargs.get("status"):
-            message_template = completed_task_template(entity,
-                                                       project)
+            message_template = completed_task_template(entity, project)
         else:
             message_template = edited_task_template(entity, project)
     return re.sub("\n +", "\n", message_template.lstrip())
@@ -160,7 +176,8 @@ def flush_message(entity):
     return new_entry
 
 
-def create_command_from_editor(entity, command):
+def create_command_from_editor(
+        entity, command) -> tuple[Type[_commands.Command], dict]:
     new_entry = flush_message(entity)
     new_entry = new_entry.decode("utf-8").rstrip()
     command_arguments: dict = {}
@@ -195,4 +212,4 @@ def create_command_from_editor(entity, command):
                 command_arguments[entry_type] = entry_value
             else:
                 command_arguments[entry_type] = entry_value
-    return command.from_kwargs(**command_arguments)
+    return command.from_kwargs(**command_arguments), command_arguments

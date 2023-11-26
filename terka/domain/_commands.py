@@ -10,10 +10,41 @@ class Command:
 
     @classmethod
     def from_kwargs(cls, **kwargs: dict) -> Type["Command"]:
-        return cls(**{
-            k: v
-            for k, v in kwargs.items() if k in cls.__match_args__ and v
-        })
+        return cls(
+            **
+            {k: v
+             for k, v in kwargs.items() if k in cls.__match_args__ and v})
+
+
+# Base Commands
+@dataclass
+class Note(Command):
+    id: int
+    text: str
+
+
+@dataclass
+class Comment(Command):
+    id: int
+    text: str
+
+
+@dataclass
+class Complete(Command):
+    id: int
+    comment: str | None = None
+
+
+@dataclass
+class Delete(Command):
+    id: int
+    comment: str | None = None
+
+
+@dataclass
+class Tag(Command):
+    id: int
+    tag: int
 
 
 @dataclass
@@ -29,96 +60,6 @@ class Create(Command):
 @dataclass
 class Update(Command):
     ...
-
-
-@dataclass
-class CreateTask(Command):
-    name: str | None = None
-    description: str | None = None
-    project: str | None = None
-    tags: str | None = None
-    collaborators: str | None = None
-    assignee: str | None = None
-    due_date: str | None = None
-    status: str = "BACKLOG"
-    priority: str = "NORMAL"
-    sprint_id: str | None = None
-    epic_id: str | None = None
-    story_id: str | None = None
-
-
-@dataclass
-class CompleteTask(Command):
-    id: int
-    comment: str | None = None
-    hours: int | None = None
-
-
-@dataclass
-class DeleteTask(Command):
-    id: int
-    comment: str | None = None
-    hours: int | None = None
-    entity_type: Literal["sprint", "epic", "story"] | None = None
-    entity_id: int | None = None
-
-
-@dataclass
-class UpdateTask(Command):
-    id: int
-    name: str | None = None
-    description: str | None = None
-    project: str | None = None
-    tags: str | None = None
-    collaborators: str | None = None
-    assignee: str | None = None
-    due_date: str | None = None
-    status: str | None= None 
-    priority: str | None = None 
-    sprint_id: str | None = None
-    epic_id: str | None = None
-    story_id: str | None = None
-
-
-    def __bool__(self) -> bool:
-        return False
-
-
-@dataclass
-class TagTask(Command):
-    id: int
-    tag: int
-
-
-@dataclass
-class CollaborateTask(Command):
-    id: int
-    collaborator: str
-
-
-@dataclass
-class AssignTask(Command):
-    id: int
-    user: str
-
-
-@dataclass
-class AddTask(Command):
-    id: int
-    entity_type: Literal["sprint", "epic", "story"]
-    entity_id: int
-
-
-@dataclass
-class NoteTask(Command):
-    id: int
-    text: str
-
-
-@dataclass
-class CommentTask(Command):
-    id: int
-    text: str
 
 
 @dataclass
@@ -148,7 +89,8 @@ class Get(Command):
 
 @dataclass
 class Collaborate(Command):
-    ...
+    id: int
+    collaborator: str
 
 
 @dataclass
@@ -157,27 +99,7 @@ class Track(Command):
 
 
 @dataclass
-class Tag(Command):
-    ...
-
-
-@dataclass
 class Add(Command):
-    ...
-
-
-@dataclass
-class Note(Command):
-    ...
-
-
-@dataclass
-class Comment(Command):
-    ...
-
-
-@dataclass
-class Delete(Command):
     ...
 
 
@@ -191,6 +113,89 @@ class Report(Command):
     ...
 
 
+# TASKS
+@dataclass
+class CreateTask(Command):
+    name: str | None = None
+    description: str | None = None
+    project: str | None = None
+    # tags: str | None = None
+    # collaborators: str | None = None
+    assignee: str | None = None
+    due_date: str | None = None
+    status: str = "BACKLOG"
+    priority: str = "NORMAL"
+    # sprint_id: str | None = None
+    # epic_id: str | None = None
+    # story_id: str | None = None
+
+
+@dataclass
+class CompleteTask(Complete):
+    hours: int | None = None
+
+
+@dataclass
+class DeleteTask(Delete):
+    hours: int | None = None
+    entity_type: Literal["sprint", "epic", "story"] | None = None
+    entity_id: int | None = None
+
+
+@dataclass
+class UpdateTask(Command):
+    id: int
+    name: str | None = None
+    description: str | None = None
+    project: str | None = None
+    # tags: str | None = None
+    # collaborators: str | None = None
+    assignee: str | None = None
+    due_date: str | None = None
+    status: str | None = None
+    priority: str | None = None
+    # sprint_id: str | None = None
+    # epic_id: str | None = None
+    # story_id: str | None = None
+
+    def __bool__(self) -> bool:
+        return False
+
+
+@dataclass
+class TagTask(Tag):
+    ...
+
+
+@dataclass
+class CollaborateTask(Collaborate):
+    ...
+
+
+@dataclass
+class AssignTask(Command):
+    id: int
+    user: str
+
+
+@dataclass
+class AddTask(Command):
+    id: int
+    entity_type: Literal["sprint", "epic", "story"]
+    entity_id: int
+
+
+@dataclass
+class NoteTask(Note):
+    ...
+
+
+@dataclass
+class CommentTask(Comment):
+    ...
+
+
+# PROJECT
 @dataclass
 class CreateProject(Command):
     name: str | None = None
@@ -200,11 +205,43 @@ class CreateProject(Command):
 
 
 @dataclass
+class UpdateProject(Command):
+    id: int
+    name: str | None = None
+    description: str | None = None
+    workspace: str | None = None
+    # tags: str | None = None
+    # collaborators: str | None = None
+    status: str | None = None
+
+
+@dataclass
+class CompleteProject(Complete):
+    ...
+
+
+@dataclass
+class DeleteProject(Delete):
+    ...
+
+
+@dataclass
+class CommentProject(Comment):
+    ...
+
+
+@dataclass
+class TagProject(Tag):
+    ...
+
+
+@dataclass
 class ShowProject(Command):
     id: int
     print_options: dict
 
 
+# SPRINT
 @dataclass
 class CreateSprint(Command):
     goal: str | None = None
@@ -220,3 +257,77 @@ class CreateSprint(Command):
 @dataclass
 class StartSprint(Command):
     id: int
+
+
+# EPIC
+@dataclass
+class CreateEpic(Command):
+    name: str | None = None
+    description: str | None = None
+    project: str | None = None
+
+
+@dataclass
+class CompleteEpic(Complete):
+    ...
+
+
+@dataclass
+class DeleteEpic(Delete):
+    ...
+
+
+@dataclass
+class UpdateEpic(Command):
+    id: int
+    name: str | None = None
+    description: str | None = None
+    project: str | None = None
+
+
+@dataclass
+class CommentEpic(Comment):
+    ...
+
+
+# STORIES
+@dataclass
+class CreateStory(Command):
+    name: str | None = None
+    description: str | None = None
+    project: str | None = None
+
+
+@dataclass
+class CompleteStory(Complete):
+    ...
+
+
+@dataclass
+class DeleteStory(Delete):
+    ...
+
+
+@dataclass
+class UpdateStory(Command):
+    id: int
+    name: str | None = None
+    description: str | None = None
+    project: str | None = None
+
+
+@dataclass
+class CommentStory(Comment):
+    ...
+
+
+# WORKSPACES
+@dataclass
+class CreateWorkspace(Command):
+    name: str | None = None
+    description: str | None = None
+
+
+@dataclass
+class DeleteWorkspace(Delete):
+    ...

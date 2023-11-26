@@ -3,32 +3,37 @@ from collections import defaultdict
 from dataclasses import asdict
 from datetime import datetime
 import functools
+import logging
 
 from terka.adapters import publisher
 from terka.domain import _commands, events, models
 from terka.service_layer import exceptions, templates, unit_of_work
 
 COMMAND_HANDLERS = {}
-EVENT_HANDLERS = defaultdict(list) 
+EVENT_HANDLERS = defaultdict(list)
 
 
 def register(cmd=None, event=None):
+
     def fn(func):
+
         @functools.wraps(func)
         def inner_function(cmd, handler):
             return func(cmd, handler)
+
         if cmd:
-            COMMAND_HANDLERS[cmd] = inner_function 
+            COMMAND_HANDLERS[cmd] = inner_function
         elif event:
             EVENT_HANDLERS[event].append(inner_function)
         return inner_function
-    return fn
 
+    return fn
 
 
 class Handler:
 
-    def __init__(self, uow: unit_of_work.AbstractUnitOfWork,
+    def __init__(self,
+                 uow: unit_of_work.AbstractUnitOfWork,
                  publisher: publisher.BasePublisher = None) -> None:
         self.uow = uow
         self.publisher = publisher
@@ -39,8 +44,8 @@ class SprintCommandHandlers:
     @register(cmd=_commands.CreateSprint)
     def create(cmd: _commands.CreateSprint, handler: Handler) -> None:
         if not cmd:
-            cmd = templates.create_command_from_editor(models.sprint.Sprint,
-                                                       type(cmd))
+            cmd, all_params = templates.create_command_from_editor(
+                models.sprint.Sprint, type(cmd))
         with handler.uow as uow:
             # TODO: Add code for checking existing sprints
             new_sprint = models.sprint.Sprint(**asdict(cmd))
@@ -94,7 +99,8 @@ class SprintCommandHandlers:
 
 class SprintEventHandlers:
 
-    def assign_story_points(event: events.SprintTaskStoryPointAssigned, handler: Handler) -> None:
+    def assign_story_points(event: events.SprintTaskStoryPointAssigned,
+                            handler: Handler) -> None:
         with handler.uow as uow:
             uow.tasks.update(models.sprint.SprintTask, event.id,
                              {"story_points": event.story_points})
@@ -103,87 +109,38 @@ class SprintEventHandlers:
 
 class TaskCommandHandlers:
 
-    def _convert_project(cmd: _commands.Command,
-                         uow: unit_of_work.AbstractUnitOfWork):
-        if not (project_name := cmd.project):
-            cmd.project = None 
-            return cmd 
-        if project_name.isnumeric():
-            cmd.project = int(project_name)
-            return cmd
-        if not (existing_project := uow.tasks.get(models.project.Project,
-                                                  project_name)):
-            print(f"Creating new project: {project_name}. "
-                  "Do you want to continue (Y/n)?")
-            answer = input()
-            while answer.lower() != "y":
-                print("Provide a project name: ")
-                project_name = input()
-                print(f"Creating new project: {project_name}. "
-                      "Do you want to continue (Y/n)?")
-                answer = input()
-            project_id = ProjectCommandHandlers.create(
-                cmd=_commands.CreateProject(name=project_name),
-                uow=uow,
-                publisher=publisher)
-            cmd.project = project_id
-        else:
-            cmd.project = int(existing_project.id)
-        return cmd
-
     @register(cmd=_commands.CreateTask)
     def create(cmd: _commands.CreateTask, handler: Handler) -> None:
         if not cmd.name:
-            cmd = templates.create_command_from_editor(models.task.Task,
-                                                       _commands.CreateTask)
+            cmd, all_params = templates.create_command_from_editor(
+                models.task.Task, _commands.CreateTask)
         with handler.uow as uow:
-            cmd = TaskCommandHandlers._convert_project(cmd, uow)
+            cmd = convert_project(cmd, handler)
             new_task = models.task.Task(**asdict(cmd))
             uow.tasks.add(new_task)
             uow.flush()
             uow.published_events.append(events.TaskCreated(new_task.id))
-            if tags := cmd.tags:
-                for tag in tags.split(","):
-                    uow.published_events.append(
-                        events.TaskTagAdded(id=new_task.id, tag=tag))
-            if collaborators := cmd.collaborators:
-                for collaborator_name in collaborators.split(","):
-                    uow.published_events.append(
-                        events.TaskCollaboratorAdded(
-                            id=new_task.id, collaborator=collaborator_name))
-            if sprints := cmd.sprint_id:
-                for sprint_id in sprints.split(","):
-                    uow.published_events.append(
-                        events.TaskAddedToSprint(id=new_task.id,
-                                                 sprint_id=sprint_id))
-            if epics := cmd.epic_id:
-                for epic_id in epics.split(","):
-                    uow.published_events.append(
-                        events.TaskAddedToEpic(id=new_task.id,
-                                               epic_id=epic_id))
-            if stories := cmd.story_id:
-                for story_id in stories.split(","):
-                    uow.published_events.append(
-                        events.TaskAddedToStory(id=new_task.id,
-                                                story_id=story_id))
             uow.commit()
-            handler.publisher.publish("Topic", events.TaskCompleted(new_task.id))
+            TaskCommandHandlers._process_extra_args(new_task.id, all_params, uow)
+            handler.publisher.publish("Topic",
+                                      events.TaskCompleted(new_task.id))
 
     @register(cmd=_commands.UpdateTask)
     def update(cmd: _commands.UpdateTask, handler: Handler) -> None:
-        with self.handler.uow as uow:
+        with handler.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
                     models.task.Task, cmd.id)):
                 raise exceptions.EntityNotFound(
                     f"Task id {cmd.id} is not found")
             if not cmd.name:
-                cmd = templates.create_command_from_editor(
+                cmd, all_params = templates.create_command_from_editor(
                     existing_task, _commands.UpdateTask)
                 cmd.id = existing_task.id
-            cmd = TaskCommandHandlers._convert_project(cmd, uow)
+            cmd = convert_project(cmd, handler)
             uow.tasks.update(models.task.Task, cmd.id,
                              cmd.get_only_set_attributes())
             uow.commit()
+            TaskCommandHandlers._process_extra_args(cmd.id, all_params, uow)
 
     @register(cmd=_commands.CollaborateTask)
     def collaborate(cmd: _commands.CollaborateTask, handler: Handler) -> None:
@@ -302,6 +259,36 @@ class TaskCommandHandlers:
                 uow.tasks.add(models.tag.TaskTag(id=cmd.id, tag_id=tag_id))
                 uow.commit()
 
+    def _process_extra_args(id, all_params, uow):
+        if tags := all_params.get("tags"):
+            for tag in tags.split(","):
+                uow.published_events.append(
+                    events.TaskTagAdded(id=id, tag=tag))
+        if collaborators := all_params.get("collaborators"):
+            for collaborator_name in collaborators.split(","):
+                uow.published_events.append(
+                    events.TaskCollaboratorAdded(
+                        id=id, collaborator=collaborator_name))
+        if sprints := all_params.get("sprints"):
+            for sprint_id in sprints.split(","):
+                uow.published_events.append(
+                    events.TaskAddedToSprint(id=id,
+                                             sprint_id=sprint_id))
+        if epics := all_params.get("epics"):
+            for epic_id in epics.split(","):
+                uow.published_events.append(
+                    events.TaskAddedToEpic(id=id, epic_id=epic_id))
+        if stories := all_params.get("stories"):
+            for story_id in stories.split(","):
+                uow.published_events.append(
+                    events.TaskAddedToStory(id=id, story_id=story_id))
+        if comment := all_params.get("comment"):
+            uow.published_events.append(
+                events.TaskCommentAdded(id=id, text=comment))
+        if hours := all_params.get("time_spent"):
+            uow.published_events.append(
+                events.TaskHoursSubmitted(id=id, hours=hours))
+
 
 class TaskEventHandlers(Handler):
 
@@ -349,17 +336,20 @@ class TaskEventHandlers(Handler):
                                 handler=handler)
 
     @register(event=events.TaskCommentAdded)
-    def comment_added(event: events.TaskCommentAdded, handler: Handler) -> None:
+    def comment_added(event: events.TaskCommentAdded,
+                      handler: Handler) -> None:
         TaskCommandHandlers.comment(cmd=_commands.CommentTask(**asdict(event)),
                                     handler=handler)
 
     @register(event=events.TaskCollaboratorAdded)
-    def collaborator_added(event: events.TaskCollaboratorAdded, handler: Handler) -> None:
+    def collaborator_added(event: events.TaskCollaboratorAdded,
+                           handler: Handler) -> None:
         TaskCommandHandlers.collaborate(
             cmd=_commands.CollaborateTask(**asdict(event)), handler=handler)
 
     @register(event=events.TaskHoursSubmitted)
-    def hours_submitted(event: events.TaskHoursSubmitted, handler: Handler) -> None:
+    def hours_submitted(event: events.TaskHoursSubmitted,
+                        handler: Handler) -> None:
         with handler.uow as uow:
             uow.tasks.add(
                 models.time_tracker.TimeTrackerEntry(
@@ -374,13 +364,15 @@ class TaskEventHandlers(Handler):
                                 handler=handler)
 
     @register(event=events.TaskAddedToSprint)
-    def added_to_sprint(event: events.TaskAddedToSprint, handler: Handler) -> None:
+    def added_to_sprint(event: events.TaskAddedToSprint,
+                        handler: Handler) -> None:
         TaskCommandHandlers.add(cmd=_commands.AddTask(
             id=event.id, entity_type="sprint", entity_id=event.sprint_id),
                                 handler=handler)
 
     @register(event=events.TaskAddedToStory)
-    def added_to_story(event: events.TaskAddedToStory, handler: Handler) -> None:
+    def added_to_story(event: events.TaskAddedToStory,
+                       handler: Handler) -> None:
         TaskCommandHandlers.add(cmd=_commands.AddTask(
             id=event.id, entity_type="story", entity_id=event.story_id),
                                 handler=handler)
@@ -391,19 +383,118 @@ class ProjectCommandHandlers:
     @register(cmd=_commands.CreateProject)
     def create(cmd: _commands.CreateProject, handler: Handler) -> None:
         if not cmd.name:
-            cmd = templates.create_command_from_editor(models.project.Project,
-                                                       _commands.CreateProject)
+            cmd, all_params = templates.create_command_from_editor(
+                models.project.Project, _commands.CreateProject)
         project_id = None
         with handler.uow as uow:
-            new_project = models.project.Project(**asdict(cmd))
-            uow.tasks.add(new_project)
-            uow.flush()
-            project_id = int(new_project.id)
-            new_event = events.ProjectCreated(project_id)
-            uow.published_events.append(new_event)
+            if not (existing_project := uow.tasks.get(models.project.Project,
+                                                      cmd.name)):
+                cmd = convert_workspace(cmd, handler)
+                new_project = models.project.Project(**asdict(cmd))
+                uow.tasks.add(new_project)
+                uow.flush()
+                project_id = int(new_project.id)
+                new_event = events.ProjectCreated(project_id)
+                uow.published_events.append(new_event)
+                uow.commit()
+                handler.publisher.publish("Topic", new_event)
+                return project_id
+            else:
+                logging.warning(f"Project {cmd.name} already exists")
+                return existing_project.id
+
+    @register(cmd=_commands.UpdateProject)
+    def update(cmd: _commands.UpdateProject, handler: Handler) -> None:
+        with handler.uow as uow:
+            project = ProjectCommandHandlers._validate_project(cmd.id, uow)
+            if not cmd.name:
+                cmd, all_params = templates.create_command_from_editor(
+                    project, _commands.UpdateProject)
+                cmd.id = project.id
+            uow.tasks.update(models.project.Project, project.id,
+                             cmd.get_only_set_attributes())
+            if tags := all_params.get("tags"):
+                for tag in tags.split(","):
+                    uow.published_events.append(
+                        events.ProjectTagAdded(id=project.id, tag=tag))
+            if collaborators := all_params.get("collaborators"):
+                for collaborator_name in collaborators.split(","):
+                    uow.published_events.append(
+                        events.ProjecCollaboratorAdded(
+                            id=project.id, collaborator=collaborator_name))
+            if comment := all_params.get("comment"):
+                uow.published_events.append(
+                    events.ProjectCommentAdded(id=project_id, text=comment))
             uow.commit()
-            handler.publisher.publish("Topic", new_event)
-        return project_id
+
+    @register(cmd=_commands.CompleteProject)
+    def complete(cmd: _commands.CompleteProject, handler: Handler) -> None:
+        with handler.uow as uow:
+            project = ProjectCommandHandlers._validate_project(cmd.id, uow)
+            uow.tasks.update(models.project.Project, project.id,
+                             {"status": "COMPLETED"})
+            uow.published_events.append(events.ProjectCompleted(project.id))
+            if comment := cmd.comment:
+                uow.published_events.append(
+                    events.ProjectCommented(id=project.id, text=comment))
+            uow.commit()
+        handler.publisher.publish("Topic", events.ProjectCompleted(project.id))
+
+    @register(cmd=_commands.DeleteProject)
+    def delete(cmd: _commands.DeleteProject, handler: Handler) -> None:
+        with handler.uow as uow:
+            project = ProjectCommandHandlers._validate_project(cmd.id, uow)
+            uow.tasks.update(models.project.Project, project.id,
+                             {"status": "DELETED"})
+            uow.published_events.append(events.ProjectDeleted(project.id))
+            if comment := cmd.comment:
+                uow.published_events.append(
+                    events.ProjectCommented(id=project.id, text=comment))
+            uow.commit()
+        handler.publisher.publish("Topic", events.ProjectDeleted(project.id))
+
+    @register(cmd=_commands.CommentProject)
+    def comment(cmd: _commands.CommentProject, handler: Handler) -> None:
+        with handler.uow as uow:
+            project = ProjectCommandHandlers._validate_project(cmd.id, uow)
+            uow.tasks.add(
+                models.commentary.ProjectCommentary(id=project.id,
+                                                    text=cmd.text))
+            uow.commit()
+
+    @register(cmd=_commands.TagProject)
+    def tag(cmd: _commands.TagProject, handler: Handler) -> None:
+        with handler.uow as uow:
+            project = ProjectCommandHandlers._validate_project(cmd.id, uow)
+            if not (existing_tag := uow.tasks.list(models.tag.BaseTag,
+                                                   {"text": cmd.tag})):
+                new_tag = models.tag.BaseTag(text=cmd.tag)
+                uow.tasks.add(new_tag)
+                uow.flush()
+                tag_id = new_tag.id
+            else:
+                tag_id = existing_tag[0].id
+            if not uow.tasks.list(models.tag.ProjectTag, {
+                    "project": project.id,
+                    "tag": tag_id
+            }):
+                uow.tasks.add(
+                    models.tag.ProjectTag(id=project.id, tag_id=tag_id))
+                uow.commit()
+
+    def _validate_project(id: str | int, uow) -> models.project.Project:
+        if id.isnumeric():
+            if not (existing_project := uow.tasks.get_by_id(
+                    models.project.Project, id)):
+                raise exceptions.EntityNotFound(
+                    f"Project id {id} is not found")
+        else:
+            if not (existing_project := uow.tasks.get(models.project.Project,
+                                                      id)):
+
+                raise exceptions.EntityNotFound(
+                    f"Project id {id} is not found")
+        return existing_project
 
 
 class ProjectEventHandlers:
@@ -412,3 +503,170 @@ class ProjectEventHandlers:
     def created(event: events.ProjectCreated, handler: Handler) -> None:
         # TODO: Decide what to do here
         ...
+
+    @register(event=events.ProjectCommented)
+    def commented(event: events.ProjectCommented, handler: Handler) -> None:
+        ProjectCommandHandlers.comment(
+            cmd=_commands.CommentProject(**asdict(event)), handler=handler)
+
+
+class EpicCommandHandlers:
+
+    @register(cmd=_commands.CreateEpic)
+    def create(cmd: _commands.CreateEpic, handler: Handler):
+        if not cmd.name:
+            cmd, all_params = templates.create_command_from_editor(
+                models.epic.Epic, type(cmd))
+        with handler.uow as uow:
+            cmd = convert_project(cmd, handler)
+            new_epic = models.epic.Epic(**asdict(cmd))
+            uow.tasks.add(new_epic)
+            uow.commit()
+
+    @register(cmd=_commands.CompleteEpic)
+    def complete(cmd: _commands.CompleteEpic, handler: Handler) -> None:
+        with handler.uow as uow:
+            uow.tasks.update(models.project.Epic, cmd.id,
+                             {"status": "COMPLETED"})
+            uow.published_events.append(events.EpicCompleted(cmd.id))
+            if comment := cmd.comment:
+                uow.published_events.append(
+                    events.EpicCommented(id=cmd.id, text=comment))
+            uow.commit()
+        handler.publisher.publish("Topic", events.EpicCompleted(cmd.id))
+
+    @register(cmd=_commands.DeleteEpic)
+    def delete(cmd: _commands.DeleteEpic, handler: Handler) -> None:
+        with handler.uow as uow:
+            uow.tasks.update(models.epic.Epic, cmd.id, {"status": "DELETED"})
+            uow.published_events.append(events.EpicDeleted(cmd.id))
+            if comment := cmd.comment:
+                uow.published_events.append(
+                    events.EpicCommented(id=cmd.id, text=comment))
+            uow.commit()
+        handler.publisher.publish("Topic", events.EpicDeleted(cmd.id))
+
+    @register(cmd=_commands.CommentEpic)
+    def comment(cmd: _commands.CommentEpic, handler: Handler) -> None:
+        with handler.uow as uow:
+            uow.tasks.add(
+                models.commentary.EpicCommentary(id=cmd.id, text=cmd.text))
+            uow.commit()
+
+
+class EpicEventHandlers:
+    ...
+
+
+class StoryCommandHandlers:
+
+    @register(cmd=_commands.CreateStory)
+    def create(cmd: _commands.CreateStory, handler: Handler):
+        if not cmd.name:
+            cmd, all_params = templates.create_command_from_editor(
+                models.story.Story, type(cmd))
+        with handler.uow as uow:
+            cmd = convert_project(cmd, handler)
+            new_story = models.story.Story(**asdict(cmd))
+            uow.tasks.add(new_story)
+            uow.commit()
+
+    @register(cmd=_commands.CompleteStory)
+    def complete(cmd: _commands.CompleteStory, handler: Handler) -> None:
+        with handler.uow as uow:
+            uow.tasks.update(models.project.Story, cmd.id,
+                             {"status": "COMPLETED"})
+            uow.published_events.append(events.StoryCompleted(cmd.id))
+            if comment := cmd.comment:
+                uow.published_events.append(
+                    events.StoryCommented(id=cmd.id, text=comment))
+            uow.commit()
+        handler.publisher.publish("Topic", events.StoryCompleted(cmd.id))
+
+    @register(cmd=_commands.DeleteStory)
+    def delete(cmd: _commands.DeleteStory, handler: Handler) -> None:
+        with handler.uow as uow:
+            uow.tasks.update(models.story.Story, cmd.id, {"status": "DELETED"})
+            uow.published_events.append(events.StoryDeleted(cmd.id))
+            if comment := cmd.comment:
+                uow.published_events.append(
+                    events.StoryCommented(id=cmd.id, text=comment))
+            uow.commit()
+        handler.publisher.publish("Topic", events.StoryDeleted(cmd.id))
+
+    @register(cmd=_commands.CommentStory)
+    def comment(cmd: _commands.CommentStory, handler: Handler) -> None:
+        with handler.uow as uow:
+            uow.tasks.add(
+                models.commentary.StoryCommentary(id=cmd.id, text=cmd.text))
+            uow.commit()
+
+
+class WorkspaceCommandHandlers:
+
+    @register(cmd=_commands.CreateWorkspace)
+    def create(cmd: _commands.CreateWorkspace, handler: Handler) -> None:
+        if not cmd:
+            cmd, all_params = templates.create_command_from_editor(
+                models.sprint.Sprint, type(cmd))
+        with handler.uow as uow:
+            if not uow.tasks.get(models.workspace.Workspace, cmd.name):
+                new_workspace = models.workspace.Workspace(**asdict(cmd))
+                uow.tasks.add(new_workspace)
+                uow.commit()
+            else:
+                logging.warning(f"Workspace {cmd.name} already exists")
+
+
+def convert_project(cmd: _commands.Command,
+                    handler: Handler) -> Type[_commands.Command]:
+    if not (project_name := cmd.project):
+        cmd.project = None
+        return cmd
+    if project_name.isnumeric():
+        cmd.project = int(project_name)
+        return cmd
+    if not (existing_project := handler.uow.tasks.get(models.project.Project,
+                                                      project_name)):
+        print(f"Creating new project: {project_name}. "
+              "Do you want to continue (Y/n)?")
+        answer = input()
+        while answer.lower() != "y":
+            print("Provide a project name: ")
+            project_name = input()
+            print(f"Creating new project: {project_name}. "
+                  "Do you want to continue (Y/n)?")
+            answer = input()
+        project_id = ProjectCommandHandlers.create(
+            cmd=_commands.CreateProject(name=project_name), handler=handler)
+        cmd.project = project_id
+    else:
+        cmd.project = int(existing_project.id)
+    return cmd
+
+
+def convert_workspace(cmd: _commands.Command,
+                      handler: Handler) -> Type[_commands.Command]:
+    if not (workspace := cmd.workspace):
+        cmd.workspace = 1
+        return cmd
+    if workspace.isnumeric():
+        cmd.workspace = int(workspace)
+        return cmd
+    if not (existing_workspace := handler.uow.tasks.get(
+            models.workspace.Workspace, workspace)):
+        print(f"Creating new workspace: {workspace}. "
+              "Do you want to continue (Y/n)?")
+        answer = input()
+        while answer.lower() != "y":
+            print("Provide workspace name: ")
+            project_name = input()
+            print(f"Creating new workspace: {workspace}. "
+                  "Do you want to continue (Y/n)?")
+            answer = input()
+        workspace_id = WorkspaceCommandHandlers.create(
+            cmd=_commands.CreateWorkspace(name=workspace), handler=handler)
+        cmd.workspace = workspace_id
+    else:
+        cmd.workspace = int(existing_workspace.id)
+    return cmd

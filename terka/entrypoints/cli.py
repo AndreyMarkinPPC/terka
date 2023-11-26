@@ -223,8 +223,9 @@ class _CommandHandler:
             self.bus.handle(
                 getattr(_commands, _command).from_kwargs(**task_dict))
         except AttributeError as e:
+            print(e)
             raise exceptions.TerkaCommandException(
-                f"Unknown command: `terka {command} {entity}`") from None
+                f"Unknown command: `terka {command} {entity}`")
 
 
 def load_config(home_dir):

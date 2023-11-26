@@ -8,12 +8,13 @@ from .task import Task
 class StoryStatus(Enum):
     ACTIVE = 1
     COMPLETED = 2
+    DELETED = 3
 
 
 class Story:
 
     def __init__(self,
-                 name: str,
+                 name: str | None = None,
                  description: str = None,
                  creation_date: datetime = datetime.now(),
                  project: int = None,
@@ -22,7 +23,7 @@ class Story:
                  created_by: int = None,
                  **kwargs) -> None:
         if not name:
-            raise ValueError("task name cannot be empty!")
+            raise ValueError("story name cannot be empty!")
         if not isinstance(creation_date, datetime):
             raise ValueError(
                 "creation_date should be of type datetime.datetime!")

@@ -54,9 +54,9 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             new_dict.get("desc") or new_dict.get("description"),
             "text":
             new_dict.get("t") or new_dict.get("text"),
-            "tags":
+            "tag":
             new_dict.get("tag") or new_dict.get("tags"),
-            "collaborators":
+            "collaborator":
             new_dict.get("collaborator") or new_dict.get("collaborators"),
             "all":
             new_dict.get("all") or new_dict.get("show-completed"),
@@ -113,6 +113,8 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             new_dict.get("expand"),
             "no-expand":
             new_dict.get("no-expand"),
+            "comment":
+            new_dict.get("comment"),
         }
         if "--sort" in kwargs:
             sort_index = kwargs.index("--sort")

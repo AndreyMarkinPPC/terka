@@ -19,7 +19,8 @@ class Project:
                  description: str | None = None,
                  created_by: str | None = None,
                  status: str = "ACTIVE",
-                 workspace: int | None  = None) -> None:
+                 workspace: int | None  = None,
+                 **kwargs) -> None:
         self._project_id = Project._next_project_id
         Project._next_project_id += 1
         self.name = name
