@@ -18,9 +18,9 @@ def new_task_template() -> str:
         project: 
         due_date: 
         priority: NORMAL
-        sprints: 
-        epics: 
-        stories: 
+        sprint: 
+        epic: 
+        story: 
         tags: 
         collaborators: 
         """

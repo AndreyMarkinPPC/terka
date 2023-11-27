@@ -182,8 +182,9 @@ class AssignTask(Command):
 @dataclass
 class AddTask(Command):
     id: int
-    entity_type: Literal["sprint", "epic", "story"]
-    entity_id: int
+    sprint: str | None = None
+    epic: str | None = None
+    story: str | None = None
 
 
 @dataclass

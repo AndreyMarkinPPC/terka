@@ -72,15 +72,15 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             convert_date(new_dict.get("start-date")),
             "end_date":
             convert_date(new_dict.get("end-date")),
-            "sprints":
+            "sprint":
             new_dict.get("to-sprint") or new_dict.get("from-sprint")
-            or new_dict.get("sprint"),
-            "stories":
+            or new_dict.get("sprint") or new_dict.get("sprints"),
+            "story":
             new_dict.get("to-story") or new_dict.get("from-story")
-            or new_dict.get("story"),
-            "epics":
+            or new_dict.get("story") or new_dict.get("stories"),
+            "epic":
             new_dict.get("to-epic") or new_dict.get("from-epic")
-            or new_dict.get("epic"),
+            or new_dict.get("epic") or new_dict.get("epics"),
             "story_points":
             new_dict.get("story-points"),
             "hours":
@@ -152,7 +152,7 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
         task_dict["project"] = config.get("project_name")
     if any(key in task_dict.keys() for key in ("epics", "stories", "tasks")):
         task_dict["partial_project_view"] = True
-    add_entity_info(task_dict)
+    # add_entity_info(task_dict)
     task_dict["expand_table"] = not task_dict.get("no-expand", False)
     task_dict["show_completed"] = task_dict.get("all", False)
     return task_dict

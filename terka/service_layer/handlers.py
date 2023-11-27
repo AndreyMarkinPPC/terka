@@ -228,24 +228,63 @@ class TaskCommandHandlers:
     def add(cmd: _commands.AddTask,
             handler: Handler,
             context: dict = {}) -> None:
-        entity_name = cmd.entity_type
+
+        for field in cmd.__dataclass_fields__:
+            if field_value := getattr(cmd, field):
+                updated_context = {
+                    "entity_type": field,
+                    "entity_id": field_value
+                }
+                if field == "sprint":
+                    TaskCommandHandlers._add(
+                        _commands.AddTask(cmd.id, sprint=field_value), handler,
+                        updated_context)
+                if field == "epic":
+                    TaskCommandHandlers._add(
+                        _commands.AddTask(cmd.id, epic=field_value), handler,
+                        updated_context)
+                if field == "story":
+                    TaskCommandHandlers._add(
+                        _commands.AddTask(cmd.id, story=field_value), handler,
+                        updated_context)
+
+    def _add(cmd: _commands.AddTask, handler: Handler, context) -> None:
+        entity_name, entity_id = context["entity_type"], context["entity_id"]
         entity_module = getattr(models, entity_name)
         entity = getattr(entity_module, entity_name.capitalize())
         entity_task_type = getattr(entity_module,
                                    f"{entity_name.capitalize()}Task")
         entity_dict = {"task": cmd.id}
-        entity_dict[cmd.entity_type] = cmd.entity_id
+        entity_dict[entity_name] = entity_id
         with handler.uow as uow:
-            if not uow.tasks.get_by_id(entity, cmd.entity_id):
+            if not (existing_entity := uow.tasks.get_by_id(entity, entity_id)):
                 raise exceptions.EntityNotFound(
-                    f"{entity_name} id {cmd.entity_id} is not found")
+                    f"{entity_name} id {entity_id} is not found")
             if not uow.tasks.list(entity_task_type, entity_dict):
                 # raise exceptions.TaskAddedToEntity(
                 #     f"task {cmd.id} already added to "
                 #     f"{entity_name} {cmd.entity_id}")
                 entity_task = entity_task_type(**entity_dict)
                 uow.tasks.add(entity_task)
-            uow.commit()
+                uow.commit()
+                logging.debug(f"Task added to {entity_name}, context {cmd}")
+                if entity_name == "sprint":
+                    if existing_task := uow.tasks.get_by_id(
+                            models.task.Task, cmd.id):
+                        task_params = {}
+                        if existing_task.status.name == "BACKLOG":
+                            task_params.update({"status": "TODO"})
+                        if (not existing_task.due_date
+                                or existing_task.due_date
+                                > existing_entity.end_date
+                                or existing_task.due_date
+                                < existing_entity.start_date):
+                            task_params.update(
+                                {"due_date": existing_entity.end_date})
+                        if task_params:
+                            uow.published_events.append(
+                                events.TaskUpdated(
+                                    cmd.id, events.UpdateMask(**task_params)))
 
     @register(cmd=_commands.AssignTask)
     def assign(cmd: _commands.AssignTask,
@@ -335,15 +374,15 @@ class TaskCommandHandlers:
                 uow.published_events.append(
                     events.TaskCollaboratorAdded(
                         id=id, collaborator=collaborator_name))
-        if sprints := context.get("sprints"):
+        if sprints := context.get("sprint"):
             for sprint_id in sprints.split(","):
                 uow.published_events.append(
                     events.TaskAddedToSprint(id=id, sprint_id=sprint_id))
-        if epics := context.get("epics"):
+        if epics := context.get("epic"):
             for epic_id in epics.split(","):
                 uow.published_events.append(
                     events.TaskAddedToEpic(id=id, epic_id=epic_id))
-        if stories := context.get("stories"):
+        if stories := context.get("story"):
             for story_id in stories.split(","):
                 uow.published_events.append(
                     events.TaskAddedToStory(id=id, story_id=story_id))
@@ -416,7 +455,8 @@ class TaskEventHandlers(Handler):
                   handler: Handler,
                   context: dict = {}) -> None:
         TaskCommandHandlers.tag(cmd=_commands.TagTask(**asdict(event)),
-                                handler=handler)
+                                handler=handler,
+                                context=context)
 
     @register(event=events.TaskCommentAdded)
     def comment_added(event: events.TaskCommentAdded,
@@ -450,8 +490,7 @@ class TaskEventHandlers(Handler):
                       handler: Handler,
                       context: dict = {}) -> None:
         TaskCommandHandlers.add(cmd=_commands.AddTask(id=event.id,
-                                                      entity_type="epic",
-                                                      entity_id=event.epic_id),
+                                                      epic=event.epic_id),
                                 handler=handler,
                                 context=context)
 
@@ -459,8 +498,8 @@ class TaskEventHandlers(Handler):
     def added_to_sprint(event: events.TaskAddedToSprint,
                         handler: Handler,
                         context: dict = {}) -> None:
-        TaskCommandHandlers.add(cmd=_commands.AddTask(
-            id=event.id, entity_type="sprint", entity_id=event.sprint_id),
+        TaskCommandHandlers.add(cmd=_commands.AddTask(id=event.id,
+                                                      sprint=event.sprint_id),
                                 handler=handler,
                                 context=context)
 
@@ -468,8 +507,8 @@ class TaskEventHandlers(Handler):
     def added_to_story(event: events.TaskAddedToStory,
                        handler: Handler,
                        context: dict = {}) -> None:
-        TaskCommandHandlers.add(cmd=_commands.AddTask(
-            id=event.id, entity_type="story", entity_id=event.story_id),
+        TaskCommandHandlers.add(cmd=_commands.AddTask(id=event.id,
+                                                      story=event.story_id),
                                 handler=handler,
                                 context=context)
 
@@ -556,7 +595,8 @@ class ProjectCommandHandlers:
                 uow.published_events.append(
                     events.ProjectCommented(id=project.id, text=comment))
             uow.commit()
-            handler.publisher.publish("Topic", events.ProjectDeleted(project.id))
+            handler.publisher.publish("Topic",
+                                      events.ProjectDeleted(project.id))
 
     @register(cmd=_commands.CommentProject)
     def comment(cmd: _commands.CommentProject,
@@ -596,7 +636,6 @@ class ProjectCommandHandlers:
              handler: Handler,
              context: dict = {}) -> None:
         with handler.uow as uow:
-            breakpoint()
             if projects := uow.tasks.list(models.project.Project):
                 handler.printer.console.print_project(
                     projects, printer.PrintOptions.from_kwargs(**context))
