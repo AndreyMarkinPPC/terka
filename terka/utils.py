@@ -153,6 +153,7 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
     if any(key in task_dict.keys() for key in ("epics", "stories", "tasks")):
         task_dict["partial_project_view"] = True
     add_entity_info(task_dict)
+    task_dict["expand_table"] = not task_dict.get("no-expand", False)
     return task_dict
 
 

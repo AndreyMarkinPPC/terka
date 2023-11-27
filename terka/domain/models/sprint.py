@@ -104,6 +104,15 @@ class Sprint:
                 collaborators["me"] += sprint_task.tasks.total_time_spent
         return collaborators
 
+    @property
+    def collaborators_as_string(self):
+        collaborators = []
+        for user, story_point in sorted(self.collaborators.items(),
+                                        key=lambda x: x[1],
+                                        reverse=True):
+            collaborators.append(f"{user} ({round(story_point, 2)})")
+        return ",".join(collaborators)
+
     def daily_time_entries_hours(self) -> dict[str, float]:
         entries: dict[str, float] = defaultdict(float)
         for task in self.tasks:

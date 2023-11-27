@@ -1,6 +1,7 @@
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 from enum import Enum
+from statistics import median
 
 
 class ProjectStatus(Enum):
@@ -19,7 +20,7 @@ class Project:
                  description: str | None = None,
                  created_by: str | None = None,
                  status: str = "ACTIVE",
-                 workspace: int | None  = None) -> None:
+                 workspace: int | None = None) -> None:
         self._project_id = Project._next_project_id
         Project._next_project_id += 1
         self.name = name
@@ -55,6 +56,61 @@ class Project:
                 collaborators["me"] += task.total_time_spent
         return collaborators
 
+    @property
+    def open_tasks(self):
+        return [
+            task for task in self.tasks
+            if task.status.name not in ("DONE", "DELETED")
+        ]
+
+    @property
+    def closed_tasks(self):
+        return [
+            task for task in self.tasks
+            if task.status.name in ("DONE", "DELETED")
+        ]
+
+    @property
+    def overdue_tasks(self):
+        return [
+            task for task in self.open_tasks
+            if task.due_date and task.due_date <= datetime.now().date()
+        ]
+
+    @property
+    def stale_tasks(self):
+        return [task for task in self.open_tasks if task.is_stale]
+
+    @property
+    def median_task_age(self):
+        return round(
+            median([(datetime.now() - task.creation_date).days
+                    for task in self.open_tasks]))
+
+    @property
+    def backlog(self):
+        return self._count_task_status("BACKLOG")
+
+    @property
+    def todo(self):
+        return self._count_task_status("TODO")
+
+    @property
+    def in_progress(self):
+        return self._count_task_status("IN_PROGRESS")
+
+    @property
+    def review(self):
+        return self._count_task_status("REVIEW")
+
+    @property
+    def done(self):
+        return self._count_task_status("DONE")
+
+    @property
+    def deleted(self):
+        return self._count_task_status("DELETED")
+
     def daily_time_entries_hours(
             self,
             start_date: str | date | None = None,
@@ -70,3 +126,6 @@ class Project:
 
     def __str__(self):
         return f"<Project {self.id}>: {self.name} {self.tasks}"
+
+    def _count_task_status(self, status: str) -> int:
+        return [task for task in self.tasks if task.status.name == status]

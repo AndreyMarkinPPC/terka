@@ -10,10 +10,10 @@ class Command:
 
     @classmethod
     def from_kwargs(cls, **kwargs: dict) -> Type["Command"]:
-        return cls(
-            **
-            {k: v
-             for k, v in kwargs.items() if k in cls.__match_args__ and v})
+        return cls(**{
+            k: v
+            for k, v in kwargs.items() if k in cls.__match_args__ and v
+        })
 
 
 # Base Commands
@@ -237,9 +237,13 @@ class TagProject(Tag):
 
 
 @dataclass
-class ShowProject(Command):
-    id: int
-    print_options: dict
+class ShowProject(Show):
+    ...
+
+
+@dataclass
+class ListProject(List):
+    ...
 
 
 # SPRINT
@@ -262,6 +266,11 @@ class StartSprint(Command):
 
 @dataclass
 class CompleteSprint(Complete):
+    ...
+
+
+@dataclass
+class ListSprint(List):
     ...
 
 
@@ -355,19 +364,23 @@ class CreateWorkspace(Command):
 class DeleteWorkspace(Delete):
     ...
 
+
 # TAGS
 @dataclass
 class ShowTag(Show):
     ...
 
+
 @dataclass
 class ListTag(List):
     ...
+
 
 # USERS
 @dataclass
 class ShowUser(Show):
     ...
+
 
 @dataclass
 class ListUser(List):

@@ -135,6 +135,15 @@ class SprintCommandHandlers:
             logging.debug(f"Sprint completed, context: {cmd}")
         handler.publisher.publish("Topic", events.SprintCompleted(cmd.id))
 
+    @register(cmd=_commands.ListSprint)
+    def list(cmd: _commands.ListSprint,
+             handler: Handler,
+             context: dict = {}) -> None:
+        with handler.uow as uow:
+            if sprints := uow.tasks.list(models.sprint.Sprint):
+                handler.printer.console.print_sprint(
+                    sprints, printer.PrintOptions.from_kwargs(**context))
+
 
 class SprintEventHandlers:
 
@@ -582,6 +591,15 @@ class ProjectCommandHandlers:
                     models.tag.ProjectTag(id=project.id, tag_id=tag_id))
                 uow.commit()
 
+    @register(cmd=_commands.ListProject)
+    def list(cmd: _commands.ListProject,
+             handler: Handler,
+             context: dict = {}) -> None:
+        with handler.uow as uow:
+            if projects := uow.tasks.list(models.project.Project):
+                handler.printer.console.print_project(
+                    projects, printer.PrintOptions.from_kwargs(**context))
+
     def _validate_project(id: str | int, uow) -> models.project.Project:
         if id.isnumeric():
             if not (existing_project := uow.tasks.get_by_id(
@@ -686,11 +704,14 @@ class EpicCommandHandlers:
                                           entity_id=cmd.sprint_id), handler)
 
     @register(cmd=_commands.ListEpic)
-    def list(cmd: _commands.ListEpic, handler: Handler, context: dict = {}):
+    def list(cmd: _commands.ListEpic,
+             handler: Handler,
+             context: dict = {}) -> None:
         with handler.uow as uow:
             if epics := uow.tasks.list(models.epic.Epic):
                 handler.printer.console.print_composite(
-                    epics, uow.tasks, printer.PrintOptions(), "epic")
+                    epics, uow.tasks,
+                    printer.PrintOptions.from_kwargs(**context), "epic")
 
 
 class EpicEventHandlers:
