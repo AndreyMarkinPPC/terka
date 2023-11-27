@@ -251,9 +251,8 @@ class TerkaProject(App):
             _commands.DeleteTask(id=self.selected_task,
                                  comment=result.comment,
                                  hours=result.hours))
-        self.notify(
-            f"Task: {self.selected_task} is deleted!",
-            severity="warning")
+        self.notify(f"Task: {self.selected_task} is deleted!",
+                    severity="warning")
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -467,6 +466,33 @@ class TaskCompletionInfo:
     hours: int | None = None
 
 
+class TaskStatusEdit(ModalScreen[str]):
+
+    def compose(self) -> ComposeResult:
+        yield Grid(
+            Label(f"Change status", id="question"),
+            Select(((line, line) for line in [
+                "BACKLOG", "TODO", "IN_PROGRESS", "REVIEW", "DONE", "DELETED"
+            ]),
+                   prompt="status",
+                   id="status"),
+            Button("Confim", id="yes"),
+            Button("Cancel", id="no"),
+            id="dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "yes":
+            status = self.query_one("#status", Select)
+            self.dismiss(status.value)
+        else:
+            self.app.pop_screen()
+
+    @on(Input.Submitted)
+    def submit_input(self, event: Input.Submitted) -> None:
+        exit(self)
+
+
 class TaskComplete(ModalScreen[str]):
 
     def compose(self) -> ComposeResult:
@@ -614,7 +640,7 @@ class TerkaSprint(App):
                 ("S", "sort_by_status", "Sort by Status"),
                 ("E", "task_edit", "Edit"), ("r", "refresh", "Refresh"),
                 ("d", "task_complete", "Done"), ("X", "task_delete", "Delete"),
-                ("T", "time", "Time")]
+                ("U", "task_update_context", "Update"), ("T", "time", "Time")]
 
     current_sorts: set = set()
 
@@ -652,6 +678,15 @@ class TerkaSprint(App):
         else:
             self.current_sorts.add(sort_type)
         return reverse
+
+    def action_task_update_context(self) -> None:
+        self.push_screen(TaskStatusEdit(), self.task_update_context_callback)
+
+    def task_update_context_callback(self, result: str):
+        self.bus.handle(
+            _commands.UpdateTask(id=self.selected_task,
+                                 status=models.task.TaskStatus[result]))
+        self.notify(f"Task: {self.selected_task} status updated to {result}!")
 
     def action_task_complete(self) -> None:
         self.push_screen(TaskComplete(), self.task_complete_callback)
@@ -783,7 +818,8 @@ class TerkaSprint(App):
                             str(task.id),
                             task.name,
                             project,
-                            task.completion_date.strftime("%Y-%m-%d"),
+                            task.completion_date.strftime("%Y-%m-%d")
+                            if task.completion_date else "",
                             tags_text,
                             collaborator_string,
                             Formatter.format_time_spent(
@@ -859,6 +895,9 @@ class TerkaSprint(App):
         self.selected_task = event.cell_key.row_key.value
 
     def on_data_table_cell_selected(self, event: DataTable.CellSelected):
+        self.selected_task = event.cell_key.row_key.value
+
+    def on_data_table_cell_selected(self, event: DataTable.CellHighlighted):
         self.selected_task = event.cell_key.row_key.value
 
 

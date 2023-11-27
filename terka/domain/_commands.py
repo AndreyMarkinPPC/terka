@@ -161,7 +161,7 @@ class UpdateTask(Command):
     # story_id: str | None = None
 
     def __bool__(self) -> bool:
-        return False
+        return all(f for f in self.__dataclass_fields__ if f != "id")
 
 
 @dataclass

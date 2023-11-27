@@ -188,7 +188,7 @@ class TaskCommandHandlers:
                     models.task.Task, cmd.id)):
                 raise exceptions.EntityNotFound(
                     f"Task id {cmd.id} is not found")
-            if not cmd.name:
+            if not cmd:
                 cmd, context = templates.create_command_from_editor(
                     existing_task, _commands.UpdateTask)
                 cmd.id = existing_task.id
