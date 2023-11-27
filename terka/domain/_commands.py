@@ -79,7 +79,7 @@ class List(Command):
 
 @dataclass
 class Show(Command):
-    ...
+    id: int
 
 
 @dataclass
@@ -260,6 +260,11 @@ class StartSprint(Command):
     id: int
 
 
+@dataclass
+class CompleteSprint(Complete):
+    ...
+
+
 # EPIC
 @dataclass
 class CreateEpic(Command):
@@ -295,6 +300,11 @@ class CommentEpic(Comment):
 class AddEpic(Command):
     id: int
     sprint_id: int
+
+
+@dataclass
+class ListEpic(List):
+    ...
 
 
 # STORIES
@@ -343,4 +353,22 @@ class CreateWorkspace(Command):
 
 @dataclass
 class DeleteWorkspace(Delete):
+    ...
+
+# TAGS
+@dataclass
+class ShowTag(Show):
+    ...
+
+@dataclass
+class ListTag(List):
+    ...
+
+# USERS
+@dataclass
+class ShowUser(Show):
+    ...
+
+@dataclass
+class ListUser(List):
     ...

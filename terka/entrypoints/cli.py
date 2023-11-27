@@ -69,10 +69,22 @@ def main():
             services.update_config(create_task_dict(kwargs))
         exit()
 
+    home_dir = os.path.expanduser("~")
+    file_handler = logging.FileHandler(
+        filename=f"{home_dir}/.terka/terka.log")
+    # file_handler.setLevel(logging.DEBUG)
+    stdout_handler = logging.StreamHandler(stream=sys.stdout)
+    # stdout_handler.setLevel(logging.WARNING)
+    handlers = [file_handler, stdout_handler]
+    logging.basicConfig(
+        format="[%(asctime)s][%(name)s][%(levelname)s] %(message)s",
+        handlers=handlers,
+        level=args.loglevel.upper(),
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
     logger = logging.getLogger(__name__)
     console = Console()
 
-    home_dir = os.path.expanduser("~")
     config = load_config(home_dir)
     task_id = config.get("task_id")
     project_name = config.get("project_name")
@@ -114,18 +126,6 @@ def main():
         exit()
 
     with Session() as session:
-        file_handler = logging.FileHandler(
-            filename=f"{home_dir}/.terka/terka.log")
-        file_handler.setLevel(logging.DEBUG)
-        stdout_handler = logging.StreamHandler(stream=sys.stdout)
-        stdout_handler.setLevel(logging.WARNING)
-        handlers = [file_handler, stdout_handler]
-        logging.basicConfig(
-            format="[%(asctime)s][%(name)s][%(levelname)s] %(message)s",
-            handlers=handlers,
-            level=args.loglevel.upper(),
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
 
         repo = SqlAlchemyRepository(session)
         command_handler = CommandHandler(repo)
@@ -221,7 +221,7 @@ class _CommandHandler:
         _command = f"{command.capitalize()}{entity.capitalize()}"
         try:
             self.bus.handle(
-                getattr(_commands, _command).from_kwargs(**task_dict))
+                getattr(_commands, _command).from_kwargs(**task_dict), context=task_dict)
         except AttributeError as e:
             print(e)
             raise exceptions.TerkaCommandException(

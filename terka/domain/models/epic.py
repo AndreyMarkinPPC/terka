@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 import logging
@@ -9,6 +10,7 @@ from terka.domain.task import Task
 class EpicStatus(Enum):
     ACTIVE = 1
     COMPLETED = 2
+    DELETED = 3
 
 
 class Epic:
@@ -56,6 +58,23 @@ class Epic:
                 entries[day] += hours
         return entries
 
+    @property
+    def open_tasks(self) -> list[Task]:
+        tasks = []
+        for entity_task in self.tasks:
+            task = entity_task.tasks
+            if task.status.name not in ("DONE", "DELETED"):
+                tasks.append(task)
+        return tasks
+
+    @property
+    def completed_tasks(self) -> list[Task]:
+        tasks = []
+        for entity_task in self.tasks:
+            task = entity_task.tasks
+            if task.status.name in ("DONE", "DELETED"):
+                tasks.append(task)
+        return tasks
 
 @dataclass
 class EpicTask:

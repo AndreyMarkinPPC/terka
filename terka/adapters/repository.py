@@ -55,7 +55,7 @@ class SqlAlchemyRepository(AbsRepository):
         return self.session.query(element).filter_by(
             id=element_id).update(update_dict)
 
-    def list(self, element: Element, filter_dict: Optional[Dict[str, str]]):
+    def list(self, element: Element, filter_dict: Optional[Dict[str, str]] = {}):
         query_object = self.session.query(element)
         overdue_check = False
         stale_check = False

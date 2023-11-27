@@ -204,3 +204,9 @@ class StoryUpdated(Updated):
 @dataclass
 class StoryCommented(Commented):
     ...
+
+# SPRINTS
+@dataclass
+class SprintCompleted(Completed):
+    ...
+

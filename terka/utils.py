@@ -72,13 +72,13 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             convert_date(new_dict.get("start-date")),
             "end_date":
             convert_date(new_dict.get("end-date")),
-            "sprint_id":
+            "sprints":
             new_dict.get("to-sprint") or new_dict.get("from-sprint")
             or new_dict.get("sprint"),
-            "story_id":
+            "stories":
             new_dict.get("to-story") or new_dict.get("from-story")
             or new_dict.get("story"),
-            "epic_id":
+            "epics":
             new_dict.get("to-epic") or new_dict.get("from-epic")
             or new_dict.get("epic"),
             "story_points":
@@ -93,12 +93,12 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
             new_dict.get("show-commentaries") or new_dict.get("show-comments"),
             "show_notes":
             new_dict.get("show-notes"),
-            "epics":
-            new_dict.get("epics"),
-            "stories":
-            new_dict.get("stories"),
-            "tasks":
-            new_dict.get("tasks"),
+            # "epics":
+            # new_dict.get("epics"),
+            # "stories":
+            # new_dict.get("stories"),
+            # "tasks":
+            # new_dict.get("tasks"),
             "external_project":
             new_dict.get("external-project"),
             "external_task":
