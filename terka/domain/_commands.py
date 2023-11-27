@@ -138,8 +138,9 @@ class CompleteTask(Complete):
 @dataclass
 class DeleteTask(Delete):
     hours: int | None = None
-    entity_type: Literal["sprint", "epic", "story"] | None = None
-    entity_id: int | None = None
+    sprint: str | None = None
+    epic: str | None = None
+    story: str | None = None
 
 
 @dataclass

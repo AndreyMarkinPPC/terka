@@ -313,9 +313,62 @@ class TaskCommandHandlers:
     def delete(cmd: _commands.DeleteTask,
                handler: Handler,
                context: dict = {}) -> None:
+
+        for field in cmd.__dataclass_fields__:
+            if field_value := getattr(cmd, field):
+                updated_context = {
+                    "entity_type": field,
+                    "entity_id": field_value
+                }
+                if field == "sprint":
+                    TaskCommandHandlers._delete(
+                        _commands.DeleteTask(cmd.id, sprint=field_value),
+                        handler, updated_context)
+                if field == "epic":
+                    TaskCommandHandlers._delete(
+                        _commands.DeleteTask(cmd.id, epic=field_value),
+                        handler, updated_context)
+                if field == "story":
+                    TaskCommandHandlers._delete(
+                        _commands.DeleteTask(cmd.id, story=field_value),
+                        handler, updated_context)
+
+    def _delete(cmd: _commands.DeleteTask,
+                handler: Handler,
+                context: dict = {}) -> None:
         with handler.uow as uow:
-            if cmd.entity_type and cmd.entity_id:
-                ...
+            if "entity_type" in context and "entity_id" in context:
+                entity_name, entity_id = context["entity_type"], context[
+                    "entity_id"]
+                entity_module = getattr(models, entity_name)
+                entity = getattr(entity_module, entity_name.capitalize())
+                entity_task_type = getattr(entity_module,
+                                           f"{entity_name.capitalize()}Task")
+                entity_dict = {"task": cmd.id}
+                entity_dict[entity_name] = entity_id
+                if not (existing_entity := uow.tasks.get_by_id(
+                        entity, entity_id)):
+                    raise exceptions.EntityNotFound(
+                        f"{entity_name} id {entity_id} is not found")
+                if existing_entity_task := uow.tasks.list(
+                        entity_task_type, entity_dict):
+                    uow.tasks.delete(entity_task_type, cmd.id)
+                    uow.commit()
+                    logging.debug(
+                        f"Task deleted from {entity_name.capitalize()} "
+                        f"{entity_id}, context {cmd}")
+                    if entity_name == "sprint":
+                        if existing_task := uow.tasks.get_by_id(
+                                models.task.Task, cmd.id):
+                            task_params = {}
+                            if existing_task.status.name == "TODO":
+                                task_params.update({"status": "BACKLOG"})
+                            task_params.update({"due_date": None})
+                            if task_params:
+                                uow.published_events.append(
+                                    events.TaskUpdated(
+                                        cmd.id,
+                                        events.UpdateMask(**task_params)))
             else:
                 uow.tasks.update(models.task.Task, cmd.id,
                                  {"status": "DELETED"})
