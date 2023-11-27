@@ -152,15 +152,20 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
         task_dict["project"] = config.get("project_name")
     if any(key in task_dict.keys() for key in ("epics", "stories", "tasks")):
         task_dict["partial_project_view"] = True
-    for entity in ("sprint", "epic", "story"):
-        add_entity_info(task_dict, entity)
+    add_entity_info(task_dict)
     return task_dict
 
 
-def add_entity_info(task_dict, entity: str):
-    if f"{entity}_id" in task_dict:
-        task_dict["entity_type"] = entity
-        task_dict["entity_id"] = task_dict[f"{entity}_id"]
+def add_entity_info(task_dict):
+    if sprints := task_dict.get("sprints"):
+        task_dict["entity_type"] = "sprint"
+        task_dict["entity_id"] = sprints
+    if epics := task_dict.get("epics"):
+        task_dict["entity_type"] = "epic"
+        task_dict["entity_id"] = epics
+    if stories := task_dict.get("stories"):
+        task_dict["entity_type"] = "story"
+        task_dict["entity_id"] = stories
 
 
 def convert_status(status: str):
@@ -262,6 +267,7 @@ def format_command(command: str) -> str:
     if "comment".startswith(command):
         return "comment"
     return command
+
 
 def format_entity(entity: str) -> str:
     if entity in "tasks":
