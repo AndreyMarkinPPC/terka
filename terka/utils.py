@@ -154,6 +154,7 @@ def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
         task_dict["partial_project_view"] = True
     add_entity_info(task_dict)
     task_dict["expand_table"] = not task_dict.get("no-expand", False)
+    task_dict["show_completed"] = task_dict.get("all", False)
     return task_dict
 
 

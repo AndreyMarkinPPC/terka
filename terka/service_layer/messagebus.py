@@ -17,7 +17,7 @@ class MessageBus:
         self.command_handlers = command_handlers
         self.return_value = None
 
-    def handle(self, message: Message, context: dict):
+    def handle(self, message: Message, context: dict = {}):
         self.queue = [message]
         while self.queue:
             message = self.queue.pop(0)

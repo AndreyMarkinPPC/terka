@@ -194,12 +194,20 @@ class TerkaProject(App):
     }
     """
 
-    BINDINGS = [("b", "backlog", "Backlog"), ("t", "tasks", "Tasks"),
-                ("e", "epics", "Epics"), ("s", "stories", "Stories"),
-                ("n", "notes", "Notes"), ("o", "overview", "Overview"),
-                ("T", "time", "Time"), ("q", "quit", "Quit"),
-                ("E", "task_edit", "Edit"), ("r", "refresh", "Refresh"),
-                ("d", "task_complete", "Done")]
+    BINDINGS = [
+        ("b", "backlog", "Backlog"),
+        ("t", "tasks", "Tasks"),
+        ("e", "epics", "Epics"),
+        ("s", "stories", "Stories"),
+        ("n", "notes", "Notes"),
+        ("o", "overview", "Overview"),
+        ("T", "time", "Time"),
+        ("q", "quit", "Quit"),
+        ("E", "task_edit", "Edit"),
+        ("r", "refresh", "Refresh"),
+        ("d", "task_complete", "Done"),
+        ("X", "task_delete", "Delete"),
+    ]
 
     def __init__(self, repo, config, project_id, bus) -> None:
         super().__init__()
@@ -229,16 +237,23 @@ class TerkaProject(App):
         self.push_screen(task_edit, self.task_complete_callback)
 
     def task_complete_callback(self, result: TaskCompletionInfo):
-        # TODO: implement
-        # self.publisher.publish(TaskCompleted(self.selected_task))
         self.bus.handle(
             _commands.CompleteTask(id=self.selected_task,
                                    comment=result.comment,
                                    hours=result.hours))
-        # self.repo.update(Task, self.selected_task, {"status": "DONE"})
-        # self.repo.session.commit()
-        # self.entity = self.get_entity()
         self.notify(f"Task: {self.selected_task} is completed!")
+
+    def action_task_delete(self) -> None:
+        self.push_screen(TaskDelete(), self.task_delete_callback)
+
+    def task_delete_callback(self, result: TaskCompletionInfo):
+        self.bus.handle(
+            _commands.DeleteTask(id=self.selected_task,
+                                 comment=result.comment,
+                                 hours=result.hours))
+        self.notify(
+            f"Task: {self.selected_task} is deleted!",
+            severity="warning")
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -479,6 +494,33 @@ class TaskComplete(ModalScreen[str]):
         exit(self)
 
 
+class TaskDelete(ModalScreen[str]):
+
+    def compose(self) -> ComposeResult:
+        yield Grid(
+            Label(f"Delete task", id="question"),
+            Input(placeholder="Add comment", id="comment"),
+            Input(placeholder="Add time spent",
+                  validators=[Number()],
+                  id="hours"),
+            Button("Yes", id="yes"),
+            Button("No", id="no"),
+            id="dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "yes":
+            comment = self.query_one("#comment", Input)
+            hours = self.query_one("#hours", Input)
+            self.dismiss(TaskCompletionInfo(comment.value, hours.value))
+        else:
+            self.app.pop_screen()
+
+    @on(Input.Submitted)
+    def submit_input(self, event: Input.Submitted) -> None:
+        exit(self)
+
+
 class TaskEdit(ModalScreen[str]):
 
     def compose(self) -> ComposeResult:
@@ -571,7 +613,8 @@ class TerkaSprint(App):
                 ("P", "sort_by_project", "Sort by Project"),
                 ("S", "sort_by_status", "Sort by Status"),
                 ("E", "task_edit", "Edit"), ("r", "refresh", "Refresh"),
-                ("d", "task_complete", "Done"), ("T", "time", "Time")]
+                ("d", "task_complete", "Done"), ("X", "task_delete", "Delete"),
+                ("T", "time", "Time")]
 
     current_sorts: set = set()
 
@@ -619,6 +662,20 @@ class TerkaSprint(App):
                                    comment=result.comment,
                                    hours=result.hours))
         self.notify(f"Task: {self.selected_task} is completed!")
+
+    def action_task_delete(self) -> None:
+        self.push_screen(TaskDelete(), self.task_delete_callback)
+
+    def task_delete_callback(self, result: TaskCompletionInfo):
+        self.bus.handle(
+            _commands.DeleteTask(id=self.selected_task,
+                                 comment=result.comment,
+                                 hours=result.hours,
+                                 entity_type="sprint",
+                                 entity_id=self.entity.id))
+        self.notify(
+            f"Task: {self.selected_task} is deleted from the current sprint!",
+            severity="warning")
 
     def action_sort_by_project(self) -> None:
         table = self.query_one("#tasks_table", DataTable)

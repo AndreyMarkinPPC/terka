@@ -556,7 +556,7 @@ class ProjectCommandHandlers:
                 uow.published_events.append(
                     events.ProjectCommented(id=project.id, text=comment))
             uow.commit()
-        handler.publisher.publish("Topic", events.ProjectDeleted(project.id))
+            handler.publisher.publish("Topic", events.ProjectDeleted(project.id))
 
     @register(cmd=_commands.CommentProject)
     def comment(cmd: _commands.CommentProject,
@@ -596,6 +596,7 @@ class ProjectCommandHandlers:
              handler: Handler,
              context: dict = {}) -> None:
         with handler.uow as uow:
+            breakpoint()
             if projects := uow.tasks.list(models.project.Project):
                 handler.printer.console.print_project(
                     projects, printer.PrintOptions.from_kwargs(**context))
