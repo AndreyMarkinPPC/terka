@@ -18,11 +18,110 @@ from textual.widget import Widget
 from textual.widgets import Button, Input, Header, Footer, Label, Tabs, DataTable, TabbedContent, TabPane, Static, Markdown, Pretty, Select
 
 from terka.domain import _commands, events, models
-# from terka.domain.task import Task
-# from terka.domain.project import Project
-# from terka.domain.sprint import Sprint
-from terka.service_layer import services, views
+from terka.service_layer import services, views, exceptions, ui_components
 from terka.service_layer.formatter import Formatter
+
+
+class PopupsMixin:
+
+    def __init__(self):
+        ...
+
+    def action_task_complete(self) -> None:
+        self.push_screen(ui_components.TaskComplete(),
+                         self.task_complete_callback)
+
+    def task_complete_callback(self, result: _commands.CompleteTask):
+        result.id = self.selected_task
+        self.bus.handle(result)
+        self.notify(f"Task: {self.selected_task} is completed!")
+
+    def action_task_edit(self) -> None:
+        self.push_screen(ui_components.TaskEdit(), self.task_edit_callback)
+
+    def task_edit_callback(self, result: _commands.UpdateTask):
+        result.id = self.selected_task
+        self.bus.handle(result)
+        self.notify(f"Task: {self.selected_task} is updated!")
+
+    def action_task_add(self) -> None:
+        self.push_screen(ui_components.TaskAdd(), self.task_add_callback)
+
+    def task_add_callback(self, result: _commands.AddTask):
+        if epic := result.epic:
+            try:
+                self.bus.handle(
+                    _commands.AddTask(
+                        id=self.selected_task,
+                        epic=epic,
+                    ))
+                self.notify(
+                    f"Task: {self.selected_task} is added to epic {epic}!")
+            except exceptions.EntityNotFound:
+                self.notify(f"Epic {epic} not found!", severity="error")
+        if sprint := result.sprint:
+            try:
+                self.bus.handle(
+                    _commands.AddTask(
+                        id=self.selected_task,
+                        sprint=sprint,
+                    ))
+                self.notify(
+                    f"Task: {self.selected_task} is added to sprint {sprint}!")
+            except exceptions.EntityNotFound:
+                self.notify(f"Sprint {sprint} not found!", severity="error")
+        if story := result.story:
+            try:
+                self.bus.handle(
+                    _commands.AddTask(
+                        id=self.selected_task,
+                        story=story,
+                    ))
+                self.notify(
+                    f"Task: {self.selected_task} is added to story {story}!")
+            except exceptions.EntityNotFound:
+                self.notify(f"Story {story} not found!", severity="error")
+
+    def action_task_delete(self) -> None:
+        self.push_screen(ui_components.TaskDelete(), self.task_delete_callback)
+
+    def task_delete_callback(self, result: _commands.DeleteTask):
+        result.id = self.selected_task
+        is_sprint = False
+        if hasattr(self, "sprint_id"):
+            result.sprint = sprints
+            is_sprint = True
+
+        self.bus.handle(result)
+        if is_sprint:
+            self.notify(
+                f"Task: {self.selected_task} is deleted from "
+                "sprint {self.sprint_id}!",
+                severity="warning")
+        else:
+            self.notify(f"Task: {self.selected_task} is deleted!",
+                        severity="warning")
+
+    def action_task_update_context(self) -> None:
+        if self.selected_column == "status":
+            self.push_screen(ui_components.TaskStatusEdit(),
+                             self.task_update_status_callback)
+        if self.selected_column == "priority":
+            self.push_screen(ui_components.TaskPriorityEdit(),
+                             self.task_update_priority_callback)
+
+    def task_update_status_callback(self, result: str):
+        self.bus.handle(
+            _commands.UpdateTask(id=self.selected_task,
+                                 status=models.task.TaskStatus[result]))
+        self.notify(f"Task: {self.selected_task} status updated to {result}!")
+
+    def task_update_priority_callback(self, result: str):
+        self.bus.handle(
+            _commands.UpdateTask(id=self.selected_task,
+                                 priority=models.task.TaskPriority[result]))
+        self.notify(
+            f"Task: {self.selected_task} priority updated to {result}!")
 
 
 class Comment(Widget):
@@ -147,52 +246,9 @@ class TerkaTask(App):
         input.value = ""
 
 
-class TerkaProject(App):
+class TerkaProject(App, PopupsMixin):
 
-    CSS = """
-    Tabs {
-        dock: top;
-    }
-    QuitScreen {
-        align: center middle;
-    }
-    TaskComplete {
-        align: center top;
-    }
-    #dialog {
-        grid-size: 2;
-        grid-gutter: 1 2;
-        grid-rows: 1fr 3;
-        padding: 0 1;
-        width: 60;
-        height: 20;
-        border: thick $background 80%;
-        background: $surface;
-    }
-
-    #question {
-        column-span: 2;
-        height: 1fr;
-        width: 1fr;
-        content-align: center middle;
-    }
-
-    Button {
-        width: 100%;
-    }
-    .plotext {
-        width: 100%;
-        height: 20;
-    }
-    .header {
-        margin:1 1;
-        width: 100%;
-        height: 5%;
-        background: $panel;
-        border: tall $primary;
-        content-align: center middle;
-    }
-    """
+    CSS_PATH = "entities.css"
 
     BINDINGS = [
         ("b", "backlog", "Backlog"),
@@ -205,7 +261,9 @@ class TerkaProject(App):
         ("q", "quit", "Quit"),
         ("E", "task_edit", "Edit"),
         ("r", "refresh", "Refresh"),
+        ("a", "task_add", "Add"),
         ("d", "task_complete", "Done"),
+        ("U", "task_update_context", "Update"),
         ("X", "task_delete", "Delete"),
     ]
 
@@ -230,29 +288,89 @@ class TerkaProject(App):
         self.sub_title = f'Workspace: {self.config.get("workspace")}'
 
     def action_task_complete(self) -> None:
-        self.push_screen(TaskComplete(), self.task_complete_callback)
+        self.push_screen(ui_components.TaskComplete(),
+                         self.task_complete_callback)
 
-    def action_task_edit(self) -> None:
-        task_edit = TaskEdit()
-        self.push_screen(task_edit, self.task_complete_callback)
-
-    def task_complete_callback(self, result: TaskCompletionInfo):
-        self.bus.handle(
-            _commands.CompleteTask(id=self.selected_task,
-                                   comment=result.comment,
-                                   hours=result.hours))
+    def task_complete_callback(self, result: _commands.CompleteTask):
+        result.id = self.selected_task
+        self.bus.handle(result)
         self.notify(f"Task: {self.selected_task} is completed!")
 
-    def action_task_delete(self) -> None:
-        self.push_screen(TaskDelete(), self.task_delete_callback)
+    def action_task_edit(self) -> None:
+        self.push_screen(ui_components.TaskEdit(), self.task_edit_callback)
 
-    def task_delete_callback(self, result: TaskCompletionInfo):
-        self.bus.handle(
-            _commands.DeleteTask(id=self.selected_task,
-                                 comment=result.comment,
-                                 hours=result.hours))
-        self.notify(f"Task: {self.selected_task} is deleted!",
-                    severity="warning")
+    def task_edit_callback(self, result: _commands.UpdateTask):
+        result.id = self.selected_task
+        self.bus.handle(result)
+        self.notify(f"Task: {self.selected_task} is updated!")
+
+    # def action_task_add(self) -> None:
+    #     self.push_screen(ui_components.TaskAdd(), self.task_add_callback)
+
+    # def task_add_callback(self, result: _commands.AddTask):
+    #     if epic := result.epic:
+    #         try:
+    #             self.bus.handle(
+    #                 _commands.AddTask(
+    #                     id=self.selected_task,
+    #                     epic=epic,
+    #                 ))
+    #             self.notify(
+    #                 f"Task: {self.selected_task} is added to epic {epic}!")
+    #         except exceptions.EntityNotFound:
+    #             self.notify(f"Epic {epic} not found!", severity="error")
+    #     if sprint := result.sprint:
+    #         try:
+    #             self.bus.handle(
+    #                 _commands.AddTask(
+    #                     id=self.selected_task,
+    #                     sprint=sprint,
+    #                 ))
+    #             self.notify(
+    #                 f"Task: {self.selected_task} is added to sprint {sprint}!")
+    #         except exceptions.EntityNotFound:
+    #             self.notify(f"Sprint {sprint} not found!", severity="error")
+    #     if story := result.story:
+    #         try:
+    #             self.bus.handle(
+    #                 _commands.AddTask(
+    #                     id=self.selected_task,
+    #                     story=story,
+    #                 ))
+    #             self.notify(
+    #                 f"Task: {self.selected_task} is added to story {story}!")
+    #         except exceptions.EntityNotFound:
+    #             self.notify(f"Story {story} not found!", severity="error")
+
+    # def action_task_delete(self) -> None:
+    #     self.push_screen(ui_components.TaskDelete(), self.task_delete_callback)
+
+    # def task_delete_callback(self, result: _commands.DeleteTask):
+    #     result.id = self.selected_task
+    #     self.bus.handle(result)
+    #     self.notify(f"Task: {self.selected_task} is deleted!",
+    #                 severity="warning")
+
+    # def action_task_update_context(self) -> None:
+    #     if self.selected_column == "status":
+    #         self.push_screen(ui_components.TaskStatusEdit(),
+    #                          self.task_update_status_callback)
+    #     if self.selected_column == "priority":
+    #         self.push_screen(ui_components.TaskPriorityEdit(),
+    #                          self.task_update_priority_callback)
+
+    # def task_update_status_callback(self, result: str):
+    #     self.bus.handle(
+    #         _commands.UpdateTask(id=self.selected_task,
+    #                              status=models.task.TaskStatus[result]))
+    #     self.notify(f"Task: {self.selected_task} status updated to {result}!")
+
+    # def task_update_priority_callback(self, result: str):
+    #     self.bus.handle(
+    #         _commands.UpdateTask(id=self.selected_task,
+    #                              priority=models.task.TaskPriority[result]))
+    #     self.notify(
+    #         f"Task: {self.selected_task} priority updated to {result}!")
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -456,183 +574,12 @@ class TerkaProject(App):
 
     def on_data_table_cell_selected(self, event: DataTable.CellSelected):
         self.selected_task = event.cell_key.row_key.value
-        # subprocess.run(["/home/am/envs/terka-textual/bin/terka", "done", "task", "1911"])
-        # exit(str(event.cell_key.row_key.value))
+        self.selected_column = event.cell_key.column_key.value
 
 
-@dataclass
-class TaskCompletionInfo:
-    comment: str | None = None
-    hours: int | None = None
+class TerkaSprint(App, PopupsMixin):
 
-
-class TaskStatusEdit(ModalScreen[str]):
-
-    def compose(self) -> ComposeResult:
-        yield Grid(
-            Label(f"Change status", id="question"),
-            Select(((line, line) for line in [
-                "BACKLOG", "TODO", "IN_PROGRESS", "REVIEW", "DONE", "DELETED"
-            ]),
-                   prompt="status",
-                   id="status"),
-            Button("Confim", id="yes"),
-            Button("Cancel", id="no"),
-            id="dialog",
-        )
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "yes":
-            status = self.query_one("#status", Select)
-            self.dismiss(status.value)
-        else:
-            self.app.pop_screen()
-
-    @on(Input.Submitted)
-    def submit_input(self, event: Input.Submitted) -> None:
-        exit(self)
-
-
-class TaskComplete(ModalScreen[str]):
-
-    def compose(self) -> ComposeResult:
-        yield Grid(
-            Label(f"Complete task", id="question"),
-            Input(placeholder="Add comment", id="comment"),
-            Input(placeholder="Add time spent",
-                  validators=[Number()],
-                  id="hours"),
-            Button("Yes", id="yes"),
-            Button("No", id="no"),
-            id="dialog",
-        )
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "yes":
-            comment = self.query_one("#comment", Input)
-            hours = self.query_one("#hours", Input)
-            self.dismiss(TaskCompletionInfo(comment.value, hours.value))
-        else:
-            self.app.pop_screen()
-
-    @on(Input.Submitted)
-    def submit_input(self, event: Input.Submitted) -> None:
-        exit(self)
-
-
-class TaskDelete(ModalScreen[str]):
-
-    def compose(self) -> ComposeResult:
-        yield Grid(
-            Label(f"Delete task", id="question"),
-            Input(placeholder="Add comment", id="comment"),
-            Input(placeholder="Add time spent",
-                  validators=[Number()],
-                  id="hours"),
-            Button("Yes", id="yes"),
-            Button("No", id="no"),
-            id="dialog",
-        )
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "yes":
-            comment = self.query_one("#comment", Input)
-            hours = self.query_one("#hours", Input)
-            self.dismiss(TaskCompletionInfo(comment.value, hours.value))
-        else:
-            self.app.pop_screen()
-
-    @on(Input.Submitted)
-    def submit_input(self, event: Input.Submitted) -> None:
-        exit(self)
-
-
-class TaskEdit(ModalScreen[str]):
-
-    def compose(self) -> ComposeResult:
-        yield Grid(
-            Label(f"Edit task", id="question"),
-            Input(placeholder="", id="name"),
-            Input(placeholder="", id="description"),
-            Select(((line, line) for line in ["TODO", "IN_PROGRESS"]),
-                   prompt="status",
-                   id="status"),
-            Select(
-                ((line, line) for line in ["LOW", "NORMAL", "HIGH", "URGENT"]),
-                prompt="priority",
-                id="priority"),
-            Input(placeholder="Add comment", id="comment"),
-            Input(placeholder="Add time spent",
-                  validators=[Number()],
-                  id="hours"),
-            Button("Yes", id="yes"),
-            Button("No", id="no"),
-            id="dialog",
-        )
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "yes":
-            comment = self.query_one("#comment", Input)
-            hours = self.query_one("#hours", Input)
-            exit(f"Comment: {comment.value}, hours: {hours.value}")
-            self.app.exit()
-        else:
-            self.app.pop_screen()
-
-    @on(Input.Submitted)
-    def submit_input(self, event: Input.Submitted) -> None:
-        exit(self)
-
-
-class TerkaSprint(App):
-
-    CSS = """
-    Tabs {
-        dock: top;
-    }
-    QuitScreen {
-        align: center middle;
-    }
-    TaskComplete {
-        align: center top;
-    }
-    #dialog {
-        grid-size: 2;
-        grid-gutter: 1 2;
-        grid-rows: 1fr 3;
-        padding: 0 1;
-        width: 60;
-        height: 20;
-        border: thick $background 80%;
-        background: $surface;
-    }
-
-    #question {
-        column-span: 2;
-        height: 1fr;
-        width: 1fr;
-        content-align: center middle;
-    }
-
-    Button {
-        width: 100%;
-    }
-    Screen {
-        align: center top;
-    }
-    .plotext {
-        width: 100%;
-        height: 20;
-    }
-    .header {
-        margin:1 1;
-        width: 100%;
-        height: 5%;
-        background: $panel;
-        border: tall $primary;
-        content-align: center middle;
-    }
-    """
+    CSS_PATH = "entities.css"
 
     BINDINGS = [("t", "tasks", "Tasks"), ("n", "notes", "Notes"),
                 ("o", "overview", "Overview"), ("q", "quit", "Quit"),
@@ -640,6 +587,7 @@ class TerkaSprint(App):
                 ("S", "sort_by_status", "Sort by Status"),
                 ("E", "task_edit", "Edit"), ("r", "refresh", "Refresh"),
                 ("d", "task_complete", "Done"), ("X", "task_delete", "Delete"),
+                ("a", "task_add", "Add"),
                 ("U", "task_update_context", "Update"), ("T", "time", "Time")]
 
     current_sorts: set = set()
@@ -678,39 +626,6 @@ class TerkaSprint(App):
         else:
             self.current_sorts.add(sort_type)
         return reverse
-
-    def action_task_update_context(self) -> None:
-        self.push_screen(TaskStatusEdit(), self.task_update_context_callback)
-
-    def task_update_context_callback(self, result: str):
-        self.bus.handle(
-            _commands.UpdateTask(id=self.selected_task,
-                                 status=models.task.TaskStatus[result]))
-        self.notify(f"Task: {self.selected_task} status updated to {result}!")
-
-    def action_task_complete(self) -> None:
-        self.push_screen(TaskComplete(), self.task_complete_callback)
-
-    def task_complete_callback(self, result: TaskCompletionInfo):
-        self.bus.handle(
-            _commands.CompleteTask(id=self.selected_task,
-                                   comment=result.comment,
-                                   hours=result.hours))
-        self.notify(f"Task: {self.selected_task} is completed!")
-
-    def action_task_delete(self) -> None:
-        self.push_screen(TaskDelete(), self.task_delete_callback)
-
-    def task_delete_callback(self, result: TaskCompletionInfo):
-        self.bus.handle(
-            _commands.DeleteTask(id=self.selected_task,
-                                 comment=result.comment,
-                                 hours=result.hours,
-                                 entity_type="sprint",
-                                 entity_id=self.entity.id))
-        self.notify(
-            f"Task: {self.selected_task} is deleted from the current sprint!",
-            severity="warning")
 
     def action_sort_by_project(self) -> None:
         table = self.query_one("#tasks_table", DataTable)
