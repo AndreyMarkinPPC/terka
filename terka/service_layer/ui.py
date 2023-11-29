@@ -70,6 +70,9 @@ class PopupsMixin:
                     f"Task: {self.selected_task} is added to sprint {sprint}!")
             except exceptions.EntityNotFound:
                 self.notify(f"Sprint {sprint} not found!", severity="error")
+            except exceptions.TerkaSprintCompleted:
+                self.notify(f"Cannot add task to completed sprint {sprint} !",
+                            severity="error")
         if story := result.story:
             try:
                 self.bus.handle(
@@ -109,6 +112,9 @@ class PopupsMixin:
         if self.selected_column == "priority":
             self.push_screen(ui_components.TaskPriorityEdit(),
                              self.task_update_priority_callback)
+        if self.selected_column == "story_points":
+            self.push_screen(ui_components.TaskStoryPointsEdit(),
+                             self.task_update_story_points_callback)
 
     def task_update_status_callback(self, result: str):
         self.bus.handle(
@@ -122,6 +128,14 @@ class PopupsMixin:
                                  priority=models.task.TaskPriority[result]))
         self.notify(
             f"Task: {self.selected_task} priority updated to {result}!")
+
+    def task_update_story_points_callback(self, result: str):
+        self.bus.handle(
+            _commands.AddTask(id=self.selected_task,
+                              sprint=self.sprint_id,
+                              story_points=result))
+        self.notify(
+            f"Task: {self.selected_task} story points updated to {result}!")
 
 
 class Comment(Widget):
@@ -286,91 +300,6 @@ class TerkaProject(App, PopupsMixin):
     def on_mount(self) -> None:
         self.title = f"Project: {self.entity.name}"
         self.sub_title = f'Workspace: {self.config.get("workspace")}'
-
-    def action_task_complete(self) -> None:
-        self.push_screen(ui_components.TaskComplete(),
-                         self.task_complete_callback)
-
-    def task_complete_callback(self, result: _commands.CompleteTask):
-        result.id = self.selected_task
-        self.bus.handle(result)
-        self.notify(f"Task: {self.selected_task} is completed!")
-
-    def action_task_edit(self) -> None:
-        self.push_screen(ui_components.TaskEdit(), self.task_edit_callback)
-
-    def task_edit_callback(self, result: _commands.UpdateTask):
-        result.id = self.selected_task
-        self.bus.handle(result)
-        self.notify(f"Task: {self.selected_task} is updated!")
-
-    # def action_task_add(self) -> None:
-    #     self.push_screen(ui_components.TaskAdd(), self.task_add_callback)
-
-    # def task_add_callback(self, result: _commands.AddTask):
-    #     if epic := result.epic:
-    #         try:
-    #             self.bus.handle(
-    #                 _commands.AddTask(
-    #                     id=self.selected_task,
-    #                     epic=epic,
-    #                 ))
-    #             self.notify(
-    #                 f"Task: {self.selected_task} is added to epic {epic}!")
-    #         except exceptions.EntityNotFound:
-    #             self.notify(f"Epic {epic} not found!", severity="error")
-    #     if sprint := result.sprint:
-    #         try:
-    #             self.bus.handle(
-    #                 _commands.AddTask(
-    #                     id=self.selected_task,
-    #                     sprint=sprint,
-    #                 ))
-    #             self.notify(
-    #                 f"Task: {self.selected_task} is added to sprint {sprint}!")
-    #         except exceptions.EntityNotFound:
-    #             self.notify(f"Sprint {sprint} not found!", severity="error")
-    #     if story := result.story:
-    #         try:
-    #             self.bus.handle(
-    #                 _commands.AddTask(
-    #                     id=self.selected_task,
-    #                     story=story,
-    #                 ))
-    #             self.notify(
-    #                 f"Task: {self.selected_task} is added to story {story}!")
-    #         except exceptions.EntityNotFound:
-    #             self.notify(f"Story {story} not found!", severity="error")
-
-    # def action_task_delete(self) -> None:
-    #     self.push_screen(ui_components.TaskDelete(), self.task_delete_callback)
-
-    # def task_delete_callback(self, result: _commands.DeleteTask):
-    #     result.id = self.selected_task
-    #     self.bus.handle(result)
-    #     self.notify(f"Task: {self.selected_task} is deleted!",
-    #                 severity="warning")
-
-    # def action_task_update_context(self) -> None:
-    #     if self.selected_column == "status":
-    #         self.push_screen(ui_components.TaskStatusEdit(),
-    #                          self.task_update_status_callback)
-    #     if self.selected_column == "priority":
-    #         self.push_screen(ui_components.TaskPriorityEdit(),
-    #                          self.task_update_priority_callback)
-
-    # def task_update_status_callback(self, result: str):
-    #     self.bus.handle(
-    #         _commands.UpdateTask(id=self.selected_task,
-    #                              status=models.task.TaskStatus[result]))
-    #     self.notify(f"Task: {self.selected_task} status updated to {result}!")
-
-    # def task_update_priority_callback(self, result: str):
-    #     self.bus.handle(
-    #         _commands.UpdateTask(id=self.selected_task,
-    #                              priority=models.task.TaskPriority[result]))
-    #     self.notify(
-    #         f"Task: {self.selected_task} priority updated to {result}!")
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -811,9 +740,11 @@ class TerkaSprint(App, PopupsMixin):
 
     def on_data_table_cell_selected(self, event: DataTable.CellSelected):
         self.selected_task = event.cell_key.row_key.value
+        self.selected_column = event.cell_key.column_key.value
 
     def on_data_table_cell_selected(self, event: DataTable.CellHighlighted):
         self.selected_task = event.cell_key.row_key.value
+        self.selected_column = event.cell_key.column_key.value
 
 
 # TODO: implement

@@ -186,6 +186,7 @@ class AddTask(Command):
     sprint: str | None = None
     epic: str | None = None
     story: str | None = None
+    story_points: float | None = None
 
 
 @dataclass

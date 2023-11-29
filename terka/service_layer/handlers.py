@@ -176,8 +176,7 @@ class TaskCommandHandlers:
             uow.published_events.append(task_created_event)
             uow.commit()
             TaskCommandHandlers._process_extra_args(new_task.id, context, uow)
-            handler.publisher.publish("Topic",
-                                      task_created_event)
+            handler.publisher.publish("Topic", task_created_event)
             handler.printer.console.print_new_object(new_task)
 
     @register(cmd=_commands.UpdateTask)
@@ -230,24 +229,37 @@ class TaskCommandHandlers:
             handler: Handler,
             context: dict = {}) -> None:
 
-        for field in cmd.__dataclass_fields__:
-            if field_value := getattr(cmd, field):
-                updated_context = {
-                    "entity_type": field,
-                    "entity_id": field_value
-                }
-                if field == "sprint":
-                    TaskCommandHandlers._add(
-                        _commands.AddTask(cmd.id, sprint=field_value), handler,
-                        updated_context)
-                if field == "epic":
-                    TaskCommandHandlers._add(
-                        _commands.AddTask(cmd.id, epic=field_value), handler,
-                        updated_context)
-                if field == "story":
-                    TaskCommandHandlers._add(
-                        _commands.AddTask(cmd.id, story=field_value), handler,
-                        updated_context)
+        if ("sprint" in cmd.__dataclass_fields__
+                and "story_points" in cmd.__dataclass_fields__):
+            updated_context = {
+                "entity_type": "sprint",
+                "entity_id": cmd.sprint
+            }
+            TaskCommandHandlers._add(
+                _commands.AddTask(cmd.id,
+                                  sprint=cmd.sprint,
+                                  story_points=cmd.story_points), handler,
+                updated_context)
+
+        else:
+            for field in cmd.__dataclass_fields__:
+                if field_value := getattr(cmd, field):
+                    updated_context = {
+                        "entity_type": field,
+                        "entity_id": field_value
+                    }
+                    if field == "sprint":
+                        TaskCommandHandlers._add(
+                            _commands.AddTask(cmd.id, sprint=field_value),
+                            handler, updated_context)
+                    if field == "epic":
+                        TaskCommandHandlers._add(
+                            _commands.AddTask(cmd.id, epic=field_value),
+                            handler, updated_context)
+                    if field == "story":
+                        TaskCommandHandlers._add(
+                            _commands.AddTask(cmd.id, story=field_value),
+                            handler, updated_context)
 
     def _add(cmd: _commands.AddTask, handler: Handler, context) -> None:
         entity_name, entity_id = context["entity_type"], context["entity_id"]
@@ -257,19 +269,33 @@ class TaskCommandHandlers:
                                    f"{entity_name.capitalize()}Task")
         entity_dict = {"task": cmd.id}
         entity_dict[entity_name] = entity_id
+        story_points = cmd.story_points
         with handler.uow as uow:
             if not (existing_entity := uow.tasks.get_by_id(entity, entity_id)):
                 raise exceptions.EntityNotFound(
                     f"{entity_name} id {entity_id} is not found")
-            if not uow.tasks.list(entity_task_type, entity_dict):
-                # raise exceptions.TaskAddedToEntity(
-                #     f"task {cmd.id} already added to "
-                #     f"{entity_name} {cmd.entity_id}")
+            if (existing_entity_task := uow.tasks.list(entity_task_type,
+                                                       entity_dict)):
+                if not story_points:
+                    raise exceptions.TaskAddedToEntity(
+                        f"task {cmd.id} already added to "
+                        f"{entity_name} {entity_id}")
+                else:
+                    uow.tasks.update(entity_task_type,
+                                     existing_entity_task[0].id,
+                                     {"story_points": float(story_points)})
+                    uow.commit()
+            else:
+                if entity_name == "sprint" and story_points:
+                    entity_dict["story_points"] = story_points
                 entity_task = entity_task_type(**entity_dict)
                 uow.tasks.add(entity_task)
                 uow.commit()
                 logging.debug(f"Task added to {entity_name}, context {cmd}")
                 if entity_name == "sprint":
+                    if existing_entity.status == models.sprint.SprintStatus.COMPLETED:
+                        raise exceptions.TerkaSprintCompleted(
+                            f"Sprint {entity_id} is completed")
                     if existing_task := uow.tasks.get_by_id(
                             models.task.Task, cmd.id):
                         task_params = {}

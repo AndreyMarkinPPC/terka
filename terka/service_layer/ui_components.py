@@ -200,3 +200,26 @@ class TaskPriorityEdit(ModalScreen[str]):
     @on(Input.Submitted)
     def submit_input(self, event: Input.Submitted) -> None:
         exit(self)
+
+
+class TaskStoryPointsEdit(ModalScreen[str]):
+
+    def compose(self) -> ComposeResult:
+        yield Grid(
+            Label(f"Add story points", id="question"),
+            Input(placeholder="Story points", id="story-points", validators=[Number()]),
+            Button("Confim", id="yes"),
+            Button("Cancel", id="no"),
+            id="dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "yes":
+            story_points = self.query_one("#story-points", Input)
+            self.dismiss(story_points.value)
+        else:
+            self.app.pop_screen()
+
+    @on(Input.Submitted)
+    def submit_input(self, event: Input.Submitted) -> None:
+        exit(self)
