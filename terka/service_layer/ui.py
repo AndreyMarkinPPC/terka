@@ -89,14 +89,14 @@ class PopupsMixin:
         result.id = self.selected_task
         is_sprint = False
         if hasattr(self, "sprint_id"):
-            result.sprint = sprints
+            result.sprint = self.sprint_id
             is_sprint = True
 
         self.bus.handle(result)
         if is_sprint:
             self.notify(
                 f"Task: {self.selected_task} is deleted from "
-                "sprint {self.sprint_id}!",
+                f"sprint {self.sprint_id}!",
                 severity="warning")
         else:
             self.notify(f"Task: {self.selected_task} is deleted!",
