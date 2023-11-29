@@ -198,6 +198,10 @@ class NoteTask(Note):
 class CommentTask(Comment):
     ...
 
+@dataclass
+class TrackTask(Command):
+    id: int
+    hours: int | None = None
 
 # PROJECT
 @dataclass

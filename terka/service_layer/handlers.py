@@ -229,16 +229,12 @@ class TaskCommandHandlers:
             handler: Handler,
             context: dict = {}) -> None:
 
-        if ("sprint" in cmd.__dataclass_fields__
-                and "story_points" in cmd.__dataclass_fields__):
-            updated_context = {
-                "entity_type": "sprint",
-                "entity_id": cmd.sprint
-            }
+        if (sprint := cmd.sprint) and (story_points := cmd.story_points):
+            updated_context = {"entity_type": "sprint", "entity_id": sprint}
             TaskCommandHandlers._add(
                 _commands.AddTask(cmd.id,
-                                  sprint=cmd.sprint,
-                                  story_points=cmd.story_points), handler,
+                                  sprint=sprint,
+                                  story_points=story_points), handler,
                 updated_context)
 
         else:
@@ -420,6 +416,20 @@ class TaskCommandHandlers:
                              {"modification_date": datetime.now()})
             uow.commit()
 
+    @register(cmd=_commands.TrackTask)
+    def track(cmd: _commands.TrackTask,
+              handler: Handler,
+              context: dict = {}) -> None:
+        with handler.uow as uow:
+            if not (existing_task := uow.tasks.get_by_id(
+                    models.task.Task, cmd.id)):
+                raise exceptions.EntityNotFound(
+                    f"Task id {cmd.id} is not found")
+            uow.tasks.add(
+                models.time_tracker.TimeTrackerEntry(
+                    task=cmd.id, time_spent_minutes=cmd.hours))
+            uow.commit()
+
     @register(cmd=_commands.TagTask)
     def tag(cmd: _commands.TagTask,
             handler: Handler,
@@ -559,11 +569,10 @@ class TaskEventHandlers(Handler):
     def hours_submitted(event: events.TaskHoursSubmitted,
                         handler: Handler,
                         context: dict = {}) -> None:
-        with handler.uow as uow:
-            uow.tasks.add(
-                models.time_tracker.TimeTrackerEntry(
-                    task=event.id, time_spent_minutes=event.hours))
-            uow.commit()
+        TaskCommandHandlers.track(cmd=_commands.TrackTask(id=event.id,
+                                                          hours=event.hours),
+                                  handler=handler,
+                                  context=context)
 
     @register(event=events.TaskAddedToEpic)
     def added_to_epic(event: events.TaskAddedToEpic,
