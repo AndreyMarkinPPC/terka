@@ -9,6 +9,135 @@ from textual.widgets import Button, Input, Label, Select
 from terka.domain import _commands
 
 
+class NewTask(ModalScreen[str]):
+
+    def compose(self) -> ComposeResult:
+        yield Grid(
+            Label(f"New task", id="question"),
+            Input(placeholder="Name", id="name"),
+            Input(placeholder="Description", id="description"),
+            Select(((line, line) for line in [
+                "BACKLOG", "TODO", "IN_PROGRESS", "REVIEW", "DONE", "DELETED"
+            ]),
+                   prompt="status",
+                   value="BACKLOG",
+                   id="status"),
+            Select(
+                ((line, line) for line in ["LOW", "NORMAL", "HIGH", "URGENT"]),
+                prompt="priority",
+                value="NORMAL",
+                id="priority"),
+            Input(placeholder="Add due date", id="due_date"),
+            Input(placeholder="sprint", id="sprint", validators=[Number()]),
+            Input(placeholder="epic", id="epic", validators=[Number()]),
+            Input(placeholder="story", id="story", validators=[Number()]),
+            Input(placeholder="tags", id="tags"),
+            Input(placeholder="collaborators", id="collaborators"),
+            Button("Yes", id="yes"),
+            Button("No", id="no"),
+            id="new-composite-dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "yes":
+            name = self.query_one("#name", Input)
+            description = self.query_one("#description", Input)
+            status = self.query_one("#status", Select)
+            priority = self.query_one("#priority", Select)
+            due_date = self.query_one("#due_date", Input)
+            if due_date := due_date.value:
+                due_date = datetime.strptime(due_date, "%Y-%m-%d")
+            else:
+                due_date = None
+            sprint = self.query_one("#sprint", Input)
+            epic = self.query_one("#epic", Input)
+            story = self.query_one("#story", Input)
+            tags = self.query_one("#tags", Input)
+            collaborators = self.query_one("#collaborators", Input)
+            commands = []
+            create_command = _commands.CreateTask(
+                name=name.value,
+                description=description.value,
+                due_date=due_date,
+                status=status.value,
+                priority=priority.value)
+            commands.append(create_command)
+            if sprint.value or story.value or epic.value:
+                add_command = _commands.AddTask(id=None,
+                                                sprint=sprint.value,
+                                                epic=epic.value,
+                                                story=story.value)
+                commands.append(add_command)
+            if tags.value:
+                tag_command = _commands.TagTask(id=None, tag=tags.value)
+                commands.append(tag_command)
+            if collaborators.value:
+                collaborator_command = _commands.CollaborateTask(
+                    id=None, collaborator=collaborators.value)
+                commands.append(collaborator_command)
+            self.dismiss(commands)
+        else:
+            self.app.pop_screen()
+
+    @on(Input.Submitted)
+    def submit_input(self, event: Input.Submitted) -> None:
+        exit(self)
+
+
+class NewEpic(ModalScreen[str]):
+
+    def compose(self) -> ComposeResult:
+        yield Grid(
+            Label(f"New epic", id="question"),
+            Input(placeholder="Name", id="name"),
+            Input(placeholder="Description", id="description"),
+            Button("Yes", id="yes"),
+            Button("No", id="no"),
+            id="new-dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "yes":
+            name = self.query_one("#name", Input)
+            description = self.query_one("#description", Input)
+            self.dismiss(
+                _commands.CreateEpic(name=name.value,
+                                     description=description.value))
+        else:
+            self.app.pop_screen()
+
+    @on(Input.Submitted)
+    def submit_input(self, event: Input.Submitted) -> None:
+        exit(self)
+
+
+class NewStory(ModalScreen[str]):
+
+    def compose(self) -> ComposeResult:
+        yield Grid(
+            Label(f"New story", id="question"),
+            Input(placeholder="Name", id="name"),
+            Input(placeholder="Description", id="description"),
+            Button("Yes", id="yes"),
+            Button("No", id="no"),
+            id="new-composite-dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "yes":
+            name = self.query_one("#name", Input)
+            description = self.query_one("#description", Input)
+            self.dismiss(
+                _commands.CreateStory(name=name.value,
+                                      description=description.value))
+        else:
+            self.app.pop_screen()
+
+    @on(Input.Submitted)
+    def submit_input(self, event: Input.Submitted) -> None:
+        exit(self)
+
+
 class TaskAdd(ModalScreen[str]):
 
     def compose(self) -> ComposeResult:
@@ -17,7 +146,9 @@ class TaskAdd(ModalScreen[str]):
             Input(placeholder="To sprint", id="sprint", validators=[Number()]),
             Input(placeholder="To epic", id="epic", validators=[Number()]),
             Input(placeholder="To story", id="story", validators=[Number()]),
-            Input(placeholder="Story points", id="story-points", validators=[Number()]),
+            Input(placeholder="Story points",
+                  id="story-points",
+                  validators=[Number()]),
             Button("Confirm", id="yes"),
             Button("Cancel", id="no"),
             id="dialog",

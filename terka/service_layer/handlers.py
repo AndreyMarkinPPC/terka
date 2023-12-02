@@ -162,7 +162,7 @@ class TaskCommandHandlers:
     @register(cmd=_commands.CreateTask)
     def create(cmd: _commands.CreateTask,
                handler: Handler,
-               context: dict = {}) -> None:
+               context: dict = {}) -> int:
         # TODO: context should be taken from console as well
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
@@ -172,12 +172,14 @@ class TaskCommandHandlers:
             new_task = models.task.Task(**asdict(cmd))
             uow.tasks.add(new_task)
             uow.flush()
+            new_task_id = new_task.id
             task_created_event = events.TaskCreated(new_task.id)
             uow.published_events.append(task_created_event)
             uow.commit()
             TaskCommandHandlers._process_extra_args(new_task.id, context, uow)
             handler.publisher.publish("Topic", task_created_event)
             handler.printer.console.print_new_object(new_task)
+            return new_task_id 
 
     @register(cmd=_commands.UpdateTask)
     def update(cmd: _commands.UpdateTask,
