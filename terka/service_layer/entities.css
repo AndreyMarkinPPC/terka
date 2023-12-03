@@ -32,7 +32,7 @@ TaskComplete {
 Button {
 		width: 100%;
 }
-TaskEdit {
+TerkaModalScreen {
 		align: center top;
 }
 #edit-dialog {
@@ -45,23 +45,50 @@ TaskEdit {
 		border: thick $background 80%;
 		background: $surface;
 }
-#new-dialog {
-		grid-size: 1;
-		grid-gutter: 1 2;
-		grid-rows: 1fr 3;
+.text-input {
+	column-span: 2;
+
+}
+.description-input {
+	column-span: 2;
+	height: 20;
+}
+.small-select {
+	column-span: 2;
+}
+#small-dialog {
+		layout: grid;
+		grid-size: 2;
+		grid-rows: 1fr;
+		grid-columns: 0.5fr;
+		grid-gutter: 1;
 		padding: 0 1;
-		width: 60;
-		height: 60;
+		width: 40%;
+		height: 30%;
+		border: thick $background 80%;
+		background: $surface;
+}
+#new-dialog {
+		layout: grid;
+		grid-size: 2;
+		grid-rows: 1fr;
+		grid-columns: 0.5fr;
+		grid-gutter: 1;
+		padding: 0 1;
+		width: 90%;
+		height: 80%;
 		border: thick $background 80%;
 		background: $surface;
 }
 #new-composite-dialog {
-		grid-size: 1;
-		grid-gutter: 1 2;
-		grid-rows: 1fr 3;
+		layout: grid;
+		grid-size: 2;
+		grid-rows: 1fr;
+		grid-columns: 0.5fr;
+		grid-gutter: 1;
 		padding: 0 1;
-		width: 60;
-		height: 30;
+		width: 60%;
+		height: 40%;
 		border: thick $background 80%;
 		background: $surface;
 }
@@ -76,6 +103,10 @@ TaskEdit {
 		background: $panel;
 		border: tall $primary;
 		content-align: center middle;
+}
+.new_entity {
+	align: left top;
+	width: 15%;
 }
 Sidebar {
 	width: 40;

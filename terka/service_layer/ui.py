@@ -21,12 +21,12 @@ from terka.domain import _commands, events, models
 from terka.service_layer import services, views, exceptions, ui_components
 from terka.service_layer.formatter import Formatter
 
+
 class Sidebar(Container):
-    def __init__(self):
-        super.__init__()
 
     def compose(self) -> ComposeResult:
         yield Static(f"{self.app.selected_task}", classes="header")
+
 
 class PopupsMixin:
 
@@ -87,10 +87,8 @@ class PopupsMixin:
                 self.notify(
                     f"Task: {self.selected_task} is added to sprint {sprint}!")
             else:
-                self.notify(
-                    f"Task: {self.selected_task} story points updated "
-                    f"to {story_points}!"
-                )
+                self.notify(f"Task: {self.selected_task} story points updated "
+                            f"to {story_points}!")
         if story := result.story:
             try:
                 self.bus.handle(
@@ -291,11 +289,12 @@ class TerkaProject(App, PopupsMixin):
     CSS_PATH = "entities.css"
 
     BINDINGS = [
+        ("n", "new_task", "New Task"),
         ("b", "backlog", "Backlog"),
         ("t", "tasks", "Tasks"),
         ("e", "epics", "Epics"),
         ("s", "stories", "Stories"),
-        ("n", "notes", "Notes"),
+        ("N", "notes", "Notes"),
         ("o", "overview", "Overview"),
         ("T", "time", "Time"),
         ("q", "quit", "Quit"),
@@ -306,6 +305,7 @@ class TerkaProject(App, PopupsMixin):
         ("d", "task_complete", "Done"),
         ("U", "task_update_context", "Update"),
         ("X", "task_delete", "Delete"),
+        ("Enter", "task_show", "Show"),
     ]
 
     show_sidebar = reactive(False)
@@ -331,12 +331,15 @@ class TerkaProject(App, PopupsMixin):
         self.sub_title = f'Workspace: {self.config.get("workspace")}'
 
     def compose(self) -> ComposeResult:
-        yield Static(str(self.selected_task), classes="-hidden")
+        yield Sidebar(classes="-hidden")
         yield Header()
         yield Static(f"{self.entity.name}", classes="header")
         with TabbedContent(initial="tasks"):
             with TabPane("Backlog", id="backlog"):
-                yield Button("+Task", id="new_task", variant="success")
+                yield Button("+Task",
+                             id="new_task",
+                             variant="success",
+                             classes="new_entity")
                 table = DataTable(id="backlog")
                 for column in ("id", "name", "priority", "due_date",
                                "created_at", "tags", "collaborators",
@@ -452,7 +455,10 @@ class TerkaProject(App, PopupsMixin):
                         Formatter.format_time_spent(task.total_time_spent))
                 yield table
             with TabPane("Epics", id="epics"):
-                yield Button("+Epic", id="new_epic")
+                yield Button("+Epic",
+                             id="new_epic",
+                             variant="success",
+                             classes="new_entity")
                 table = DataTable(id="epics")
                 table.add_columns("id", "name", "description", "status",
                                   "tasks")
@@ -464,7 +470,10 @@ class TerkaProject(App, PopupsMixin):
                                   epic.status.name, str(len(epic.tasks)))
                 yield table
             with TabPane("Stories", id="stories"):
-                yield Button("+Story", id="new_story")
+                yield Button("+Story",
+                             id="new_story",
+                             variant="success",
+                             classes="new_entity")
                 table = DataTable(id="stories")
                 table.add_columns("id", "name", "description", "status",
                                   "tasks")
@@ -474,7 +483,10 @@ class TerkaProject(App, PopupsMixin):
                                   story.status.name, str(len(story.tasks)))
                 yield table
             with TabPane("Notes", id="notes"):
-                yield Button("+Note", id="new_note")
+                yield Button("+Note",
+                             id="new_note",
+                             variant="success",
+                             classes="new_entity")
                 table = DataTable(id="notes")
                 table.add_columns("id", "text")
                 for task in self.entity.notes:
@@ -549,17 +561,20 @@ class TerkaProject(App, PopupsMixin):
         self.selected_task = event.cell_key.row_key.value
         self.selected_column = event.cell_key.column_key.value
 
+    def action_new_task(self):
+        self.push_screen(ui_components.NewTask(), self.task_new_callback)
+
+    def action_task_show(self):
+        self.push_screen(ui_components.ShowTask())
+
     @on(Button.Pressed)
     def open_new_element_window(self, event: Button.Pressed) -> None:
         if event.button.id == "new_task":
-            self.push_screen(ui_components.NewTask(),
-                             self.task_new_callback)
+            self.push_screen(ui_components.NewTask(), self.task_new_callback)
         elif event.button.id == "new_epic":
-            self.push_screen(ui_components.NewEpic(),
-                             self.epic_new_callback)
+            self.push_screen(ui_components.NewEpic(), self.epic_new_callback)
         elif event.button.id == "new_story":
-            self.push_screen(ui_components.NewStory(),
-                             self.story_new_callback)
+            self.push_screen(ui_components.NewStory(), self.story_new_callback)
 
     def task_new_callback(self, result: list[_commands.Command]):
         create_task, *rest = result
@@ -580,6 +595,7 @@ class TerkaProject(App, PopupsMixin):
         result.project = self.entity.name
         self.bus.handle(result)
         self.notify(f"New story created!")
+
 
 class TerkaSprint(App, PopupsMixin):
 

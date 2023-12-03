@@ -4,18 +4,31 @@ from textual.app import ComposeResult
 from textual.containers import Grid
 from textual.screen import ModalScreen
 from textual.validation import Number
-from textual.widgets import Button, Input, Label, Select
+from textual.widgets import Button, Input, Label, Select, Static
 
 from terka.domain import _commands
 
 
-class NewTask(ModalScreen[str]):
+class TerkaModalScreen(ModalScreen[str]):
+    BINDINGS = [("escape", "quit", "Quit")]
+
+    @on(Input.Submitted)
+    def submit_input(self, event: Input.Submitted) -> None:
+        self.app.pop_screen()
+
+    def action_quit(self):
+        self.app.pop_screen()
+
+
+class NewTask(TerkaModalScreen):
 
     def compose(self) -> ComposeResult:
         yield Grid(
             Label(f"New task", id="question"),
-            Input(placeholder="Name", id="name"),
-            Input(placeholder="Description", id="description"),
+            Input(placeholder="Name", id="name", classes="text-input"),
+            Input(placeholder="Description",
+                  id="description",
+                  classes="description-input"),
             Select(((line, line) for line in [
                 "BACKLOG", "TODO", "IN_PROGRESS", "REVIEW", "DONE", "DELETED"
             ]),
@@ -33,9 +46,9 @@ class NewTask(ModalScreen[str]):
             Input(placeholder="story", id="story", validators=[Number()]),
             Input(placeholder="tags", id="tags"),
             Input(placeholder="collaborators", id="collaborators"),
-            Button("Yes", id="yes"),
+            Button("Save", id="yes", variant="success"),
             Button("No", id="no"),
-            id="new-composite-dialog",
+            id="new-dialog",
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -79,21 +92,19 @@ class NewTask(ModalScreen[str]):
         else:
             self.app.pop_screen()
 
-    @on(Input.Submitted)
-    def submit_input(self, event: Input.Submitted) -> None:
-        exit(self)
 
-
-class NewEpic(ModalScreen[str]):
+class NewEpic(TerkaModalScreen):
 
     def compose(self) -> ComposeResult:
         yield Grid(
             Label(f"New epic", id="question"),
-            Input(placeholder="Name", id="name"),
-            Input(placeholder="Description", id="description"),
-            Button("Yes", id="yes"),
+            Input(placeholder="Name", id="name", classes="text-input"),
+            Input(placeholder="Description",
+                  id="description",
+                  classes="description-input"),
+            Button("Save", id="yes", variant="success"),
             Button("No", id="no"),
-            id="new-dialog",
+            id="new-composite-dialog",
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -106,19 +117,17 @@ class NewEpic(ModalScreen[str]):
         else:
             self.app.pop_screen()
 
-    @on(Input.Submitted)
-    def submit_input(self, event: Input.Submitted) -> None:
-        exit(self)
 
-
-class NewStory(ModalScreen[str]):
+class NewStory(TerkaModalScreen):
 
     def compose(self) -> ComposeResult:
         yield Grid(
             Label(f"New story", id="question"),
-            Input(placeholder="Name", id="name"),
-            Input(placeholder="Description", id="description"),
-            Button("Yes", id="yes"),
+            Input(placeholder="Name", id="name", classes="text-input"),
+            Input(placeholder="Description",
+                  id="description",
+                  classes="description-input"),
+            Button("Save", id="yes", variant="success"),
             Button("No", id="no"),
             id="new-composite-dialog",
         )
@@ -133,12 +142,8 @@ class NewStory(ModalScreen[str]):
         else:
             self.app.pop_screen()
 
-    @on(Input.Submitted)
-    def submit_input(self, event: Input.Submitted) -> None:
-        exit(self)
 
-
-class TaskAdd(ModalScreen[str]):
+class TaskAdd(TerkaModalScreen):
 
     def compose(self) -> ComposeResult:
         yield Grid(
@@ -169,18 +174,30 @@ class TaskAdd(ModalScreen[str]):
         else:
             self.app.pop_screen()
 
-    @on(Input.Submitted)
-    def submit_input(self, event: Input.Submitted) -> None:
-        exit(self)
+
+class ShowTask(TerkaModalScreen):
+
+    def compose(self) -> ComposeResult:
+        yield Grid(
+            Label("Task info", id="question"),
+            Static(f"[b]Name:[/b] ", id="name"),
+            Static("Description", id="description"),
+            Static("status", id="status"),
+            Static("priority", id="priority"),
+            Static("due date", id="due_date"),
+            id="edit-dialog",
+        )
 
 
-class TaskEdit(ModalScreen[str]):
+class TaskEdit(TerkaModalScreen):
 
     def compose(self) -> ComposeResult:
         yield Grid(
             Label(f"Edit task", id="question"),
             Input(placeholder="Name", id="name"),
-            Input(placeholder="Description", id="description"),
+            Input(placeholder="Description",
+                  id="description",
+                  classes="description-input"),
             Select(((line, line) for line in [
                 "BACKLOG", "TODO", "IN_PROGRESS", "REVIEW", "DONE", "DELETED"
             ]),
@@ -195,7 +212,7 @@ class TaskEdit(ModalScreen[str]):
                   validators=[Number()],
                   id="hours"),
             Input(placeholder="Comment", id="comment"),
-            Button("Yes", id="yes"),
+            Button("Save", id="yes", variant="success"),
             Button("No", id="no"),
             id="edit-dialog",
         )
@@ -220,12 +237,8 @@ class TaskEdit(ModalScreen[str]):
         else:
             self.app.pop_screen()
 
-    @on(Input.Submitted)
-    def submit_input(self, event: Input.Submitted) -> None:
-        exit(self)
 
-
-class TaskComplete(ModalScreen[str]):
+class TaskComplete(TerkaModalScreen):
 
     def compose(self) -> ComposeResult:
         yield Grid(
@@ -234,7 +247,7 @@ class TaskComplete(ModalScreen[str]):
             Input(placeholder="Add time spent",
                   validators=[Number()],
                   id="hours"),
-            Button("Yes", id="yes"),
+            Button("Yes", id="yes", variant="success"),
             Button("No", id="no"),
             id="dialog",
         )
@@ -250,12 +263,8 @@ class TaskComplete(ModalScreen[str]):
         else:
             self.app.pop_screen()
 
-    @on(Input.Submitted)
-    def submit_input(self, event: Input.Submitted) -> None:
-        exit(self)
 
-
-class TaskDelete(ModalScreen[str]):
+class TaskDelete(TerkaModalScreen):
 
     def compose(self) -> ComposeResult:
         yield Grid(
@@ -264,7 +273,7 @@ class TaskDelete(ModalScreen[str]):
             Input(placeholder="Add time spent",
                   validators=[Number()],
                   id="hours"),
-            Button("Yes", id="yes"),
+            Button("Yes", id="yes", variant="success"),
             Button("No", id="no"),
             id="dialog",
         )
@@ -280,12 +289,8 @@ class TaskDelete(ModalScreen[str]):
         else:
             self.app.pop_screen()
 
-    @on(Input.Submitted)
-    def submit_input(self, event: Input.Submitted) -> None:
-        exit(self)
 
-
-class TaskStatusEdit(ModalScreen[str]):
+class TaskStatusEdit(TerkaModalScreen):
 
     def compose(self) -> ComposeResult:
         yield Grid(
@@ -293,11 +298,12 @@ class TaskStatusEdit(ModalScreen[str]):
             Select(((line, line) for line in [
                 "BACKLOG", "TODO", "IN_PROGRESS", "REVIEW", "DONE", "DELETED"
             ]),
+                   classes="small-select",
                    prompt="status",
                    id="status"),
-            Button("Confim", id="yes"),
+            Button("Confim", id="yes", variant="success"),
             Button("Cancel", id="no"),
-            id="dialog",
+            id="small-dialog",
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -307,12 +313,8 @@ class TaskStatusEdit(ModalScreen[str]):
         else:
             self.app.pop_screen()
 
-    @on(Input.Submitted)
-    def submit_input(self, event: Input.Submitted) -> None:
-        exit(self)
 
-
-class TaskPriorityEdit(ModalScreen[str]):
+class TaskPriorityEdit(TerkaModalScreen):
 
     def compose(self) -> ComposeResult:
         yield Grid(
@@ -320,10 +322,11 @@ class TaskPriorityEdit(ModalScreen[str]):
             Select(
                 ((line, line) for line in ["LOW", "NORMAL", "HIGH", "URGENT"]),
                 prompt="priority",
+                classes="small-select",
                 id="priority"),
-            Button("Confim", id="yes"),
+            Button("Confim", id="yes", variant="success"),
             Button("Cancel", id="no"),
-            id="dialog",
+            id="small-dialog",
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -333,12 +336,8 @@ class TaskPriorityEdit(ModalScreen[str]):
         else:
             self.app.pop_screen()
 
-    @on(Input.Submitted)
-    def submit_input(self, event: Input.Submitted) -> None:
-        exit(self)
 
-
-class TaskStoryPointsEdit(ModalScreen[str]):
+class TaskStoryPointsEdit(TerkaModalScreen):
 
     def compose(self) -> ComposeResult:
         yield Grid(
@@ -357,10 +356,6 @@ class TaskStoryPointsEdit(ModalScreen[str]):
             self.dismiss(story_points.value)
         else:
             self.app.pop_screen()
-
-    @on(Input.Submitted)
-    def submit_input(self, event: Input.Submitted) -> None:
-        exit(self)
 
 
 class TaskHoursSubmitted(ModalScreen[str]):
@@ -382,7 +377,3 @@ class TaskHoursSubmitted(ModalScreen[str]):
             self.dismiss(story_points.value)
         else:
             self.app.pop_screen()
-
-    @on(Input.Submitted)
-    def submit_input(self, event: Input.Submitted) -> None:
-        exit(self)
