@@ -28,3 +28,8 @@ class TerkaSprintCompleted(TerkaException):
 
 class TerkaSprintActive(TerkaException):
     ...
+
+
+class TerkaInitError(TerkaException):
+    ...
+

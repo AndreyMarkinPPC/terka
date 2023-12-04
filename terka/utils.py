@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 import re
@@ -6,7 +6,7 @@ from terka.service_layer import services
 from terka.adapters.repository import AbsRepository
 
 
-def create_task_dict(kwargs: List[str]) -> Dict[str, str]:
+def create_task_dict(kwargs: list[str]) -> dict[str, str]:
     new_dict = {}
     for i, kwarg in enumerate(kwargs):
         if i == 0 and not kwarg.startswith("-"):
@@ -26,9 +26,35 @@ def create_task_dict(kwargs: List[str]) -> Dict[str, str]:
     return new_dict
 
 
-def format_task_dict(config, entity, kwargs) -> Dict[str, Optional[str]]:
+def format_task_dict(config: dict, entity: str,
+                     kwargs: dict) -> dict | list[dict]:
+    _new_dict = create_task_dict(kwargs)
+    if file_path := _new_dict.get("f"):
+        task_dicts: dict = []
+        with open(file_path, "r") as f:
+            lines = [line.rstrip() for line in f if line.rstrip()]
+            for line in lines:
+                entry = line.strip().split("::")
+                if len(entry) == 3:
+                    task_dict = {
+                        "project": entry[0],
+                        "name": entry[1],
+                        "description": entry[2]
+                    }
+                elif len(entry) == 2:
+                    task_dict = {
+                        "project": entry[0],
+                        "name": entry[1],
+                    }
+                elif len(entry) == 1:
+                    task_dict = {"name": entry[0]}
+                task_dicts.append(task_dict)
+        return task_dicts
     if len(kwargs) > 1:
         new_dict = create_task_dict(kwargs)
+        if new_dict.get("f") or new_dict.get("file"):
+            ...
+
         task_dict = {
             "id":
             new_dict.get("id") if entity != "commentaries" else None,
@@ -201,8 +227,8 @@ def convert_date(date: str):
     return date
 
 
-def process_command(command: str, config: Dict[str, Any],
-                    repo: AbsRepository) -> Tuple[str, str, Dict[Any, Any]]:
+def process_command(command: str, config: dict,
+                    repo: AbsRepository) -> tuple[str, str, dict]:
     task_dict = {}
     task_list = []
     entity = None
@@ -224,8 +250,8 @@ def process_command(command: str, config: Dict[str, Any],
     return command, entity, task_dict
 
 
-def update_task_dict(task_dict: Dict[str, str],
-                     repo: AbsRepository) -> Dict[str, str]:
+def update_task_dict(task_dict: dict[str, str],
+                     repo: AbsRepository) -> dict[str, str]:
     if (project := task_dict.get("project")):
         project_id = services.lookup_project_id(project, repo)
         task_dict["project"] = project_id

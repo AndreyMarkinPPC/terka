@@ -43,10 +43,6 @@ def init_db(home_dir):
     return engine
 
 
-class TerkaInitError(Exception):
-    ...
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("command", nargs="?")
@@ -55,6 +51,7 @@ def main():
     parser.add_argument("-v", "--version", dest="version", action="store_true")
     args = parser.parse_known_args()
     args, kwargs = args
+    console = Console()
     command, entity = args.command, args.entity
     if args.version:
         import pkg_resources
@@ -63,18 +60,12 @@ def main():
         print(f"terka version {version}")
         exit()
     if args.command == "config":
-        if "--show" in kwargs:
-            pprint(services.get_config())
-        else:
-            services.update_config(create_task_dict(kwargs))
+        console.print(services.get_config())
         exit()
 
     home_dir = os.path.expanduser("~")
-    file_handler = logging.FileHandler(
-        filename=f"{home_dir}/.terka/terka.log")
-    # file_handler.setLevel(logging.DEBUG)
+    file_handler = logging.FileHandler(filename=f"{home_dir}/.terka/terka.log")
     stdout_handler = logging.StreamHandler(stream=sys.stdout)
-    # stdout_handler.setLevel(logging.WARNING)
     handlers = [file_handler, stdout_handler]
     logging.basicConfig(
         format="[%(asctime)s][%(name)s][%(levelname)s] %(message)s",
@@ -83,7 +74,6 @@ def main():
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     logger = logging.getLogger(__name__)
-    console = Console()
 
     config = load_config(home_dir)
     task_id = config.get("task_id")
@@ -101,113 +91,26 @@ def main():
         home_dir, config, console)
     service_command_handler.execute(command, entity, task_dict)
 
+    bus = bootstrap.bootstrap(start_orm=True,
+                              uow=unit_of_work.SqlAlchemyUnitOfWork(DB_URL),
+                              config=config)
     engine = init_db(home_dir)
-    # # start_mappers()
     Session = sessionmaker(engine)
     with Session() as session:
         repo = SqlAlchemyRepository(session)
-        bus = bootstrap.bootstrap(
-            uow=unit_of_work.SqlAlchemyUnitOfWork(DB_URL))
         if command == "show":
             if entity == "sprint":
                 app = TerkaSprint(repo=repo,
-                                  config=config,
                                   sprint_id=task_dict.get("id"),
                                   bus=bus)
                 app.run()
             if entity == "project":
                 app = TerkaProject(repo=repo,
-                                   config=config,
                                    project_id=task_dict.get("id"),
                                    bus=bus)
                 app.run()
             exit()
-        _CommandHandler(bus).execute(command, entity, task_dict)
-        exit()
-
-    with Session() as session:
-
-        repo = SqlAlchemyRepository(session)
-        command_handler = CommandHandler(repo)
-
-        task_dict = format_task_dict(config, args, kwargs)
-        task_dict = update_task_dict(task_dict, repo)
-        logger.debug(task_dict)
-
-        if file_path := task_dict.get("file"):
-            with open(file_path, "r") as f:
-                lines = [line.rstrip() for line in f if line.rstrip()]
-                for line in lines:
-                    entry = line.strip().split("::")
-                    if not entry:
-                        continue
-                    match entry:
-                        case [project, name, description]:
-                            task_dict = {
-                                "name": name,
-                                "project": project,
-                                "description": description,
-                            }
-                        case [project, name]:
-                            task_dict = {"name": name, "project": project}
-                        case [name]:
-                            task_dict = {"name": name}
-                        case _:
-                            raise Exception("Unknown format")
-                    task_dict = update_task_dict(task_dict, repo)
-                    if entity.startswith("s/"):
-                        entity = "stories"
-                    elif entity.startswith("e/"):
-                        entity = "epics"
-                    command_handler.execute(command, entity, task_dict)
-            exit()
-        is_interactive = False
-        if not command and not entity:
-            is_interactive = True
-            interactive_message = (
-                f"[green]>>> Running terka in an interactive mode[/green]")
-            if task_id:
-                interactive_message = f"{interactive_message} (focus task {task_id})"
-            elif project_name:
-                interactive_message = (
-                    f"{interactive_message} (focus project {project_name})")
-            console.print(interactive_message)
-            command = input("enter command: ")
-            command, entity, task_dict = process_command(command, config, repo)
-        try:
-            if entity == "project" and command == "show":
-                app = TerkaProject(repo=repo,
-                                   config=config,
-                                   project_id=task_dict.get("id"),
-                                   bus=bus)
-                app.run()
-                exit()
-
-            command_handler.execute(command, entity, task_dict)
-        except (ValueError, commands.TerkaException) as e:
-            console.print(f"[red]{e}[/red]")
-
-        while is_interactive:
-            interactive_message = (
-                f"[green]>>> Running terka in an interactive mode[/green]")
-            config = load_config(home_dir)
-            task_id = config.get("task_id")
-            project_name = config.get("project_name")
-            if task_id:
-                interactive_message = f"{interactive_message} (focus task {task_id})"
-            elif project_name:
-                interactive_message = (
-                    f"{interactive_message} (focus project {project_name})")
-            console.print(interactive_message)
-            command = input("enter command: ")
-            command, entity, task_dict = process_command(command, config, repo)
-            if command[0] == "q":
-                exit()
-            try:
-                command_handler.execute(command, entity, task_dict)
-            except commands.TerkaException as e:
-                console.print(f"[red]{e}[/red]")
-                exit()
+    _CommandHandler(bus).execute(command, entity, task_dict)
 
 
 class _CommandHandler:
@@ -215,17 +118,23 @@ class _CommandHandler:
     def __init__(self, bus) -> None:
         self.bus = bus
 
-    def execute(self, command: str, entity: str, task_dict: dict) -> None:
-        command = format_command(command)
-        entity = format_entity(entity)
-        _command = f"{command.capitalize()}{entity.capitalize()}"
-        try:
-            self.bus.handle(
-                getattr(_commands, _command).from_kwargs(**task_dict), context=task_dict)
-        except AttributeError as e:
-            print(e)
-            raise exceptions.TerkaCommandException(
-                f"Unknown command: `terka {command} {entity}`")
+    def execute(self, command: str, entity: str,
+                task_dict: dict | list[dict]) -> None:
+        if isinstance(task_dict, list):
+            for _task_dict in task_dict:
+                self.execute(command, entity, _task_dict)
+        else:
+            command = format_command(command)
+            entity = format_entity(entity)
+            _command = f"{command.capitalize()}{entity.capitalize()}"
+            try:
+                self.bus.handle(getattr(_commands,
+                                        _command).from_kwargs(**task_dict),
+                                context=task_dict)
+            except AttributeError as e:
+                print(e)
+                raise exceptions.TerkaCommandException(
+                    f"Unknown command: `terka {command} {entity}`")
 
 
 def load_config(home_dir):
@@ -234,7 +143,8 @@ def load_config(home_dir):
             config = yaml.safe_load(f)
         return config
     except FileNotFoundError:
-        raise TerkaInitError("call `terka init` to initialize terka")
+        raise exceptions.TerkaInitError(
+            "call `terka init` to initialize terka")
 
 
 if __name__ == "__main__":
