@@ -46,6 +46,10 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         self.session_factory = sessionmaker(self.engine)
         self.published_events: list[events.Event] = []
 
+    @property
+    def repo(self):
+        return repository.SqlAlchemyRepository(self.session_factory())
+
     def __enter__(self) -> None:
         self.session = self.session_factory()  # type: Session
         self.tasks = repository.SqlAlchemyRepository(self.session)

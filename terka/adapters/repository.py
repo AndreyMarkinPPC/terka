@@ -55,7 +55,9 @@ class SqlAlchemyRepository(AbsRepository):
         return self.session.query(element).filter_by(
             id=element_id).update(update_dict)
 
-    def list(self, element: Element, filter_dict: Optional[Dict[str, str]] = {}):
+    def list(self,
+             element: Element,
+             filter_dict: Optional[Dict[str, str]] = {}):
         query_object = self.session.query(element)
         overdue_check = False
         stale_check = False
@@ -108,12 +110,13 @@ class SqlAlchemyRepository(AbsRepository):
                             getattr(element, key) == value)
 
             if stale_check:
-                days_ago = datetime.now().date() - timedelta(days=stale_lookback)
+                days_ago = datetime.now().date() - timedelta(
+                    days=stale_lookback)
                 query_object = query_object.filter(
-                    getattr(element,
-                            "status").in_(["TODO", "IN_PROGRESS", "REVIEW"])).join(
-                                TaskEvent, (element.id == TaskEvent.task)).filter(
-                                    TaskEvent.date <= days_ago, TaskEvent.type == "STATUS")
+                    getattr(element, "status").in_([
+                        "TODO", "IN_PROGRESS", "REVIEW"
+                    ])).join(TaskEvent, (element.id == TaskEvent.task)).filter(
+                        TaskEvent.date <= days_ago, TaskEvent.type == "STATUS")
                 return query_object.all()
             if overdue_check:
                 query_object = query_object.filter(
@@ -145,7 +148,9 @@ class SqlAlchemyRepository(AbsRepository):
         self.session.add(element)
 
     def _get(self, element, element_name):
-        return self.session.query(element).filter_by(name=element_name).one_or_none()
+        return self.session.query(element).filter_by(
+            name=element_name).one_or_none()
 
     def _get_by_element_id(self, element, element_id):
-        return (self.session.query(element).filter_by(id=element_id).one_or_none())
+        return self.session.query(element).filter_by(
+            id=element_id).one_or_none()
