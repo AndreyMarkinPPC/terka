@@ -11,10 +11,12 @@ class MessageBus:
 
     def __init__(self, uow: unit_of_work.AbstractUnitOfWork, publisher,
                  event_handlers: Type[handlers.Handler],
-                 command_handlers: Type[handlers.Handler]) -> None:
+                 command_handlers: Type[handlers.Handler],
+                 config: dict | None = None) -> None:
         self.handler = handlers.Handler(uow, publisher)
         self.event_handlers = event_handlers
         self.command_handlers = command_handlers
+        self.config = config
         self.return_value = None
 
     def handle(self, message: Message, context: dict = {}):
