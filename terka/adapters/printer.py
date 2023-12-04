@@ -5,8 +5,10 @@ import inspect
 import rich
 from rich.console import Console
 from rich.table import Table
+from textual.app import App, ComposeResult
+from textual import widgets
 
-from terka.service_layer import formatter
+from terka.service_layer import formatter, ui
 
 
 @dataclass
@@ -32,6 +34,25 @@ class Printer:
     def __init__(self):
         self.tui = None
         self.console = ConsolePrinter()
+        self.tui = TextualPrinter()
+
+
+class TextualPrinter:
+
+    def __init__(self) -> None:
+        ...
+
+    def show_note(self, note):
+
+        class NoteMarkdownViewer(App):
+
+            BINDINGS = [("q", "quit", "Quit")]
+            def compose(self) -> ComposeResult:
+                yield widgets.MarkdownViewer(str(note),
+                                             show_table_of_contents=True)
+
+        app = NoteMarkdownViewer()
+        app.run()
 
 
 class ConsolePrinter:
