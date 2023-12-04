@@ -163,7 +163,7 @@ class TaskCommandHandlers:
     def create(cmd: _commands.CreateTask,
                handler: Handler,
                context: dict = {}) -> int:
-        # TODO: context should be taken from console as well
+        # TODO: get user from handler.config
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
                 models.task.Task, _commands.CreateTask)
@@ -179,7 +179,7 @@ class TaskCommandHandlers:
             TaskCommandHandlers._process_extra_args(new_task.id, context, uow)
             handler.publisher.publish("Topic", task_created_event)
             handler.printer.console.print_new_object(new_task)
-            return new_task_id 
+            return new_task_id
 
     @register(cmd=_commands.UpdateTask)
     def update(cmd: _commands.UpdateTask,
@@ -962,6 +962,18 @@ class UserCommandHandlers:
                 handler.printer.console.print_user(users)
 
 
+class NoteCommandHandlers:
+
+    @register(cmd=_commands.ShowNote)
+    def show(cmd: _commands.ShowNote,
+             handler: Handler,
+             context: dict = {}) -> None:
+        with handler.uow as uow:
+            note_type = get_note_type(context)
+            if note := uow.tasks.get_by_id(note_type, cmd.id):
+                handler.printer.tui.show_note(note)
+
+
 def convert_project(cmd: _commands.Command,
                     handler: Handler,
                     context: dict = {}) -> Type[_commands.Command]:
@@ -994,6 +1006,7 @@ def convert_workspace(cmd: _commands.Command,
                       handler: Handler,
                       context: dict = {}) -> Type[_commands.Command]:
     if not (workspace := cmd.workspace):
+        # TODO: Get workspace from config
         cmd.workspace = 1
         return cmd
     if workspace.isnumeric():
@@ -1016,3 +1029,16 @@ def convert_workspace(cmd: _commands.Command,
     else:
         cmd.workspace = int(existing_workspace.id)
     return cmd
+
+
+def get_note_type(kwargs: dict[str, str]) -> models.note.BaseNote:
+    if "project" in kwargs:
+        return models.note.ProjectNote
+    if "task" in kwargs:
+        return models.note.TaskNote
+    if "sprint" in kwargs:
+        return models.note.SprintNote
+    if "story" in kwargs:
+        return models.note.StoryNote
+    if "epic" in kwargs:
+        return models.note.EpicNote
