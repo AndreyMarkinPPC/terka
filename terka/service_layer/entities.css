@@ -109,7 +109,7 @@ TerkaModalScreen {
 	width: 15%;
 }
 Sidebar {
-	width: 40;
+	width: 80%;
 	background: $panel;
 	transition: offset 500ms in_out_cubic;
 	layer: overlay;

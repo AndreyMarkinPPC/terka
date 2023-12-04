@@ -1,13 +1,53 @@
 from datetime import datetime
 from textual import on
 from textual.app import ComposeResult
-from textual.containers import Grid
+from textual.containers import Container, Grid
+from textual.reactive import reactive
 from textual.screen import ModalScreen
 from textual.validation import Number
 from textual.widgets import Button, Input, Label, Select, Static
 
 from terka.domain import _commands
 
+class Text(Static):
+    text = reactive("", layout=True)
+
+    def render(self) -> str:
+        return f"{self.__class__.__name__}: {self.text}"
+
+
+class Value(Static):
+    value = reactive("", layout=True)
+
+    def render(self) -> str:
+        return f"{self.__class__.__name__}: {self.value}"
+
+
+class Title(Text):
+    ...
+
+
+class Description(Text):
+    ...
+
+
+class Status(Value):
+    ...
+
+
+class Priority(Value):
+    ...
+
+
+class Project(Value):
+    ...
+
+
+class Sidebar(Container):
+
+    def compose(self) -> ComposeResult:
+        yield Container(Title(classes="header"), Description(), Status(),
+                        Priority(), Project())
 
 class TerkaModalScreen(ModalScreen[str]):
     BINDINGS = [("escape", "quit", "Quit")]

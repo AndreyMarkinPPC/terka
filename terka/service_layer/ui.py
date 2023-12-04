@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from datetime import datetime
 import pandas as pd
 from rich.console import Console
@@ -15,17 +15,13 @@ from textual.reactive import reactive
 from textual.screen import ModalScreen, Screen
 from textual.validation import Number
 from textual.widget import Widget
-from textual.widgets import Button, Input, Header, Footer, Label, Tabs, DataTable, TabbedContent, TabPane, Static, Markdown, Pretty, Select
+from textual.widgets import (Button, Input, Header, Footer, Label, Tabs,
+                             DataTable, TabbedContent, TabPane, Static,
+                             Markdown, MarkdownViewer, Pretty, Select)
 
 from terka.domain import _commands, events, models
 from terka.service_layer import services, views, exceptions, ui_components
 from terka.service_layer.formatter import Formatter
-
-
-class Sidebar(Container):
-
-    def compose(self) -> ComposeResult:
-        yield Static(f"{self.app.selected_task}", classes="header")
 
 
 class PopupsMixin:
@@ -300,7 +296,7 @@ class TerkaProject(App, PopupsMixin):
         ("q", "quit", "Quit"),
         ("E", "task_edit", "Edit"),
         ("r", "refresh", "Refresh"),
-        ("O", "toggle_sidebar", "Sidebar"),
+        ("i", "show_info", "Info"),
         ("a", "task_add", "Add"),
         ("d", "task_complete", "Done"),
         ("U", "task_update_context", "Update"),
@@ -310,10 +306,9 @@ class TerkaProject(App, PopupsMixin):
 
     show_sidebar = reactive(False)
 
-    def __init__(self, repo, config, project_id, bus) -> None:
+    def __init__(self, repo, project_id, bus) -> None:
         super().__init__()
         self.repo = repo
-        self.config = config
         self.bus = bus
         self.tasks = list()
         self.selected_task = None
@@ -328,10 +323,10 @@ class TerkaProject(App, PopupsMixin):
 
     def on_mount(self) -> None:
         self.title = f"Project: {self.entity.name}"
-        self.sub_title = f'Workspace: {self.config.get("workspace")}'
+        self.sub_title = f'Workspace: {self.bus.config.get("workspace")}'
 
     def compose(self) -> ComposeResult:
-        yield Sidebar(classes="-hidden")
+        yield ui_components.Sidebar(classes="-hidden")
         yield Header()
         yield Static(f"{self.entity.name}", classes="header")
         with TabbedContent(initial="tasks"):
@@ -447,12 +442,16 @@ class TerkaProject(App, PopupsMixin):
                         collaborator_string = ",".join(collaborators_texts)
                     else:
                         collaborator_string = ""
-                    table.add_row(
-                        str(task.id), task.name, task.status.name,
-                        task.priority.name,
-                        task.completion_date.strftime("%Y-%m-%d"), tags_text,
-                        collaborator_string,
-                        Formatter.format_time_spent(task.total_time_spent))
+                    table.add_row(str(task.id),
+                                  task.name,
+                                  task.status.name,
+                                  task.priority.name,
+                                  task.completion_date.strftime("%Y-%m-%d"),
+                                  tags_text,
+                                  collaborator_string,
+                                  Formatter.format_time_spent(
+                                      task.total_time_spent),
+                                  key=task.id)
                 yield table
             with TabPane("Epics", id="epics"):
                 yield Button("+Epic",
@@ -526,8 +525,8 @@ class TerkaProject(App, PopupsMixin):
     def action_backlog(self) -> None:
         self.query_one(TabbedContent).active = "backlog"
 
-    def action_toggle_sidebar(self) -> None:
-        sidebar = self.query_one(Sidebar)
+    def action_show_info(self) -> None:
+        sidebar = self.query_one(ui_components.Sidebar)
         self.set_focus(None)
         if sidebar.has_class("-hidden"):
             sidebar.remove_class("-hidden")
@@ -558,8 +557,18 @@ class TerkaProject(App, PopupsMixin):
         self.selected_task = event.cell_key.row_key.value
 
     def on_data_table_cell_selected(self, event: DataTable.CellSelected):
-        self.selected_task = event.cell_key.row_key.value
-        self.selected_column = event.cell_key.column_key.value
+        selected_id = event.cell_key.row_key.value
+        self.selected_task = selected_id
+        self.selected_column = selected_id
+        with self.bus.handler.uow as uow:
+            task_obj = uow.tasks.get_by_id(models.task.Task, selected_id)
+            self.query_one(ui_components.Title).text = task_obj.name
+            self.query_one(
+                ui_components.Description).text = task_obj.description
+            self.query_one(ui_components.Status).value = task_obj.status.name
+            self.query_one(
+                ui_components.Priority).value = task_obj.priority.name
+            self.query_one(ui_components.Project).value = task_obj.project
 
     def action_new_task(self):
         self.push_screen(ui_components.NewTask(), self.task_new_callback)
@@ -612,10 +621,9 @@ class TerkaSprint(App, PopupsMixin):
 
     current_sorts: set = set()
 
-    def __init__(self, repo, config, sprint_id, bus) -> None:
+    def __init__(self, repo, sprint_id, bus) -> None:
         super().__init__()
         self.repo = repo
-        self.config = config
         self.bus = bus
         self.selected_task = None
         self.sprint_id = sprint_id
@@ -663,7 +671,7 @@ class TerkaSprint(App, PopupsMixin):
 
     def on_mount(self) -> None:
         self.title = "Sprint"
-        self.sub_title = f'Workspace: {self.config.get("workspace")}'
+        self.sub_title = f'Workspace: {self.bus.config.get("workspace")}'
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -775,7 +783,7 @@ class TerkaSprint(App, PopupsMixin):
                     yield Static("No time tracked")
                 else:
                     workspace = services.get_workplace_by_name(
-                        self.config.get("workspace"), self.repo)
+                        self.bus.config.get("workspace"), self.repo)
                     all_workspace_time = workspace.daily_time_entries_hours(
                         start_date=self.entity.start_date,
                         end_date=self.entity.end_date)

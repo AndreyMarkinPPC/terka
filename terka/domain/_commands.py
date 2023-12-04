@@ -198,10 +198,12 @@ class NoteTask(Note):
 class CommentTask(Comment):
     ...
 
+
 @dataclass
 class TrackTask(Command):
     id: int
     hours: int | None = None
+
 
 # PROJECT
 @dataclass
@@ -391,4 +393,10 @@ class ShowUser(Show):
 
 @dataclass
 class ListUser(List):
+    ...
+
+
+# Notes
+@dataclass
+class ShowNote(Show):
     ...
