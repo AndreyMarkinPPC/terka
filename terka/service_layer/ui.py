@@ -19,7 +19,7 @@ from textual.widgets import (Button, Input, Header, Footer, Label, Tabs,
                              DataTable, TabbedContent, TabPane, Static,
                              Markdown, MarkdownViewer, Pretty, Select)
 
-from terka.domain import _commands, events, models
+from terka.domain import _commands, events, entities
 from terka.service_layer import services, views, exceptions, ui_components
 from terka.service_layer.formatter import Formatter
 
@@ -134,13 +134,13 @@ class PopupsMixin:
     def task_update_status_callback(self, result: str):
         self.bus.handle(
             _commands.UpdateTask(id=self.selected_task,
-                                 status=models.task.TaskStatus[result]))
+                                 status=entities.task.TaskStatus[result]))
         self.notify(f"Task: {self.selected_task} status updated to {result}!")
 
     def task_update_priority_callback(self, result: str):
         self.bus.handle(
             _commands.UpdateTask(id=self.selected_task,
-                                 priority=models.task.TaskPriority[result]))
+                                 priority=entities.task.TaskPriority[result]))
         self.notify(
             f"Task: {self.selected_task} priority updated to {result}!")
 
@@ -316,7 +316,7 @@ class TerkaProject(App, PopupsMixin):
         self.entity = self.get_entity()
 
     def get_entity(self):
-        return self.repo.get(models.project.Project, self.project_id)
+        return self.repo.get(entities.project.Project, self.project_id)
 
     def action_refresh(self):
         self.entity = self.get_entity()
@@ -561,7 +561,7 @@ class TerkaProject(App, PopupsMixin):
         self.selected_task = selected_id
         self.selected_column = event.cell_key.column_key.value
         with self.bus.handler.uow as uow:
-            task_obj = uow.tasks.get_by_id(models.task.Task, selected_id)
+            task_obj = uow.tasks.get_by_id(entities.task.Task, selected_id)
             self.query_one(ui_components.Title).text = task_obj.name
             self.query_one(
                 ui_components.Description).text = task_obj.description
@@ -631,7 +631,7 @@ class TerkaSprint(App, PopupsMixin):
         self.tasks = self.get_tasks()
 
     def get_entity(self):
-        return self.repo.get_by_id(models.sprint.Sprint, self.sprint_id)
+        return self.repo.get_by_id(entities.sprint.Sprint, self.sprint_id)
 
     def get_tasks(self):
         for sprint_task in self.entity.tasks:

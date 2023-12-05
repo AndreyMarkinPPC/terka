@@ -15,7 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import mapper, registry, relationship, validates, declarative_base, backref
 
-from terka.domain.models import (collaborator, commentary, epic, event_history,
+from terka.domain.entities import (collaborator, commentary, epic, event_history,
                                  note, project, sprint, story, tag, task,
                                  time_tracker, user, workspace)
 # from terka.domain.task import Task, TaskStatus, TaskPriority

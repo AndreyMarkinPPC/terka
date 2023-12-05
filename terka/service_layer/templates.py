@@ -4,7 +4,7 @@ import re
 from subprocess import run
 import tempfile
 
-from terka.domain import models, _commands
+from terka.domain import entities, _commands
 from terka.utils import convert_date, convert_status
 
 
@@ -62,11 +62,11 @@ def new_sprint_template() -> str:
         """
 
 
-def start_sprint_template(sprint: models.sprint.Sprint) -> str:
+def start_sprint_template(sprint: entities.sprint.Sprint) -> str:
     ...
 
 
-def edit_sprint_template(sprint: models.sprint.Sprint) -> str:
+def edit_sprint_template(sprint: entities.sprint.Sprint) -> str:
     return f"""
         # You are editing sprint {sprint.id}, enter below:
         ---
@@ -76,7 +76,7 @@ def edit_sprint_template(sprint: models.sprint.Sprint) -> str:
         """
 
 
-def edited_task_template(task: models.task.Task,
+def edited_task_template(task: entities.task.Task,
                          project: str | None = None) -> str:
     return f"""
         # You are editing task {task.id}, enter below:
@@ -95,7 +95,7 @@ def edited_task_template(task: models.task.Task,
         """
 
 
-def edited_project_template(task: models.project.Project,
+def edited_project_template(task: entities.project.Project,
                             workspace: int) -> str:
     return f"""
         # You are editing project {task.id}, enter below:
@@ -110,7 +110,7 @@ def edited_project_template(task: models.project.Project,
         """
 
 
-def completed_task_template(task: models.task.Task,
+def completed_task_template(task: entities.task.Task,
                             project: str | None = None) -> str:
     return f"""
         # You are closing task {task.id}, enter below:
@@ -134,29 +134,29 @@ def generate_message_template(entity,
     if not isinstance(entity, type):
         if isinstance(
                 entity,
-            (models.task.Task, models.story.Story, models.epic.Epic)):
+            (entities.task.Task, entities.story.Story, entities.epic.Epic)):
             project = entity.project
-        elif isinstance(entity, models.project.Project):
+        elif isinstance(entity, entities.project.Project):
             project = entity.name
             workspace = entity.workspace
-        if isinstance(entity, models.sprint.Sprint):
+        if isinstance(entity, entities.sprint.Sprint):
             if not kwargs:
                 message_template = new_sprint_template()
             else:
                 message_template = edit_sprint_template(entity)
-        elif isinstance(entity, models.project.Project):
+        elif isinstance(entity, entities.project.Project):
             message_template = edited_project_template(entity, workspace)
-        elif isinstance(entity, models.task.Task):
+        elif isinstance(entity, entities.task.Task):
             message_template = edited_task_template(entity, project)
     else:
         if not kwargs:
-            if entity == models.task.Task:
+            if entity == entities.task.Task:
                 message_template = new_task_template()
-            if entity == models.project.Project:
+            if entity == entities.project.Project:
                 message_template = new_project_template()
-            if entity == models.sprint.Sprint:
+            if entity == entities.sprint.Sprint:
                 message_template = new_sprint_template()
-            if entity in (models.epic.Epic, models.story.Story):
+            if entity in (entities.epic.Epic, entities.story.Story):
                 message_template = new_composite_template(entity)
         elif kwargs and kwargs.get("status"):
             message_template = completed_task_template(entity, project)

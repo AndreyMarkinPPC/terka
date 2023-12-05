@@ -4,7 +4,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from sqlalchemy import text
 
-from terka.domain.models.task import Task
+from terka.domain.entities.task import Task
 
 
 def n_days_ago(n: int) -> str:

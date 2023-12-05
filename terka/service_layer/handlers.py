@@ -7,7 +7,7 @@ import logging
 
 from terka import utils
 from terka.adapters import publisher, printer
-from terka.domain import _commands, events, models
+from terka.domain import _commands, events, entities
 from terka.service_layer import exceptions, templates, unit_of_work
 
 COMMAND_HANDLERS = {}
@@ -52,10 +52,10 @@ class SprintCommandHandlers:
                context: dict = {}) -> None:
         if not cmd:
             cmd, context = templates.create_command_from_editor(
-                models.sprint.Sprint, type(cmd))
+                entities.sprint.Sprint, type(cmd))
         with handler.uow as uow:
             # TODO: Add code for checking existing sprints
-            new_sprint = models.sprint.Sprint(**asdict(cmd))
+            new_sprint = entities.sprint.Sprint(**asdict(cmd))
             uow.tasks.add(new_sprint)
             uow.commit()
 
@@ -65,7 +65,7 @@ class SprintCommandHandlers:
               context: dict = {}) -> None:
         with handler.uow as uow:
             if not (existing_sprint := uow.tasks.get_by_id(
-                    models.sprint.Sprint, cmd.id)):
+                    entities.sprint.Sprint, cmd.id)):
                 raise exceptions.EntityNotFound(
                     f"Sprint id {cmd.id} is not found")
             if existing_sprint.end_date < datetime.today().date():
@@ -76,7 +76,7 @@ class SprintCommandHandlers:
             if existing_sprint.status.name == "COMPLETED":
                 raise exceptions.TerkaSprintCompleted(
                     "Cannot start completed sprint")
-            uow.tasks.update(models.sprint.Sprint, cmd.id,
+            uow.tasks.update(entities.sprint.Sprint, cmd.id,
                              {"status": "ACTIVE"})
             for sprint_task in existing_sprint.tasks:
                 task = sprint_task.tasks
@@ -111,10 +111,10 @@ class SprintCommandHandlers:
                  context: dict = {}) -> None:
         with handler.uow as uow:
             if not (existing_sprint := uow.tasks.get_by_id(
-                    models.sprint.Sprint, cmd.id)):
+                    entities.sprint.Sprint, cmd.id)):
                 raise exceptions.EntityNotFound(
                     f"Sprint id {cmd.id} is not found")
-            uow.tasks.update(models.sprint.Sprint, cmd.id,
+            uow.tasks.update(entities.sprint.Sprint, cmd.id,
                              {"status": "COMPLETED"})
             for sprint_task in existing_sprint.tasks:
                 task = sprint_task.tasks
@@ -141,7 +141,7 @@ class SprintCommandHandlers:
              handler: Handler,
              context: dict = {}) -> None:
         with handler.uow as uow:
-            if sprints := uow.tasks.list(models.sprint.Sprint):
+            if sprints := uow.tasks.list(entities.sprint.Sprint):
                 handler.printer.console.print_sprint(
                     sprints, printer.PrintOptions.from_kwargs(**context))
 
@@ -152,7 +152,7 @@ class SprintEventHandlers:
                             handler: Handler,
                             context: dict = {}) -> None:
         with handler.uow as uow:
-            uow.tasks.update(models.sprint.SprintTask, event.id,
+            uow.tasks.update(entities.sprint.SprintTask, event.id,
                              {"story_points": event.story_points})
             uow.commit()
             logging.debug(f"Story point assigned, context: {event}")
@@ -167,10 +167,10 @@ class TaskCommandHandlers:
         # TODO: get user from handler.config
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
-                models.task.Task, _commands.CreateTask)
+                entities.task.Task, _commands.CreateTask)
         with handler.uow as uow:
             cmd = convert_project(cmd, handler)
-            new_task = models.task.Task(**asdict(cmd))
+            new_task = entities.task.Task(**asdict(cmd))
             uow.tasks.add(new_task)
             uow.flush()
             new_task_id = new_task.id
@@ -188,7 +188,7 @@ class TaskCommandHandlers:
                context: dict = {}) -> None:
         with handler.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
-                    models.task.Task, cmd.id)):
+                    entities.task.Task, cmd.id)):
                 raise exceptions.EntityNotFound(
                     f"Task id {cmd.id} is not found")
             if not cmd:
@@ -196,7 +196,7 @@ class TaskCommandHandlers:
                     existing_task, _commands.UpdateTask)
                 cmd.id = existing_task.id
             cmd = convert_project(cmd, handler)
-            uow.tasks.update(models.task.Task, cmd.id,
+            uow.tasks.update(entities.task.Task, cmd.id,
                              cmd.get_only_set_attributes())
             uow.commit()
             TaskCommandHandlers._process_extra_args(cmd.id, context, uow)
@@ -207,23 +207,23 @@ class TaskCommandHandlers:
                     context: dict = {}) -> None:
         with handler.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
-                    models.task.Task, cmd.id)):
+                    entities.task.Task, cmd.id)):
                 raise exceptions.EntityNotFound(
                     f"Task id {cmd.id} is not found")
             if not (existing_user := uow.tasks.list(
-                    models.user.User, {"name": cmd.collaborator})):
-                new_user = models.user.User(name=cmd.collaborator)
+                    entities.user.User, {"name": cmd.collaborator})):
+                new_user = entities.user.User(name=cmd.collaborator)
                 uow.tasks.add(new_user)
                 uow.flush()
                 user_id = new_user.id
             else:
                 user_id = existing_user[0].id
-            if not uow.tasks.list(models.collaborator.TaskCollaborator, {
+            if not uow.tasks.list(entities.collaborator.TaskCollaborator, {
                     "task": cmd.id,
                     "collaborator": user_id
             }):
                 uow.tasks.add(
-                    models.collaborator.TaskCollaborator(
+                    entities.collaborator.TaskCollaborator(
                         id=cmd.id, collaborator_id=user_id))
                 uow.commit()
 
@@ -262,7 +262,7 @@ class TaskCommandHandlers:
 
     def _add(cmd: _commands.AddTask, handler: Handler, context) -> None:
         entity_name, entity_id = context["entity_type"], context["entity_id"]
-        entity_module = getattr(models, entity_name)
+        entity_module = getattr(entities, entity_name)
         entity = getattr(entity_module, entity_name.capitalize())
         entity_task_type = getattr(entity_module,
                                    f"{entity_name.capitalize()}Task")
@@ -292,11 +292,11 @@ class TaskCommandHandlers:
                 uow.commit()
                 logging.debug(f"Task added to {entity_name}, context {cmd}")
                 if entity_name == "sprint":
-                    if existing_entity.status == models.sprint.SprintStatus.COMPLETED:
+                    if existing_entity.status == entities.sprint.SprintStatus.COMPLETED:
                         raise exceptions.TerkaSprintCompleted(
                             f"Sprint {entity_id} is completed")
                     if existing_task := uow.tasks.get_by_id(
-                            models.task.Task, cmd.id):
+                            entities.task.Task, cmd.id):
                         task_params = {}
                         if existing_task.status.name == "BACKLOG":
                             task_params.update({"status": "TODO"})
@@ -323,7 +323,7 @@ class TaskCommandHandlers:
                  handler: Handler,
                  context: dict = {}) -> None:
         with handler.uow as uow:
-            uow.tasks.update(models.task.Task, cmd.id, {"status": "DONE"})
+            uow.tasks.update(entities.task.Task, cmd.id, {"status": "DONE"})
             task_completed_event = events.TaskCompleted(cmd.id)
             uow.published_events.append(task_completed_event)
             if comment := cmd.comment:
@@ -366,7 +366,7 @@ class TaskCommandHandlers:
             if "entity_type" in context and "entity_id" in context:
                 entity_name, entity_id = context["entity_type"], context[
                     "entity_id"]
-                entity_module = getattr(models, entity_name)
+                entity_module = getattr(entities, entity_name)
                 entity = getattr(entity_module, entity_name.capitalize())
                 entity_task_type = getattr(entity_module,
                                            f"{entity_name.capitalize()}Task")
@@ -385,7 +385,7 @@ class TaskCommandHandlers:
                         f"{entity_id}, context {cmd}")
                     if entity_name == "sprint":
                         if existing_task := uow.tasks.get_by_id(
-                                models.task.Task, cmd.id):
+                                entities.task.Task, cmd.id):
                             task_params = {}
                             if existing_task.status.name == "TODO":
                                 task_params.update({"status": "BACKLOG"})
@@ -396,7 +396,7 @@ class TaskCommandHandlers:
                                         cmd.id,
                                         events.UpdateMask(**task_params)))
             else:
-                uow.tasks.update(models.task.Task, cmd.id,
+                uow.tasks.update(entities.task.Task, cmd.id,
                                  {"status": "DELETED"})
                 uow.published_events.append(events.TaskDeleted(cmd.id))
             if comment := cmd.comment:
@@ -414,8 +414,8 @@ class TaskCommandHandlers:
                 context: dict = {}) -> None:
         with handler.uow as uow:
             uow.tasks.add(
-                models.commentary.TaskCommentary(id=cmd.id, text=cmd.text))
-            uow.tasks.update(models.task.Task, cmd.id,
+                entities.commentary.TaskCommentary(id=cmd.id, text=cmd.text))
+            uow.tasks.update(entities.task.Task, cmd.id,
                              {"modification_date": datetime.now()})
             uow.commit()
 
@@ -425,11 +425,11 @@ class TaskCommandHandlers:
               context: dict = {}) -> None:
         with handler.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
-                    models.task.Task, cmd.id)):
+                    entities.task.Task, cmd.id)):
                 raise exceptions.EntityNotFound(
                     f"Task id {cmd.id} is not found")
             uow.tasks.add(
-                models.time_tracker.TimeTrackerEntry(
+                entities.time_tracker.TimeTrackerEntry(
                     task=cmd.id, time_spent_minutes=cmd.hours))
             uow.commit()
 
@@ -439,22 +439,22 @@ class TaskCommandHandlers:
             context: dict = {}) -> None:
         with handler.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
-                    models.task.Task, cmd.id)):
+                    entities.task.Task, cmd.id)):
                 raise exceptions.EntityNotFound(
                     f"Task id {cmd.id} is not found")
-            if not (existing_tag := uow.tasks.list(models.tag.BaseTag,
+            if not (existing_tag := uow.tasks.list(entities.tag.BaseTag,
                                                    {"text": cmd.tag})):
-                new_tag = models.tag.BaseTag(text=cmd.tag)
+                new_tag = entities.tag.BaseTag(text=cmd.tag)
                 uow.tasks.add(new_tag)
                 uow.flush()
                 tag_id = new_tag.id
             else:
                 tag_id = existing_tag[0].id
-            if not uow.tasks.list(models.tag.TaskTag, {
+            if not uow.tasks.list(entities.tag.TaskTag, {
                     "task": cmd.id,
                     "tag": tag_id
             }):
-                uow.tasks.add(models.tag.TaskTag(id=cmd.id, tag_id=tag_id))
+                uow.tasks.add(entities.tag.TaskTag(id=cmd.id, tag_id=tag_id))
                 uow.commit()
 
     def _process_extra_args(id, context, uow):
@@ -494,9 +494,9 @@ class TaskCommandHandlers:
         with handler.uow as uow:
             if filter_options:
                 tasks = uow.tasks.get_by_conditions(
-                    models.task.Task, filter_options.get_only_set_attributes())
+                    entities.task.Task, filter_options.get_only_set_attributes())
             else:
-                tasks = uow.tasks.list(models.task.Task)
+                tasks = uow.tasks.list(entities.task.Task)
             if tasks:
                 print_options = printer.PrintOptions.from_kwargs(**context)
                 handler.printer.console.print_task(tasks, print_options)
@@ -516,7 +516,7 @@ class TaskEventHandlers(Handler):
                   handler: Handler,
                   context: dict = {}) -> None:
         with handler.uow as uow:
-            task_event = models.event_history.TaskEvent(task_id=event.id,
+            task_event = entities.event_history.TaskEvent(task_id=event.id,
                                                         event_type="STATUS",
                                                         old_value="",
                                                         new_value="DONE")
@@ -528,16 +528,16 @@ class TaskEventHandlers(Handler):
                 handler: Handler,
                 context: dict = {}) -> None:
         with handler.uow as uow:
-            uow.tasks.update(models.task.Task, event.id,
+            uow.tasks.update(entities.task.Task, event.id,
                              event.update_mask.get_only_set_attributes())
-            current_task = uow.tasks.get_by_id(models.task.Task, event.id)
+            current_task = uow.tasks.get_by_id(entities.task.Task, event.id)
             for key, updated_value in asdict(event.update_mask).items():
                 old_value = getattr(current_task, key)
                 if hasattr(old_value, "name"):
                     old_value = old_value.name
                 if old_value != updated_value:
                     if updated_value or key.endswith("date"):
-                        task_event = models.event_history.TaskEvent(
+                        task_event = entities.event_history.TaskEvent(
                             task_id=event.id,
                             event_type=key.upper(),
                             old_value=old_value,
@@ -551,7 +551,7 @@ class TaskEventHandlers(Handler):
                 handler: Handler,
                 context: dict = {}) -> None:
         with handler.uow as uow:
-            task_event = models.event_history.TaskEvent(task_id=event.id,
+            task_event = entities.event_history.TaskEvent(task_id=event.id,
                                                         event_type="STATUS",
                                                         old_value="",
                                                         new_value="DELETED")
@@ -628,13 +628,13 @@ class ProjectCommandHandlers:
                context: dict = {}) -> None:
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
-                models.project.Project, _commands.CreateProject)
+                entities.project.Project, _commands.CreateProject)
         project_id = None
         with handler.uow as uow:
-            if not (existing_project := uow.tasks.get(models.project.Project,
+            if not (existing_project := uow.tasks.get(entities.project.Project,
                                                       cmd.name)):
                 cmd = convert_workspace(cmd, handler)
-                new_project = models.project.Project(**asdict(cmd))
+                new_project = entities.project.Project(**asdict(cmd))
                 uow.tasks.add(new_project)
                 uow.flush()
                 project_id = int(new_project.id)
@@ -658,7 +658,7 @@ class ProjectCommandHandlers:
                 cmd, context = templates.create_command_from_editor(
                     project, _commands.UpdateProject)
                 cmd.id = project.id
-            uow.tasks.update(models.project.Project, project.id,
+            uow.tasks.update(entities.project.Project, project.id,
                              cmd.get_only_set_attributes())
             if tags := context.get("tags"):
                 for tag in tags.split(","):
@@ -680,7 +680,7 @@ class ProjectCommandHandlers:
                  context: dict = {}) -> None:
         with handler.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
-            uow.tasks.update(models.project.Project, project.id,
+            uow.tasks.update(entities.project.Project, project.id,
                              {"status": "COMPLETED"})
             uow.published_events.append(events.ProjectCompleted(project.id))
             if comment := cmd.comment:
@@ -695,7 +695,7 @@ class ProjectCommandHandlers:
                context: dict = {}) -> None:
         with handler.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
-            uow.tasks.update(models.project.Project, project.id,
+            uow.tasks.update(entities.project.Project, project.id,
                              {"status": "DELETED"})
             uow.published_events.append(events.ProjectDeleted(project.id))
             if comment := cmd.comment:
@@ -712,7 +712,7 @@ class ProjectCommandHandlers:
         with handler.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
             uow.tasks.add(
-                models.commentary.ProjectCommentary(id=project.id,
+                entities.commentary.ProjectCommentary(id=project.id,
                                                     text=cmd.text))
             uow.commit()
 
@@ -722,20 +722,20 @@ class ProjectCommandHandlers:
             context: dict = {}) -> None:
         with handler.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
-            if not (existing_tag := uow.tasks.list(models.tag.BaseTag,
+            if not (existing_tag := uow.tasks.list(entities.tag.BaseTag,
                                                    {"text": cmd.tag})):
-                new_tag = models.tag.BaseTag(text=cmd.tag)
+                new_tag = entities.tag.BaseTag(text=cmd.tag)
                 uow.tasks.add(new_tag)
                 uow.flush()
                 tag_id = new_tag.id
             else:
                 tag_id = existing_tag[0].id
-            if not uow.tasks.list(models.tag.ProjectTag, {
+            if not uow.tasks.list(entities.tag.ProjectTag, {
                     "project": project.id,
                     "tag": tag_id
             }):
                 uow.tasks.add(
-                    models.tag.ProjectTag(id=project.id, tag_id=tag_id))
+                    entities.tag.ProjectTag(id=project.id, tag_id=tag_id))
                 uow.commit()
 
     @register(cmd=_commands.ListProject)
@@ -743,18 +743,18 @@ class ProjectCommandHandlers:
              handler: Handler,
              context: dict = {}) -> None:
         with handler.uow as uow:
-            if projects := uow.tasks.list(models.project.Project):
+            if projects := uow.tasks.list(entities.project.Project):
                 handler.printer.console.print_project(
                     projects, printer.PrintOptions.from_kwargs(**context))
 
-    def _validate_project(id: str | int, uow) -> models.project.Project:
+    def _validate_project(id: str | int, uow) -> entities.project.Project:
         if id.isnumeric():
             if not (existing_project := uow.tasks.get_by_id(
-                    models.project.Project, id)):
+                    entities.project.Project, id)):
                 raise exceptions.EntityNotFound(
                     f"Project id {id} is not found")
         else:
-            if not (existing_project := uow.tasks.get(models.project.Project,
+            if not (existing_project := uow.tasks.get(entities.project.Project,
                                                       id)):
 
                 raise exceptions.EntityNotFound(
@@ -787,10 +787,10 @@ class EpicCommandHandlers:
                context: dict = {}):
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
-                models.epic.Epic, type(cmd))
+                entities.epic.Epic, type(cmd))
         with handler.uow as uow:
             cmd = convert_project(cmd, handler)
-            new_epic = models.epic.Epic(**asdict(cmd))
+            new_epic = entities.epic.Epic(**asdict(cmd))
             uow.tasks.add(new_epic)
             uow.commit()
             handler.printer.console.print_new_object(new_epic)
@@ -800,7 +800,7 @@ class EpicCommandHandlers:
                  handler: Handler,
                  context: dict = {}) -> None:
         with handler.uow as uow:
-            uow.tasks.update(models.project.Epic, cmd.id,
+            uow.tasks.update(entities.project.Epic, cmd.id,
                              {"status": "COMPLETED"})
             uow.published_events.append(events.EpicCompleted(cmd.id))
             if comment := cmd.comment:
@@ -814,7 +814,7 @@ class EpicCommandHandlers:
                handler: Handler,
                context: dict = {}) -> None:
         with handler.uow as uow:
-            uow.tasks.update(models.epic.Epic, cmd.id, {"status": "DELETED"})
+            uow.tasks.update(entities.epic.Epic, cmd.id, {"status": "DELETED"})
             uow.published_events.append(events.EpicDeleted(cmd.id))
             if comment := cmd.comment:
                 uow.published_events.append(
@@ -828,7 +828,7 @@ class EpicCommandHandlers:
                 context: dict = {}) -> None:
         with handler.uow as uow:
             uow.tasks.add(
-                models.commentary.EpicCommentary(id=cmd.id, text=cmd.text))
+                entities.commentary.EpicCommentary(id=cmd.id, text=cmd.text))
             uow.commit()
 
     @register(cmd=_commands.AddEpic)
@@ -837,9 +837,9 @@ class EpicCommandHandlers:
             context: dict = {}) -> None:
         with handler.uow as uow:
             if not (existing_epic := uow.tasks.get_by_id(
-                    models.epic.Epic, cmd.id)):
+                    entities.epic.Epic, cmd.id)):
                 raise exceptions.EntityNotFound(f"Epic {cmd.id} is not found")
-            if not uow.tasks.get_by_id(models.sprint.Sprint, cmd.sprint_id):
+            if not uow.tasks.get_by_id(entities.sprint.Sprint, cmd.sprint_id):
                 raise exceptions.EntityNotFound(
                     f"Sprint {cmd.sprint_id} is not found")
             for epic_task in existing_epic.tasks:
@@ -855,7 +855,7 @@ class EpicCommandHandlers:
              handler: Handler,
              context: dict = {}) -> None:
         with handler.uow as uow:
-            if epics := uow.tasks.list(models.epic.Epic):
+            if epics := uow.tasks.list(entities.epic.Epic):
                 handler.printer.console.print_composite(
                     epics, uow.tasks,
                     printer.PrintOptions.from_kwargs(**context), "epic")
@@ -873,10 +873,10 @@ class StoryCommandHandlers:
                context: dict = {}):
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
-                models.story.Story, type(cmd))
+                entities.story.Story, type(cmd))
         with handler.uow as uow:
             cmd = convert_project(cmd, handler)
-            new_story = models.story.Story(**asdict(cmd))
+            new_story = entities.story.Story(**asdict(cmd))
             uow.tasks.add(new_story)
             uow.commit()
             handler.printer.console.print_new_object(new_story)
@@ -886,7 +886,7 @@ class StoryCommandHandlers:
                  handler: Handler,
                  context: dict = {}) -> None:
         with handler.uow as uow:
-            uow.tasks.update(models.project.Story, cmd.id,
+            uow.tasks.update(entities.project.Story, cmd.id,
                              {"status": "COMPLETED"})
             uow.published_events.append(events.StoryCompleted(cmd.id))
             if comment := cmd.comment:
@@ -900,7 +900,7 @@ class StoryCommandHandlers:
                handler: Handler,
                context: dict = {}) -> None:
         with handler.uow as uow:
-            uow.tasks.update(models.story.Story, cmd.id, {"status": "DELETED"})
+            uow.tasks.update(entities.story.Story, cmd.id, {"status": "DELETED"})
             uow.published_events.append(events.StoryDeleted(cmd.id))
             if comment := cmd.comment:
                 uow.published_events.append(
@@ -914,7 +914,7 @@ class StoryCommandHandlers:
                 context: dict = {}) -> None:
         with handler.uow as uow:
             uow.tasks.add(
-                models.commentary.StoryCommentary(id=cmd.id, text=cmd.text))
+                entities.commentary.StoryCommentary(id=cmd.id, text=cmd.text))
             uow.commit()
 
     @register(cmd=_commands.AddStory)
@@ -923,9 +923,9 @@ class StoryCommandHandlers:
             context: dict = {}) -> None:
         with handler.uow as uow:
             if not (existing_story := uow.tasks.get_by_id(
-                    models.story.Story, cmd.id)):
+                    entities.story.Story, cmd.id)):
                 raise exceptions.EntityNotFound(f"Story {cmd.id} is not found")
-            if not uow.tasks.get_by_id(models.sprint.Sprint, cmd.sprint_id):
+            if not uow.tasks.get_by_id(entities.sprint.Sprint, cmd.sprint_id):
                 raise exceptions.EntityNotFound(
                     f"Sprint {cmd.sprint_id} is not found")
             for story_task in existing_story.tasks:
@@ -945,10 +945,10 @@ class WorkspaceCommandHandlers:
                context: dict = {}) -> None:
         if not cmd:
             cmd, context = templates.create_command_from_editor(
-                models.sprint.Sprint, type(cmd))
+                entities.sprint.Sprint, type(cmd))
         with handler.uow as uow:
-            if not uow.tasks.get(models.workspace.Workspace, cmd.name):
-                new_workspace = models.workspace.Workspace(**asdict(cmd))
+            if not uow.tasks.get(entities.workspace.Workspace, cmd.name):
+                new_workspace = entities.workspace.Workspace(**asdict(cmd))
                 uow.tasks.add(new_workspace)
                 uow.commit()
                 handler.printer.console.print_new_object(new_workspace)
@@ -963,7 +963,7 @@ class TagCommandHandlers:
              handler: Handler,
              context: dict = {}) -> None:
         with handler.uow as uow:
-            if tags := uow.tasks.list(models.tag.BaseTag):
+            if tags := uow.tasks.list(entities.tag.BaseTag):
                 handler.printer.console.print_tag(tags)
 
 
@@ -974,7 +974,7 @@ class UserCommandHandlers:
              handler: Handler,
              context: dict = {}) -> None:
         with handler.uow as uow:
-            if users := uow.tasks.list(models.user.User):
+            if users := uow.tasks.list(entities.user.User):
                 handler.printer.console.print_user(users)
 
 
@@ -999,7 +999,7 @@ def convert_project(cmd: _commands.Command,
     if project_name.isnumeric():
         cmd.project = int(project_name)
         return cmd
-    if not (existing_project := handler.uow.tasks.get(models.project.Project,
+    if not (existing_project := handler.uow.tasks.get(entities.project.Project,
                                                       project_name)):
         print(f"Creating new project: {project_name}. "
               "Do you want to continue (Y/n)?")
@@ -1033,7 +1033,7 @@ def convert_workspace(cmd: _commands.Command,
     except ValueError:
         ...
     if not (existing_workspace := handler.uow.tasks.get(
-            models.workspace.Workspace, workspace)):
+            entities.workspace.Workspace, workspace)):
         print(f"Creating new workspace: {workspace}. "
               "Do you want to continue (Y/n)?")
         answer = input()
@@ -1051,14 +1051,14 @@ def convert_workspace(cmd: _commands.Command,
     return cmd
 
 
-def get_note_type(kwargs: dict[str, str]) -> models.note.BaseNote:
+def get_note_type(kwargs: dict[str, str]) -> entities.note.BaseNote:
     if "project" in kwargs:
-        return models.note.ProjectNote
+        return entities.note.ProjectNote
     if "task" in kwargs:
-        return models.note.TaskNote
+        return entities.note.TaskNote
     if "sprint" in kwargs:
-        return models.note.SprintNote
+        return entities.note.SprintNote
     if "story" in kwargs:
-        return models.note.StoryNote
+        return entities.note.StoryNote
     if "epic" in kwargs:
-        return models.note.EpicNote
+        return entities.note.EpicNote

@@ -9,7 +9,7 @@ import re
 import yaml
 
 from terka.adapters.repository import AbsRepository
-from terka.domain import models
+from terka.domain import entities
 # import terka.domain._commands as commands
 
 
@@ -41,7 +41,7 @@ def lookup_project_id(project_name: str, repo: AbsRepository) -> int:
     returned_projects = []
     returned_projects_set = set()
     for project_name in projects:
-        if not (project := repo.list(models.project.Project, project_name)):
+        if not (project := repo.list(entities.project.Project, project_name)):
             print(
                 f"Creating new project: {project_name}. Do you want to continue (Y/n)?"
             )
@@ -53,7 +53,7 @@ def lookup_project_id(project_name: str, repo: AbsRepository) -> int:
                     f"Creating new project: {project_name}. Do you want to continue (Y/n)?"
                 )
                 answer = input()
-            project = models.project.Project(project_name)
+            project = entities.project.Project(project_name)
             repo.add(project)
             repo.session.commit()
         if isinstance(project, list):
@@ -78,50 +78,50 @@ def lookup_project_id(project_name: str, repo: AbsRepository) -> int:
 
 
 def lookup_user_id(user_name: str, repo: AbsRepository) -> int | None:
-    if user := repo.get(models.user.User, user_name):
+    if user := repo.get(entities.user.User, user_name):
         return user.id
     return None
 
 
 def lookup_user_name(user_id: str, repo: AbsRepository) -> str | None:
-    if user := repo.get_by_id(models.user.User, user_id):
+    if user := repo.get_by_id(entities.user.User, user_id):
         return user.name
     return None
 
 
 def lookup_project_name(project_id: int, repo: AbsRepository) -> str | None:
-    if project := repo.get_by_id(models.project.Project, project_id):
+    if project := repo.get_by_id(entities.project.Project, project_id):
         return project.name
     return None
 
 
 def lookup_workspace_id(workspace_name: str,
                         repo: AbsRepository) -> int | None:
-    if workspace := repo.get(models.workspace.Workspace, workspace_name):
+    if workspace := repo.get(entities.workspace.Workspace, workspace_name):
         return workspace.id
     return None
 
 
 def get_workplace_by_name(
         workspace_name: str,
-        repo: AbsRepository) -> models.workspace.Workspace | None:
-    return repo.get(models.workspace.Workspace, workspace_name)
+        repo: AbsRepository) -> entities.workspace.Workspace | None:
+    return repo.get(entities.workspace.Workspace, workspace_name)
 
 
 def get_workplace_by_id(
         workspace_id: int,
-        repo: AbsRepository) -> models.workspace.Workspace | None:
-    return repo.get_by_id(models.workspace.Workspace, workspace_id)
+        repo: AbsRepository) -> entities.workspace.Workspace | None:
+    return repo.get_by_id(entities.workspace.Workspace, workspace_id)
 
 
 def get_project_by_name(project_name: str,
-                        repo: AbsRepository) -> models.project.Project | None:
-    return repo.get(models.project.Project, project_name)
+                        repo: AbsRepository) -> entities.project.Project | None:
+    return repo.get(entities.project.Project, project_name)
 
 
 def get_project_by_id(project_id: int,
-                      repo: AbsRepository) -> models.project.Project | None:
-    return repo.get_by_id(models.project.Project, project_id)
+                      repo: AbsRepository) -> entities.project.Project | None:
+    return repo.get_by_id(entities.project.Project, project_id)
 
 
 # class CommandHander:

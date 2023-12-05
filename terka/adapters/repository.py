@@ -5,11 +5,11 @@ from collections.abc import MutableSequence
 from datetime import datetime, timedelta
 from sqlalchemy import and_, or_, not_
 
-from terka.domain.models.element import Element
-from terka.domain.models.task import Task
-from terka.domain.models.project import Project
-from terka.domain.models.user import User
-from terka.domain.models.event_history import TaskEvent
+from terka.domain.entities.element import Element
+from terka.domain.entities.task import Task
+from terka.domain.entities.project import Project
+from terka.domain.entities.user import User
+from terka.domain.entities.event_history import TaskEvent
 from . import orm
 
 
