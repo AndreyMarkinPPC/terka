@@ -5,6 +5,7 @@ from datetime import datetime
 import functools
 import logging
 
+from terka import utils
 from terka.adapters import publisher, printer
 from terka.domain import _commands, events, models
 from terka.service_layer import exceptions, templates, unit_of_work
@@ -300,10 +301,10 @@ class TaskCommandHandlers:
                         if existing_task.status.name == "BACKLOG":
                             task_params.update({"status": "TODO"})
                         if (not existing_task.due_date
-                                or existing_task.due_date
-                                > existing_entity.end_date
-                                or existing_task.due_date
-                                < existing_entity.start_date):
+                                or existing_task.due_date >
+                                existing_entity.end_date
+                                or existing_task.due_date <
+                                existing_entity.start_date):
                             task_params.update(
                                 {"due_date": existing_entity.end_date})
                         if task_params:
@@ -484,6 +485,21 @@ class TaskCommandHandlers:
         if hours := context.get("time_spent"):
             uow.published_events.append(
                 events.TaskHoursSubmitted(id=id, hours=hours))
+
+    @register(cmd=_commands.ListTask)
+    def list(cmd: _commands.ListTask,
+             handler: Handler,
+             context: dict = {}) -> None:
+        filter_options = utils.FilterOptions.from_kwargs(**context)
+        with handler.uow as uow:
+            if filter_options:
+                tasks = uow.tasks.get_by_conditions(
+                    models.task.Task, filter_options.get_only_set_attributes())
+            else:
+                tasks = uow.tasks.list(models.task.Task)
+            if tasks:
+                print_options = printer.PrintOptions.from_kwargs(**context)
+                handler.printer.console.print_task(tasks, print_options)
 
 
 class TaskEventHandlers(Handler):
@@ -995,7 +1011,9 @@ def convert_project(cmd: _commands.Command,
                   "Do you want to continue (Y/n)?")
             answer = input()
         project_id = ProjectCommandHandlers.create(
-            cmd=_commands.CreateProject(name=project_name), handler=handler)
+            cmd=_commands.CreateProject(name=project_name),
+            handler=handler,
+            context=context)
         cmd.project = project_id
     else:
         cmd.project = int(existing_project.id)
@@ -1009,9 +1027,11 @@ def convert_workspace(cmd: _commands.Command,
         # TODO: Get workspace from config
         cmd.workspace = 1
         return cmd
-    if workspace.isnumeric():
+    try:
         cmd.workspace = int(workspace)
         return cmd
+    except ValueError:
+        ...
     if not (existing_workspace := handler.uow.tasks.get(
             models.workspace.Workspace, workspace)):
         print(f"Creating new workspace: {workspace}. "
