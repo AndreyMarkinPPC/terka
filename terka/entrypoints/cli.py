@@ -20,9 +20,7 @@ from terka.adapters.orm import metadata, start_mappers
 from terka.adapters.repository import SqlAlchemyRepository
 
 from terka import bootstrap
-from terka.domain import commands
 from terka.domain import _commands
-from terka.domain.commands import CommandHandler
 from terka.utils import (
     format_task_dict,
     process_command,
@@ -53,6 +51,7 @@ def main():
     args, kwargs = args
     console = Console()
     command, entity = args.command, args.entity
+    home_dir = os.path.expanduser("~")
     if args.version:
         import pkg_resources
 
@@ -62,8 +61,9 @@ def main():
     if args.command == "config":
         console.print(services.get_config())
         exit()
+    if args.command == "init":
+        services.ServiceCommandHander(home_dir, None, None).execute(command, None, None)
 
-    home_dir = os.path.expanduser("~")
     file_handler = logging.FileHandler(filename=f"{home_dir}/.terka/terka.log")
     stdout_handler = logging.StreamHandler(stream=sys.stdout)
     handlers = [file_handler, stdout_handler]
