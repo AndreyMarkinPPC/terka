@@ -1,14 +1,15 @@
 from typing import Dict, Optional
 
 import abc
+from collections.abc import MutableSequence
 from datetime import datetime, timedelta
 from sqlalchemy import and_, or_, not_
 
-from terka.domain.element import Element
-from terka.domain.task import Task
-from terka.domain.project import Project
-from terka.domain.user import User
-from terka.domain.event_history import TaskEvent
+from terka.domain.models.element import Element
+from terka.domain.models.task import Task
+from terka.domain.models.project import Project
+from terka.domain.models.user import User
+from terka.domain.models.event_history import TaskEvent
 from . import orm
 
 
@@ -28,17 +29,27 @@ class AbsRepository(abc.ABC):
         element = self._get_by_element_id(element, element_id)
         return element
 
+    def get_by_conditions(self, element: Element,
+                          conditions: dict) -> list[Element]:
+        return self._get_by_conditions(element, conditions)
+
     @abc.abstractmethod
     def _add(self, element: Element) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
     def _get(self, element: Element, element_name: str) -> Element:
-        raise NotImplementedError @ abc.abstractmethod
+        ...
 
+    @abc.abstractmethod
     def _get_by_element_id(self, element_type: str,
                            element_id: int) -> Element:
-        raise NotImplementedError
+        ...
+
+    @abc.abstractmethod
+    def _get_by_conditions(self, element: Element,
+                           conditions: dict) -> list[Element]:
+        ...
 
 
 class SqlAlchemyRepository(AbsRepository):
@@ -154,3 +165,14 @@ class SqlAlchemyRepository(AbsRepository):
     def _get_by_element_id(self, element, element_id):
         return self.session.query(element).filter_by(
             id=element_id).one_or_none()
+
+    def _get_by_conditions(self, element, conditions):
+        query = self.session.query(element)
+        for condition_name, condition_value in conditions.items():
+            if isinstance(condition_value, MutableSequence):
+                query = query.filter(
+                    getattr(element, condition_name).in_(condition_value))
+            else:
+                query = query.filter(
+                    getattr(element, condition_name) == condition_value)
+        return query.all()
