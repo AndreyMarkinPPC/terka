@@ -47,6 +47,7 @@ class TextualPrinter:
         class NoteMarkdownViewer(App):
 
             BINDINGS = [("q", "quit", "Quit")]
+
             def compose(self) -> ComposeResult:
                 yield widgets.MarkdownViewer(str(note),
                                              show_table_of_contents=True)
@@ -234,6 +235,73 @@ class ConsolePrinter:
         if non_active_projects.row_count and print_options.show_completed:
             self.console.print("[green]Inactive projects[/green]")
             self.console.print(non_active_projects)
+
+    def print_task(self, entities, print_options):
+        table = Table(box=rich.box.SQUARE_DOUBLE_HEAD,
+                      expand=print_options.expand_table)
+        columns = ("id", "name", "description", "status", "priority",
+                   "project", "due_date", "tags", "collaborators",
+                   "time_spent")
+        completed_tasks_default_columns = ("id", "name", "description",
+                                           "status", "priority", "project",
+                                           "completed_date", "tags",
+                                           "collaborators", "time_spent")
+        if print_options.columns:
+            printable_columns = print_options.columns.split(",")
+        else:
+            printable_columns = columns
+
+        for column in printable_columns:
+            table.add_column(column)
+
+        for task in sorted(entities, key=lambda x: x.id, reverse=True):
+            if tags := task.tags:
+                tags_text = ",".join([tag.base_tag.text for tag in list(tags)])
+            else:
+                tags_text = ""
+            if collaborators := task.collaborators:
+                collaborators_texts = sorted([
+                    collaborator.users.name
+                    for collaborator in list(collaborators)
+                    if collaborator.users
+                ])
+                collaborator_string = ",".join(collaborators_texts)
+            else:
+                collaborator_string = ""
+            if task.is_overdue:
+                task_id = f"[red]{task.id}[/red]"
+            elif task.is_stale:
+                task_id = f"[yellow]{task.id}[/yellow]"
+            else:
+                task_id = str(task.id)
+            printable_row = {
+                "id":
+                task_id,
+                "name":
+                task.name,
+                "description":
+                task.description,
+                "status":
+                task.status.name,
+                "priority":
+                task.priority.name,
+                "project":
+                str(task.project),
+                "due_date":
+                str(task.due_date),
+                "tags":
+                tags_text,
+                "collaborators":
+                collaborator_string,
+                "time_spent":
+                formatter.Formatter.format_time_spent(task.total_time_spent),
+            }
+            printable_elements = [
+                value for key, value in printable_row.items()
+                if key in printable_columns
+            ]
+            table.add_row(*printable_elements)
+        self.console.print(table)
 
     def print_sprint(self, entities, print_options, kwargs=None):
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD,
