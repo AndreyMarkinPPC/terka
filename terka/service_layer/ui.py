@@ -559,7 +559,7 @@ class TerkaProject(App, PopupsMixin):
     def on_data_table_cell_selected(self, event: DataTable.CellSelected):
         selected_id = event.cell_key.row_key.value
         self.selected_task = selected_id
-        self.selected_column = selected_id
+        self.selected_column = event.cell_key.column_key.value
         with self.bus.handler.uow as uow:
             task_obj = uow.tasks.get_by_id(models.task.Task, selected_id)
             self.query_one(ui_components.Title).text = task_obj.name
