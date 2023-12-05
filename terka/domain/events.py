@@ -1,5 +1,5 @@
 from dataclasses import dataclass, asdict
-from terka.domain.task import TaskInfo
+from terka.domain.models.task import TaskInfo
 
 
 @dataclass

@@ -254,6 +254,9 @@ class ShowProject(Show):
 class ListProject(List):
     ...
 
+@dataclass
+class ListTask(List):
+    ...
 
 # SPRINT
 @dataclass

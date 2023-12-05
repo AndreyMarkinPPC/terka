@@ -83,9 +83,11 @@ class Project:
 
     @property
     def median_task_age(self):
-        return round(
-            median([(datetime.now() - task.creation_date).days
-                    for task in self.open_tasks]))
+        if self.open_tasks:
+            return round(
+                median([(datetime.now() - task.creation_date).days
+                        for task in self.open_tasks]))
+        return 0
 
     @property
     def backlog(self):

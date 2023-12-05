@@ -4,7 +4,7 @@ from datetime import datetime
 import logging
 from enum import Enum
 
-from terka.domain.task import Task
+from .task import Task
 
 
 class EpicStatus(Enum):
