@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from typing import Literal
+from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 import re
+import sys
+
 from terka.service_layer import services
 from terka.adapters.repository import AbsRepository
 
@@ -181,6 +185,8 @@ def format_task_dict(config: dict, entity: str,
     # add_entity_info(task_dict)
     task_dict["expand_table"] = not task_dict.get("no-expand", False)
     task_dict["show_completed"] = task_dict.get("all", False)
+    if tags := task_dict.get("tag"):
+        task_dict["tags"] = tags
     return task_dict
 
 
@@ -317,3 +323,41 @@ def format_entity(entity: str) -> str:
     if entity in "workspaces":
         return "workspace"
     return entity
+
+
+@dataclass
+class FilterOptions:
+    id: str | None = None
+    project: str | None = None
+    status: str | None = None
+    priority: str | None = None
+    due_date: str | None = None
+    created_days_ago: int | None = None
+    assignee: str | None = None
+    # TODO: Attributes below can be passed as ids after doing the prefiltering
+    collaborator: str | None = None
+    tags: str | None = None
+    sprint: str | None = None
+    story: str | None = None
+    epic: str | None = None
+
+    @classmethod
+    def from_kwargs(cls, **kwargs: dict):
+        cls_dict = {}
+        for k, v in kwargs.items():
+            if k in cls.__match_args__ and v:
+                if len(multiple_conditions := v.split(",")) > 1:
+                    v = multiple_conditions
+                elif len(range_condition := v.split("..")) > 1:
+                    start, end = range_condition
+                    if not end:
+                        end = int(start) + 100
+                    v = list(range(int(start), int(end) + 1))
+                cls_dict[k] = v
+        return cls(**cls_dict)
+
+    def __bool__(self) -> bool:
+        return any(asdict(self).values())
+
+    def get_only_set_attributes(self) -> dict:
+        return {key: value for key, value in asdict(self).items() if value}
