@@ -24,6 +24,49 @@ from terka.service_layer import services, views, exceptions, ui_components
 from terka.service_layer.formatter import Formatter
 
 
+class SortingMixin:
+    current_sorts = set()
+
+    def sort_reverse(self, sort_type: str):
+        """Determine if `sort_type` is ascending or descending."""
+        reverse = sort_type in self.current_sorts
+        if reverse:
+            self.current_sorts.remove(sort_type)
+        else:
+            self.current_sorts.add(sort_type)
+        return reverse
+
+    def action_sort(self) -> None:
+        # TODO: Dynamic table id
+        table = self.query_one(f"#{self.selected_data_table}", DataTable)
+        table.sort(
+            self.selected_column,
+            reverse=self.sort_reverse(self.selected_column),
+        )
+
+
+class SelectionMixin:
+
+    def on_data_table_cell_selected(self, event: DataTable.CellSelected):
+        selected_id = event.cell_key.row_key.value
+        self.selected_task = selected_id
+        self.selected_column = event.cell_key.column_key.value
+        self.selected_data_table = event.data_table.id
+        with self.bus.handler.uow as uow:
+            task_obj = uow.tasks.get_by_id(entities.task.Task, selected_id)
+            self.query_one(ui_components.Title).text = task_obj.name
+            self.query_one(
+                ui_components.Description).text = task_obj.description
+            self.query_one(ui_components.Status).value = task_obj.status.name
+            self.query_one(
+                ui_components.Priority).value = task_obj.priority.name
+            self.query_one(ui_components.Project).value = task_obj.project
+            self.query_one(ui_components.Commentaries).values = [
+                (t.date.strftime("%Y-%m-%d %H:%M"), t.text)
+                for t in task_obj.commentaries
+            ]
+
+
 class PopupsMixin:
 
     def __init__(self):
@@ -157,6 +200,16 @@ class PopupsMixin:
             _commands.TrackTask(id=self.selected_task, hours=result))
         self.notify(f"Tracked {result} minutes for task {self.selected_task}!")
 
+    def action_show_info(self) -> None:
+        sidebar = self.query_one(ui_components.Sidebar)
+        self.set_focus(None)
+        if sidebar.has_class("-hidden"):
+            sidebar.remove_class("-hidden")
+        else:
+            if sidebar.query("*:focus"):
+                self.screen.set_focus(None)
+            sidebar.add_class("-hidden")
+
 
 class Comment(Widget):
     value = reactive("text")
@@ -280,7 +333,7 @@ class TerkaTask(App):
         input.value = ""
 
 
-class TerkaProject(App, PopupsMixin):
+class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
 
     CSS_PATH = "entities.css"
 
@@ -288,9 +341,7 @@ class TerkaProject(App, PopupsMixin):
         ("n", "new_task", "New Task"),
         ("b", "backlog", "Backlog"),
         ("t", "tasks", "Tasks"),
-        ("e", "epics", "Epics"),
-        ("s", "stories", "Stories"),
-        ("N", "notes", "Notes"),
+        ("s", "sort", "Sort"),
         ("o", "overview", "Overview"),
         ("T", "time", "Time"),
         ("q", "quit", "Quit"),
@@ -312,6 +363,7 @@ class TerkaProject(App, PopupsMixin):
         self.bus = bus
         self.tasks = list()
         self.selected_task = None
+        self.selected_column = None
         self.project_id = project_id
         self.entity = self.get_entity()
 
@@ -335,7 +387,7 @@ class TerkaProject(App, PopupsMixin):
                              id="new_task",
                              variant="success",
                              classes="new_entity")
-                table = DataTable(id="backlog")
+                table = DataTable(id="project_backlog_table")
                 for column in ("id", "name", "priority", "due_date",
                                "created_at", "tags", "collaborators",
                                "time_spent"):
@@ -364,8 +416,12 @@ class TerkaProject(App, PopupsMixin):
                             task_id = f"[yellow]{task.id}[/yellow]"
                         else:
                             task_id = str(task.id)
+                        if len(commentaries := task.commentaries) > 0:
+                            task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
+                        else:
+                            task_name = task.name
                         table.add_row(task_id,
-                                      task.name,
+                                      task_name,
                                       task.priority.name,
                                       task.due_date,
                                       task.creation_date.strftime("%Y-%m-%d"),
@@ -376,14 +432,13 @@ class TerkaProject(App, PopupsMixin):
                                       key=task.id)
                 yield table
             with TabPane("Open Tasks", id="tasks"):
-                table = DataTable(id="tasks")
+                table = DataTable(id="project_open_tasks")
                 for column in ("id", "name", "status", "priority", "due_date",
                                "tags", "collaborators", "time_spent"):
                     table.add_column(column, key=column)
                 for task in sorted(self.entity.tasks,
                                    key=lambda x: x.status.name,
                                    reverse=True):
-                    # self.tasks.append(task)
                     if task.status.name in ("TODO", "IN_PROGRESS", "REVIEW"):
                         if tags := task.tags:
                             tags_text = ",".join(
@@ -405,8 +460,12 @@ class TerkaProject(App, PopupsMixin):
                             task_id = f"[yellow]{task.id}[/yellow]"
                         else:
                             task_id = str(task.id)
+                        if len(commentaries := task.commentaries) > 0:
+                            task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
+                        else:
+                            task_name = task.name
                         table.add_row(task_id,
-                                      task.name,
+                                      task_name,
                                       task.status.name,
                                       task.priority.name,
                                       task.due_date,
@@ -417,7 +476,7 @@ class TerkaProject(App, PopupsMixin):
                                       key=task.id)
                 yield table
             with TabPane("Completed Tasks", id="completed_tasks"):
-                table = DataTable(id="completed_tasks")
+                table = DataTable(id="project_completed_tasks_table")
                 for column in ("id", "name", "status", "priority",
                                "completion_date", "tags", "collaborators",
                                "time_spent"):
@@ -442,8 +501,12 @@ class TerkaProject(App, PopupsMixin):
                         collaborator_string = ",".join(collaborators_texts)
                     else:
                         collaborator_string = ""
+                    if len(commentaries := task.commentaries) > 0:
+                        task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
+                    else:
+                        task_name = task.name
                     table.add_row(str(task.id),
-                                  task.name,
+                                  task_name,
                                   task.status.name,
                                   task.priority.name,
                                   task.completion_date.strftime("%Y-%m-%d"),
@@ -458,7 +521,7 @@ class TerkaProject(App, PopupsMixin):
                              id="new_epic",
                              variant="success",
                              classes="new_entity")
-                table = DataTable(id="epics")
+                table = DataTable(id="project_epics_table")
                 table.add_columns("id", "name", "description", "status",
                                   "tasks")
                 for epic in sorted(self.entity.epics,
@@ -473,7 +536,7 @@ class TerkaProject(App, PopupsMixin):
                              id="new_story",
                              variant="success",
                              classes="new_entity")
-                table = DataTable(id="stories")
+                table = DataTable(id="project_stories_table")
                 table.add_columns("id", "name", "description", "status",
                                   "tasks")
                 for story in self.entity.stories:
@@ -486,7 +549,7 @@ class TerkaProject(App, PopupsMixin):
                              id="new_note",
                              variant="success",
                              classes="new_entity")
-                table = DataTable(id="notes")
+                table = DataTable(id="project_notes_table")
                 table.add_columns("id", "text")
                 for task in self.entity.notes:
                     table.add_row(str(task.id), task.name)
@@ -525,16 +588,6 @@ class TerkaProject(App, PopupsMixin):
     def action_backlog(self) -> None:
         self.query_one(TabbedContent).active = "backlog"
 
-    def action_show_info(self) -> None:
-        sidebar = self.query_one(ui_components.Sidebar)
-        self.set_focus(None)
-        if sidebar.has_class("-hidden"):
-            sidebar.remove_class("-hidden")
-        else:
-            if sidebar.query("*:focus"):
-                self.screen.set_focus(None)
-            sidebar.add_class("-hidden")
-
     def action_tasks(self) -> None:
         self.query_one(TabbedContent).active = "tasks"
 
@@ -555,20 +608,6 @@ class TerkaProject(App, PopupsMixin):
 
     def on_data_table_cell_highlighted(self, event: DataTable.CellHighlighted):
         self.selected_task = event.cell_key.row_key.value
-
-    def on_data_table_cell_selected(self, event: DataTable.CellSelected):
-        selected_id = event.cell_key.row_key.value
-        self.selected_task = selected_id
-        self.selected_column = event.cell_key.column_key.value
-        with self.bus.handler.uow as uow:
-            task_obj = uow.tasks.get_by_id(entities.task.Task, selected_id)
-            self.query_one(ui_components.Title).text = task_obj.name
-            self.query_one(
-                ui_components.Description).text = task_obj.description
-            self.query_one(ui_components.Status).value = task_obj.status.name
-            self.query_one(
-                ui_components.Priority).value = task_obj.priority.name
-            self.query_one(ui_components.Project).value = task_obj.project
 
     def action_new_task(self):
         self.push_screen(ui_components.NewTask(), self.task_new_callback)
@@ -606,29 +645,27 @@ class TerkaProject(App, PopupsMixin):
         self.notify(f"New story created!")
 
 
-class TerkaSprint(App, PopupsMixin):
+class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
 
     CSS_PATH = "entities.css"
 
     BINDINGS = [("t", "tasks", "Tasks"), ("n", "notes", "Notes"),
-                ("o", "overview", "Overview"), ("q", "quit", "Quit"),
-                ("P", "sort_by_project", "Sort by Project"),
-                ("S", "sort_by_status", "Sort by Status"),
+                ("i", "show_info", "Info"), ("o", "overview", "Overview"),
+                ("q", "quit", "Quit"), ("s", "sort", "Sort"),
                 ("E", "task_edit", "Edit"), ("r", "refresh", "Refresh"),
                 ("d", "task_complete", "Done"), ("X", "task_delete", "Delete"),
                 ("a", "task_add", "Add"),
                 ("U", "task_update_context", "Update"), ("T", "time", "Time")]
 
-    current_sorts: set = set()
-
     def __init__(self, repo, sprint_id, bus) -> None:
         super().__init__()
         self.repo = repo
         self.bus = bus
-        self.selected_task = None
         self.sprint_id = sprint_id
         self.entity = self.get_entity()
         self.tasks = self.get_tasks()
+        self.selected_task = None
+        self.selected_column = None
 
     def get_entity(self):
         return self.repo.get_by_id(entities.sprint.Sprint, self.sprint_id)
@@ -646,41 +683,19 @@ class TerkaSprint(App, PopupsMixin):
         exit(f"{len(new_tasks)}, {len(previous_tasks)}")
         self.notify("Refreshing data...")
 
-    def sort_reverse(self, sort_type: str):
-        """Determine if `sort_type` is ascending or descending."""
-        reverse = sort_type in self.current_sorts
-        if reverse:
-            self.current_sorts.remove(sort_type)
-        else:
-            self.current_sorts.add(sort_type)
-        return reverse
-
-    def action_sort_by_project(self) -> None:
-        table = self.query_one("#tasks_table", DataTable)
-        table.sort(
-            "project",
-            reverse=self.sort_reverse("project"),
-        )
-
-    def action_sort_by_status(self) -> None:
-        table = self.query_one("#tasks_table", DataTable)
-        table.sort(
-            "status",
-            reverse=self.sort_reverse("status"),
-        )
-
     def on_mount(self) -> None:
         self.title = "Sprint"
         self.sub_title = f'Workspace: {self.bus.config.get("workspace")}'
 
     def compose(self) -> ComposeResult:
+        yield ui_components.Sidebar(classes="-hidden")
         yield Header()
         yield Static(
             f"[bold]Sprint {self.entity.id}[/bold]: \n{self.entity.goal}",
             classes="header")
         with TabbedContent(initial="tasks"):
             with TabPane("Tasks", id="tasks"):
-                table = DataTable(id="tasks_table")
+                table = DataTable(id="sprint_open_tasks_table")
                 for column in ("id", "name", "status", "priority",
                                "story_points", "project", "due_date", "tags",
                                "collaborators", "time_spent"):
@@ -714,9 +729,13 @@ class TerkaSprint(App, PopupsMixin):
                         task_id = str(task.id)
                     project = services.lookup_project_name(
                         task.project, self.repo)
+                    if len(commentaries := task.commentaries) > 0:
+                        task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
+                    else:
+                        task_name = task.name
                     if task.status.name not in ("DONE", "DELETED"):
                         table.add_row(task_id,
-                                      task.name,
+                                      task_name,
                                       task.status.name,
                                       task.priority.name,
                                       str(sprint_task.story_points),
@@ -729,7 +748,7 @@ class TerkaSprint(App, PopupsMixin):
                                       key=task.id)
                 yield table
             with TabPane("Completed Tasks", id="completed_tasks"):
-                table = DataTable(id="completed_tasks")
+                table = DataTable(id="sprint_completed_tasks_table")
                 for column in ("id", "name", "project", "completion_date",
                                "tags", "collaborators", "story_points",
                                "time_spent"):
@@ -756,10 +775,14 @@ class TerkaSprint(App, PopupsMixin):
                         collaborator_string = ""
                     project = services.lookup_project_name(
                         task.project, self.repo)
+                    if len(commentaries := task.commentaries) > 0:
+                        task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
+                    else:
+                        task_name = task.name
                     if task.status.name in ("DONE", "DELETED"):
                         table.add_row(
                             str(task.id),
-                            task.name,
+                            task_name,
                             project,
                             task.completion_date.strftime("%Y-%m-%d")
                             if task.completion_date else "",
@@ -771,7 +794,7 @@ class TerkaSprint(App, PopupsMixin):
                             key=task.id)
                 yield table
             with TabPane("Notes", id="notes"):
-                table = DataTable(id="notes")
+                table = DataTable(id="sprint_notes_table")
                 table.add_columns("id", "text")
                 for task in self.entity.notes:
                     table.add_row(str(task.id), task.name)
@@ -833,17 +856,6 @@ class TerkaSprint(App, PopupsMixin):
 
     def action_notes(self) -> None:
         self.query_one(TabbedContent).active = "notes"
-
-    def on_data_table_cell_highlighted(self, event: DataTable.CellHighlighted):
-        self.selected_task = event.cell_key.row_key.value
-
-    def on_data_table_cell_selected(self, event: DataTable.CellSelected):
-        self.selected_task = event.cell_key.row_key.value
-        self.selected_column = event.cell_key.column_key.value
-
-    def on_data_table_cell_selected(self, event: DataTable.CellHighlighted):
-        self.selected_task = event.cell_key.row_key.value
-        self.selected_column = event.cell_key.column_key.value
 
 
 # TODO: implement

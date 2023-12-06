@@ -9,6 +9,7 @@ from textual.widgets import Button, Input, Label, Select, Static
 
 from terka.domain import _commands
 
+
 class Text(Static):
     text = reactive("", layout=True)
 
@@ -21,6 +22,13 @@ class Value(Static):
 
     def render(self) -> str:
         return f"{self.__class__.__name__}: {self.value}"
+
+
+class Values(Static):
+    values = reactive([], layout=True)
+
+    def render(self) -> str:
+        return f"{self.__class__.__name__}: \n{[v for v in self.values]}"
 
 
 class Title(Text):
@@ -43,11 +51,16 @@ class Project(Value):
     ...
 
 
+class Commentaries(Values):
+    ...
+
+
 class Sidebar(Container):
 
     def compose(self) -> ComposeResult:
         yield Container(Title(classes="header"), Description(), Status(),
-                        Priority(), Project())
+                        Priority(), Project(), Commentaries())
+
 
 class TerkaModalScreen(ModalScreen[str]):
     BINDINGS = [("escape", "quit", "Quit")]

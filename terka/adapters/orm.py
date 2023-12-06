@@ -18,19 +18,6 @@ from sqlalchemy.orm import mapper, registry, relationship, validates, declarativ
 from terka.domain.entities import (collaborator, commentary, epic, event_history,
                                  note, project, sprint, story, tag, task,
                                  time_tracker, user, workspace)
-# from terka.domain.task import Task, TaskStatus, TaskPriority
-# from terka.domain.user import User
-# from terka.domain.project import Project, ProjectStatus
-# from terka.domain.event_history import TaskEvent, ProjectEvent, EventType
-# from terka.domain.commentary import TaskCommentary, ProjectCommentary, EpicCommentary, StoryCommentary, SprintCommentary
-# from terka.domain.notes import TaskNote, ProjectNote, EpicNote, StoryNote, SprintNote
-# from terka.domain.tag import BaseTag, TaskTag, ProjectTag
-# from terka.domain.collaborators import TaskCollaborator, ProjectCollaborator
-# from terka.domain.sprint import Sprint, SprintStatus, SprintTask
-# from terka.domain.time_tracker import TimeTrackerEntry
-# from terka.domain.epic import Epic, EpicTask, EpicStatus
-# from terka.domain.story import Story, StoryTask, StoryStatus
-# from terka.domain.workspace import Workspace
 
 from terka.domain.external_connectors.asana import AsanaTask, AsanaProject
 
