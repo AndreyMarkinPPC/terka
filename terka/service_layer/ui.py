@@ -37,7 +37,6 @@ class SortingMixin:
         return reverse
 
     def action_sort(self) -> None:
-        # TODO: Dynamic table id
         table = self.query_one(f"#{self.selected_data_table}", DataTable)
         table.sort(
             self.selected_column,
@@ -670,9 +669,11 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
     def get_entity(self):
         return self.repo.get_by_id(entities.sprint.Sprint, self.sprint_id)
 
-    def get_tasks(self):
+    def get_tasks(self, all: bool = False):
         for sprint_task in self.entity.tasks:
-            if sprint_task.tasks.status.name not in ("DONE", "DELETED"):
+            if all:
+                yield sprint_task.tasks
+            elif sprint_task.tasks.status.name not in ("DONE", "DELETED"):
                 yield sprint_task.tasks
 
     def action_refresh(self):
@@ -704,7 +705,6 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                                           key=lambda x: x.tasks.status.value,
                                           reverse=True):
                     task = sprint_task.tasks
-                    # self.tasks.append(task)
                     if tags := task.tags:
                         tags_text = ",".join([
                             tag.base_tag.text for tag in list(tags)
@@ -825,13 +825,23 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                                     label=["sprint", "non-sprint"])
                     yield plotext
             with TabPane("Overview", id="overview"):
+                project_split = defaultdict(int)
+                for task in self.get_tasks(all=True):
+                    project = services.lookup_project_name(
+                        task.project, self.repo)
+                    project_split[project] += task.total_time_spent
                 collaborators = self.entity.collaborators
                 sorted_collaborators = ""
                 for name, value in sorted(collaborators.items(),
                                           key=lambda x: x[1],
                                           reverse=True):
                     sorted_collaborators += f"  * {name}: {Formatter.format_time_spent(value)} \n"
-                yield Markdown(f"""
+                sorted_projects = ""
+                for name, value in sorted(project_split.items(),
+                                          key=lambda x: x[1],
+                                          reverse=True):
+                    sorted_projects += f"  * {name}: {Formatter.format_time_spent(value)} \n"
+                yield MarkdownViewer(f"""
 # Sprint details:
 * Period: {self.entity.start_date} - {self.entity.end_date}
 * Open tasks: {len(self.entity.open_tasks)} ({len(self.entity.tasks)})
@@ -839,8 +849,10 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
 * Velocity: {self.entity.velocity}
 * Time spend: {Formatter.format_time_spent(self.entity.total_time_spent)}
 * Utilization: {round(self.entity.utilization, 2) :.0%}
-* Collaborators:
+## Collaborator split:
 {sorted_collaborators}
+## Project split:
+{sorted_projects}
                 """)
 
         yield Footer()
