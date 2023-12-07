@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from typing import Literal
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 import re
-import sys
 
 from terka.service_layer import services
 from terka.adapters.repository import AbsRepository
@@ -182,24 +180,11 @@ def format_task_dict(config: dict, entity: str,
         task_dict["project"] = config.get("project_name")
     if any(key in task_dict.keys() for key in ("epics", "stories", "tasks")):
         task_dict["partial_project_view"] = True
-    # add_entity_info(task_dict)
     task_dict["expand_table"] = not task_dict.get("no-expand", False)
     task_dict["show_completed"] = task_dict.get("all", False)
     if tags := task_dict.get("tag"):
         task_dict["tags"] = tags
     return task_dict
-
-
-def add_entity_info(task_dict):
-    if sprints := task_dict.get("sprints"):
-        task_dict["entity_type"] = "sprint"
-        task_dict["entity_id"] = sprints
-    if epics := task_dict.get("epics"):
-        task_dict["entity_type"] = "epic"
-        task_dict["entity_id"] = epics
-    if stories := task_dict.get("stories"):
-        task_dict["entity_type"] = "story"
-        task_dict["entity_id"] = stories
 
 
 def convert_status(status: str):
@@ -211,7 +196,9 @@ def convert_status(status: str):
         "d": "DONE",
         "x": "DELETED",
         "a": "ACTIVE",
-        "p": "PLANNED"
+        "p": "PLANNED",
+        "c": "COMPLETED",
+        "o": "ON_HOLD"
     }
     statuses = [
         conversion_dict.get(status[0].lower(), "BACKLOG")
