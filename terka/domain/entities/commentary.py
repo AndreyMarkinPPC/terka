@@ -10,6 +10,10 @@ class BaseCommentary:
     def __repr__(self):
         return f"<Commentary> {self.text}"
 
+    def __bool__(self) -> bool:
+        return bool(self.text)
+
+
 
 class TaskCommentary(BaseCommentary):
 

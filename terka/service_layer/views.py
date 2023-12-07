@@ -11,13 +11,11 @@ def n_days_ago(n: int) -> str:
     return (datetime.today() - timedelta(n)).strftime("%Y-%m-%d")
 
 
-def time_spent(
-    session,
-    tasks: Optional[List[Task]],
-    start_date: str = n_days_ago(7),
-    end_date: str = n_days_ago(-1),
-    excluded_tasks_only: bool = False
-) -> List[Dict[str, str]]:
+def time_spent(session,
+               tasks: Optional[List[Task]],
+               start_date: str = n_days_ago(7),
+               end_date: str = n_days_ago(-1),
+               excluded_tasks_only: bool = False) -> List[Dict[str, str]]:
     tasks = ",".join([str(task.id) for task in tasks])
     query = f"""
     SELECT
@@ -59,8 +57,9 @@ def external_connectors_asana_projects(session) -> List[Dict[int, str]]:
     return [dict(r) for r in results]
 
 
-def external_connectors_asana_tasks(session,
-                                    project_id: str) -> List[Dict[int, str]]:
+def external_connectors_asana_tasks(
+        session,
+        project_id: str) -> Dict[int, Dict[str, str | datetime | None]]:
     results = session.execute(
         """
     SELECT
@@ -68,7 +67,16 @@ def external_connectors_asana_tasks(session,
     FROM 'external_connectors.asana.tasks'
     WHERE project = :project_id
     """, dict(project_id=project_id))
-    return [dict(r) for r in results]
+    return {
+        r.id: {
+            "asana_task_id":
+            r.asana_task_id,
+            "sync_date":
+            datetime.strptime(r.sync_date, "%Y-%m-%d %H:%M:%S.%f")
+            if r.sync_date else None
+        }
+        for r in results
+    }
 
 
 def status_changes(session, sprint_id: int):

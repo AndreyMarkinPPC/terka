@@ -32,7 +32,6 @@ class PrintOptions:
 class Printer:
 
     def __init__(self):
-        self.tui = None
         self.console = ConsolePrinter()
         self.tui = TextualPrinter()
 

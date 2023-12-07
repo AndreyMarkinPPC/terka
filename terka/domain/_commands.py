@@ -113,21 +113,21 @@ class Report(Command):
     ...
 
 
+@dataclass
+class Sync(Command):
+    id: int | None = None
+
+
 # TASKS
 @dataclass
 class CreateTask(Command):
     name: str | None = None
     description: str | None = None
     project: str | None = None
-    # tags: str | None = None
-    # collaborators: str | None = None
     assignee: str | None = None
     due_date: str | None = None
     status: str = "BACKLOG"
     priority: str = "NORMAL"
-    # sprint_id: str | None = None
-    # epic_id: str | None = None
-    # story_id: str | None = None
 
 
 @dataclass
@@ -149,16 +149,10 @@ class UpdateTask(Command):
     name: str | None = None
     description: str | None = None
     project: str | None = None
-    # tags: str | None = None
-    # collaborators: str | None = None
     assignee: str | None = None
     due_date: str | None = None
     status: str | None = None
     priority: str | None = None
-
-    # sprint_id: str | None = None
-    # epic_id: str | None = None
-    # story_id: str | None = None
 
     def __bool__(self) -> bool:
         return all(f for f in self.__dataclass_fields__ if f != "id")
@@ -203,6 +197,11 @@ class CommentTask(Comment):
 class TrackTask(Command):
     id: int
     hours: int | None = None
+
+
+@dataclass
+class SyncTask(Sync):
+    ...
 
 
 # PROJECT
@@ -254,9 +253,16 @@ class ShowProject(Show):
 class ListProject(List):
     ...
 
+
 @dataclass
 class ListTask(List):
     ...
+
+
+@dataclass
+class SyncProject(Sync):
+    ...
+
 
 # SPRINT
 @dataclass

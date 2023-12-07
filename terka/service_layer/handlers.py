@@ -1,14 +1,18 @@
 from typing import Type
+import asana as asn
 from collections import defaultdict
 from dataclasses import asdict
 from datetime import datetime
 import functools
 import logging
+import os
+from rich.prompt import Confirm, Prompt
 
 from terka import utils
 from terka.adapters import publisher, printer
 from terka.domain import _commands, events, entities
-from terka.service_layer import exceptions, templates, unit_of_work
+from terka.domain.external_connectors import asana
+from terka.service_layer import exceptions, templates, unit_of_work, views
 
 COMMAND_HANDLERS = {}
 EVENT_HANDLERS = defaultdict(list)
@@ -301,10 +305,10 @@ class TaskCommandHandlers:
                         if existing_task.status.name == "BACKLOG":
                             task_params.update({"status": "TODO"})
                         if (not existing_task.due_date
-                                or existing_task.due_date >
-                                existing_entity.end_date
-                                or existing_task.due_date <
-                                existing_entity.start_date):
+                                or existing_task.due_date
+                                > existing_entity.end_date
+                                or existing_task.due_date
+                                < existing_entity.start_date):
                             task_params.update(
                                 {"due_date": existing_entity.end_date})
                         if task_params:
@@ -341,7 +345,10 @@ class TaskCommandHandlers:
                context: dict = {}) -> None:
 
         for field in cmd.__dataclass_fields__:
-            if field_value := getattr(cmd, field):
+            if not (field_value := getattr(cmd, field)):
+                TaskCommandHandlers._delete(cmd, handler, context)
+                break
+            else:
                 updated_context = {
                     "entity_type": field,
                     "entity_id": field_value
@@ -494,7 +501,8 @@ class TaskCommandHandlers:
         with handler.uow as uow:
             if filter_options:
                 tasks = uow.tasks.get_by_conditions(
-                    entities.task.Task, filter_options.get_only_set_attributes())
+                    entities.task.Task,
+                    filter_options.get_only_set_attributes())
             else:
                 tasks = uow.tasks.list(entities.task.Task)
             if tasks:
@@ -517,10 +525,12 @@ class TaskEventHandlers(Handler):
                   context: dict = {}) -> None:
         with handler.uow as uow:
             task_event = entities.event_history.TaskEvent(task_id=event.id,
-                                                        event_type="STATUS",
-                                                        old_value="",
-                                                        new_value="DONE")
+                                                          event_type="STATUS",
+                                                          old_value="",
+                                                          new_value="DONE")
             uow.tasks.add(task_event)
+            uow.tasks.update(entities.task.Task, event.id,
+                             {"modification_date": datetime.now()})
             uow.commit()
 
     @register(event=events.TaskUpdated)
@@ -544,6 +554,8 @@ class TaskEventHandlers(Handler):
                             new_value=updated_value)
                         uow.tasks.add(task_event)
             uow.commit()
+            uow.tasks.update(entities.task.Task, event.id,
+                             {"modification_date": datetime.now()})
             logging.debug(f"Task updated, context {event}")
 
     @register(event=events.TaskDeleted)
@@ -552,10 +564,12 @@ class TaskEventHandlers(Handler):
                 context: dict = {}) -> None:
         with handler.uow as uow:
             task_event = entities.event_history.TaskEvent(task_id=event.id,
-                                                        event_type="STATUS",
-                                                        old_value="",
-                                                        new_value="DELETED")
+                                                          event_type="STATUS",
+                                                          old_value="",
+                                                          new_value="DELETED")
             uow.tasks.add(task_event)
+            uow.tasks.update(entities.task.Task, event.id,
+                             {"modification_date": datetime.now()})
             uow.commit()
 
     @register(event=events.TaskTagAdded)
@@ -573,6 +587,9 @@ class TaskEventHandlers(Handler):
         TaskCommandHandlers.comment(cmd=_commands.CommentTask(**asdict(event)),
                                     handler=handler,
                                     context=context)
+        with handler.uow as uow:
+            uow.tasks.update(entities.task.Task, event.id,
+                             {"modification_date": datetime.now()})
 
     @register(event=events.TaskCollaboratorAdded)
     def collaborator_added(event: events.TaskCollaboratorAdded,
@@ -618,6 +635,19 @@ class TaskEventHandlers(Handler):
                                                       story=event.story_id),
                                 handler=handler,
                                 context=context)
+
+    @register(event=events.TaskSynced)
+    def synced(event: events.TaskSynced,
+               handler: Handler,
+               context: dict = {}) -> None:
+        with handler.uow as uow:
+            if synced_task := uow.tasks.get_by_conditions(
+                    asana.AsanaTask, {"asana_task_id": event.asana_task_id}):
+                uow.tasks.update(asana.AsanaTask, synced_task[0].id,
+                                 {"sync_date": event.sync_date})
+            else:
+                uow.tasks.add(asana.AsanaTask(**asdict(event)))
+            uow.commit()
 
 
 class ProjectCommandHandlers:
@@ -713,7 +743,7 @@ class ProjectCommandHandlers:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
             uow.tasks.add(
                 entities.commentary.ProjectCommentary(id=project.id,
-                                                    text=cmd.text))
+                                                      text=cmd.text))
             uow.commit()
 
     @register(cmd=_commands.TagProject)
@@ -743,9 +773,29 @@ class ProjectCommandHandlers:
              handler: Handler,
              context: dict = {}) -> None:
         with handler.uow as uow:
-            if projects := uow.tasks.list(entities.project.Project):
+            filter_options = utils.FilterOptions.from_kwargs(**context)
+            with handler.uow as uow:
+                if filter_options:
+                    projects = uow.tasks.get_by_conditions(
+                        entities.project.Project,
+                        filter_options.get_only_set_attributes())
+                else:
+                    projects = uow.tasks.list(entities.project.Project)
                 handler.printer.console.print_project(
                     projects, printer.PrintOptions.from_kwargs(**context))
+
+    @register(cmd=_commands.SyncProject)
+    def sync(cmd: _commands.SyncProject,
+             handler: Handler,
+             context: dict = {}) -> None:
+        with handler.uow as uow:
+            if cmd.id:
+                project = ProjectCommandHandlers._validate_project(cmd.id, uow)
+                ProjectCommandHandlers._sync_project(uow, project)
+            else:
+                projects = uow.tasks.list(entities.project.Project)
+                for project in projects:
+                    self._sync_project(uow, project)
 
     def _validate_project(id: str | int, uow) -> entities.project.Project:
         if id.isnumeric():
@@ -760,6 +810,44 @@ class ProjectCommandHandlers:
                 raise exceptions.EntityNotFound(
                     f"Project id {id} is not found")
         return existing_project
+
+    def _sync_project(uow, project: entities.project.Project):
+        asana_project = uow.tasks.get_by_id(asana.AsanaProject, project.id)
+        if not asana_project:
+            return
+        asana_project_id = asana_project.asana_project_id
+        if last_sync_date := asana_project.sync_date:
+            tasks = [
+                task for task in project.tasks
+                if task.creation_date > last_sync_date or (
+                    task.modification_date
+                    and task.modification_date > last_sync_date)
+            ]
+        else:
+            tasks = project.tasks
+        if not tasks:
+            return
+        project_sync_date = datetime.now()
+        synced_tasks = views.external_connectors_asana_tasks(
+            uow.repo.session, project.id)
+        # TODO: Store default assign user and token in config
+        configuration = asn.Configuration()
+        configuration.access_token = os.getenv("ASANA_PERSONAL_ACCESS_TOKEN")
+        asana_client = asn.ApiClient(configuration)
+        asana_migrator = asana.AsanaMigrator(asana_client)
+        asana_migrator.load_task_statuses(asana_project_id)
+        for i, task in enumerate(tasks):
+            sync_info = synced_tasks.get(task.id)
+            if asana_task_id := asana_migrator.migrate_task(
+                    asana_project_id, task, sync_info):
+                uow.published_events.append(
+                    events.TaskSynced(id=task.id,
+                                      project=project.id,
+                                      asana_task_id=asana_task_id,
+                                      sync_date=datetime.now()))
+        uow.published_events.append(
+            events.ProjectSynced(project.id, asana_project_id,
+                                 project_sync_date))
 
 
 class ProjectEventHandlers:
@@ -777,6 +865,20 @@ class ProjectEventHandlers:
                   context: dict = {}) -> None:
         ProjectCommandHandlers.comment(
             cmd=_commands.CommentProject(**asdict(event)), handler=handler)
+
+    @register(event=events.ProjectSynced)
+    def synced(event: events.ProjectSynced,
+               handler: Handler,
+               context: dict = {}) -> None:
+        with handler.uow as uow:
+            if synced_project := uow.tasks.get_by_conditions(
+                    asana.AsanaProject,
+                {"asana_project_id": event.asana_project_id}):
+                uow.tasks.update(asana.AsanaProject, synced_project[0].id,
+                                 {"sync_date": event.sync_date})
+            else:
+                uow.tasks.add(asana.AsanaProject(**asdict(event)))
+            uow.commit()
 
 
 class EpicCommandHandlers:
@@ -900,7 +1002,8 @@ class StoryCommandHandlers:
                handler: Handler,
                context: dict = {}) -> None:
         with handler.uow as uow:
-            uow.tasks.update(entities.story.Story, cmd.id, {"status": "DELETED"})
+            uow.tasks.update(entities.story.Story, cmd.id,
+                             {"status": "DELETED"})
             uow.published_events.append(events.StoryDeleted(cmd.id))
             if comment := cmd.comment:
                 uow.published_events.append(
@@ -1001,15 +1104,13 @@ def convert_project(cmd: _commands.Command,
         return cmd
     if not (existing_project := handler.uow.tasks.get(entities.project.Project,
                                                       project_name)):
-        print(f"Creating new project: {project_name}. "
-              "Do you want to continue (Y/n)?")
-        answer = input()
-        while answer.lower() != "y":
-            print("Provide a project name: ")
-            project_name = input()
-            print(f"Creating new project: {project_name}. "
-                  "Do you want to continue (Y/n)?")
-            answer = input()
+        answer = Confirm.ask(
+            f"Creating new project: {project_name}. Do you want to continue?")
+        while answer[0].lower() != "y":
+            project_name = Prompt.ask("Provide a project name: ")
+            answer = Confirm.ask(
+                f"Creating new project: {project_name}. Do you want to continue?"
+            )
         project_id = ProjectCommandHandlers.create(
             cmd=_commands.CreateProject(name=project_name),
             handler=handler,

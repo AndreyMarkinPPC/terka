@@ -1,3 +1,4 @@
+from datetime import datetime
 from dataclasses import dataclass, asdict
 from terka.domain.entities.task import TaskInfo
 
@@ -34,7 +35,6 @@ class Updated(Event):
 class Commented(Event):
     id: int
     text: str
-
 
 
 # TASKS
@@ -130,22 +130,40 @@ class TaskAddedToStory(TaskEvent):
     story_id: int
 
 
+@dataclass
+class TaskSynced(TaskEvent):
+    id: int
+    project: int
+    asana_task_id: str
+    sync_date: datetime
+
+
 # PROJECTS
 @dataclass
 class ProjectCreated(Created):
     ...
 
+
 @dataclass
 class ProjectCompleted(Completed):
     ...
-    
+
+
 @dataclass
 class ProjectDeleted(Deleted):
     ...
 
+
 @dataclass
 class ProjectCommented(Commented):
     ...
+
+
+@dataclass
+class ProjectSynced(ProjectEvent):
+    id: int
+    asana_project_id: str
+    sync_date: datetime
 
 
 @dataclass
@@ -205,8 +223,8 @@ class StoryUpdated(Updated):
 class StoryCommented(Commented):
     ...
 
+
 # SPRINTS
 @dataclass
 class SprintCompleted(Completed):
     ...
-
