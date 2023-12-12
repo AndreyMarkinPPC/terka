@@ -1,3 +1,4 @@
+from typing import Any
 from datetime import datetime
 from dataclasses import dataclass, asdict
 from terka.domain.entities.task import TaskInfo
@@ -84,8 +85,10 @@ class UpdateMask:
 
 @dataclass
 class TaskUpdated(TaskEvent):
-    id: int
-    update_mask: UpdateMask
+    task: int
+    event_type: str
+    old_value: Any
+    new_value: Any
 
 
 @dataclass

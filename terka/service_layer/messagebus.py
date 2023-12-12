@@ -33,11 +33,12 @@ class MessageBus:
 
     def handle_command(self, command: _commands.Command, context: dict) -> None:
         handler = self.command_handlers[type(command)]
-        result = handler(command, self.handler, context)
-        self.return_value = result
+        if result := handler(command, self.handler, context):
+            self.return_value = result
         self.queue.extend(self.handler.uow.collect_new_events())
 
     def handle_event(self, event: events.Event, context: dict) -> None:
         for handler in self.event_handlers[type(event)]:
-            handler(event, self.handler, context)
+            if result := handler(event, self.handler, context):
+                self.return_value = result
             self.queue.extend(self.handler.uow.collect_new_events())

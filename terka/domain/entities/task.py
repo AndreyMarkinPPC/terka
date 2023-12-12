@@ -1,3 +1,4 @@
+from typing import Type
 from enum import Enum
 from dataclasses import dataclass
 from collections import defaultdict
@@ -64,19 +65,8 @@ class Task:
                 f"Due date {due_date.date()} cannot be less than today")
         else:
             self.due_date = due_date
-        self.status = self._validate_status(status)
-        if priority and priority not in [p.name for p in TaskPriority]:
-            raise ValueError(f"{priority} is invalid priority")
-        else:
-            self.priority = priority
-
-    def _validate_status(self, status):
-        if status and status not in [
-                s.name for s in TaskStatus if s.name != "DELETED"
-        ]:
-            raise ValueError(f"{status} is invalid status")
-        else:
-            return status
+        self.status = self._cast_to_enum(TaskStatus, status)
+        self.priority = self._cast_to_enum(TaskPriority, priority)
 
     @property
     def total_time_spent(self):
@@ -129,5 +119,7 @@ class Task:
         return False
 
     def __repr__(self):
-        # TODO: Fix: status is string, not Enum
         return f"<Task {self.id}>: {self.name}, {self.status.name}, {self.creation_date}"
+
+    def _cast_to_enum(self, enum: Type[Enum], value: str | Enum) -> Enum:
+        return enum[value] if isinstance(value, str) else value

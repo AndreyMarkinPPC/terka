@@ -86,13 +86,14 @@ class SprintCommandHandlers:
                 task = sprint_task.tasks
                 task_params = {}
                 if task.status.name == "BACKLOG":
-                    task_params.update({"status": "TODO"})
+                    task_params.update(
+                        {"status": entities.task.TaskStatus.TODO})
                 if not task.due_date or task.due_date > existing_sprint.end_date:
                     task_params.update({"due_date": existing_sprint.end_date})
                 if task_params:
+                    task_params["id"] = task.id
                     uow.published_events.append(
-                        events.TaskUpdated(task.id,
-                                           events.UpdateMask(**task_params)))
+                        _commands.UpdateTask(**task_params))
                 if sprint_task.story_points == 0:
                     story_points = input(
                         "Please enter story points estimation "
@@ -128,9 +129,9 @@ class SprintCommandHandlers:
                 if task.due_date:
                     task_params.update({"due_date": None})
                 if task_params:
+                    task_params["id"] = task.id
                     uow.published_events.append(
-                        events.TaskUpdated(task.id,
-                                           events.UpdateMask(**task_params)))
+                        _commands.UpdateTask(**task_params))
             uow.commit()
             uow.published_events.append(events.SprintCompleted(cmd.id))
             if comment := cmd.comment:
@@ -200,8 +201,25 @@ class TaskCommandHandlers:
                     existing_task, _commands.UpdateTask)
                 cmd.id = existing_task.id
             cmd = convert_project(cmd, handler)
-            uow.tasks.update(entities.task.Task, cmd.id,
-                             cmd.get_only_set_attributes())
+            for f in cmd.__dataclass_fields__:
+                if f == "id":
+                    continue
+                new_value = getattr(cmd, f)
+                old_value = getattr(existing_task, f)
+                if hasattr(old_value, "name"):
+                    old_value = old_value.name
+                if new_value and new_value != old_value:
+                    uow.published_events.append(
+                        events.TaskUpdated(cmd.id,
+                                           event_type=f.upper(),
+                                           old_value=old_value,
+                                           new_value=new_value))
+            update_dict = cmd.get_only_set_attributes()
+            if status := update_dict.get("status"):
+                update_dict["status"] = entities.task.TaskStatus[status]
+            if priority := update_dict.get("priority"):
+                update_dict["priority"] = entities.task.TaskPriority[priority]
+            uow.tasks.update(entities.task.Task, cmd.id, update_dict)
             uow.commit()
             TaskCommandHandlers._process_extra_args(cmd.id, context, uow)
 
@@ -305,16 +323,16 @@ class TaskCommandHandlers:
                         if existing_task.status.name == "BACKLOG":
                             task_params.update({"status": "TODO"})
                         if (not existing_task.due_date
-                                or existing_task.due_date
-                                > existing_entity.end_date
-                                or existing_task.due_date
-                                < existing_entity.start_date):
+                                or existing_task.due_date >
+                                existing_entity.end_date
+                                or existing_task.due_date <
+                                existing_entity.start_date):
                             task_params.update(
                                 {"due_date": existing_entity.end_date})
                         if task_params:
+                            task_params["id"] = task.id
                             uow.published_events.append(
-                                events.TaskUpdated(
-                                    cmd.id, events.UpdateMask(**task_params)))
+                                _commands.UpdateTask(**task_params))
 
     @register(cmd=_commands.AssignTask)
     def assign(cmd: _commands.AssignTask,
@@ -327,9 +345,18 @@ class TaskCommandHandlers:
                  handler: Handler,
                  context: dict = {}) -> None:
         with handler.uow as uow:
-            uow.tasks.update(entities.task.Task, cmd.id, {"status": "DONE"})
-            task_completed_event = events.TaskCompleted(cmd.id)
+            if not (existing_task := uow.tasks.get_by_id(
+                    entities.task.Task, cmd.id)):
+                raise exceptions.EntityNotFound(
+                    f"Task id {cmd.id} is not found")
+            task_completed_event = events.TaskUpdated(
+                task=cmd.id,
+                event_type="STATUS",
+                old_value=existing_task.status.name,
+                new_value="DONE")
             uow.published_events.append(task_completed_event)
+            uow.tasks.update(entities.task.Task, cmd.id,
+                             {"status": entities.task.TaskStatus.DONE})
             if comment := cmd.comment:
                 uow.published_events.append(
                     events.TaskCommentAdded(id=cmd.id, text=comment))
@@ -370,6 +397,10 @@ class TaskCommandHandlers:
                 handler: Handler,
                 context: dict = {}) -> None:
         with handler.uow as uow:
+            if not (existing_task := uow.tasks.get_by_id(
+                    entities.task.Task, cmd.id)):
+                raise exceptions.EntityNotFound(
+                    f"Task id {cmd.id} is not found")
             if "entity_type" in context and "entity_id" in context:
                 entity_name, entity_id = context["entity_type"], context[
                     "entity_id"]
@@ -395,17 +426,25 @@ class TaskCommandHandlers:
                                 entities.task.Task, cmd.id):
                             task_params = {}
                             if existing_task.status.name == "TODO":
-                                task_params.update({"status": "BACKLOG"})
+                                task_params.update({
+                                    "status":
+                                    entities.task.TaskStatus.BACKLOG
+                                })
                             task_params.update({"due_date": None})
                             if task_params:
+                                task_params["id"] = task.id
                                 uow.published_events.append(
-                                    events.TaskUpdated(
-                                        cmd.id,
-                                        events.UpdateMask(**task_params)))
+                                    _commands.UpdateTask(**task_params))
             else:
+                task_deleted_event = events.TaskUpdated(
+                    task=cmd.id,
+                    event_type="STATUS",
+                    old_value=existing_task.status.name,
+                    new_value="DELETED")
+                uow.published_events.append(task_deleted_event)
                 uow.tasks.update(entities.task.Task, cmd.id,
-                                 {"status": "DELETED"})
-                uow.published_events.append(events.TaskDeleted(cmd.id))
+                                 {"status": entities.task.TaskStatus.DELETED})
+                uow.published_events.append(task_deleted_event)
             if comment := cmd.comment:
                 uow.published_events.append(
                     events.TaskCommentAdded(id=cmd.id, text=comment))
@@ -467,31 +506,30 @@ class TaskCommandHandlers:
     def _process_extra_args(id, context, uow):
         if tags := context.get("tags"):
             for tag in tags.split(","):
-                uow.published_events.append(events.TaskTagAdded(id=id,
-                                                                tag=tag))
+                uow.published_events.append(_commands.TagTask(id=id, tag=tag))
         if collaborators := context.get("collaborators"):
             for collaborator_name in collaborators.split(","):
                 uow.published_events.append(
-                    events.TaskCollaboratorAdded(
-                        id=id, collaborator=collaborator_name))
+                    _commands.CollaborateTask(id=id,
+                                              collaborator=collaborator_name))
         if sprints := context.get("sprint"):
-            for sprint_id in sprints.split(","):
+            for sprint in sprints.split(","):
                 uow.published_events.append(
-                    events.TaskAddedToSprint(id=id, sprint_id=sprint_id))
+                    _commands.AddTask(id=id, sprint=sprint))
         if epics := context.get("epic"):
-            for epic_id in epics.split(","):
-                uow.published_events.append(
-                    events.TaskAddedToEpic(id=id, epic_id=epic_id))
+            for epic in epics.split(","):
+                uow.published_events.append(_commands.AddTask(id=id,
+                                                              epic=epic))
         if stories := context.get("story"):
-            for story_id in stories.split(","):
+            for story in stories.split(","):
                 uow.published_events.append(
-                    events.TaskAddedToStory(id=id, story_id=story_id))
+                    _commands.AddTask(id=id, story=story))
         if comment := context.get("comment"):
             uow.published_events.append(
-                events.TaskCommentAdded(id=id, text=comment))
+                _commands.CommentTask(id=id, text=comment))
         if hours := context.get("time_spent"):
-            uow.published_events.append(
-                events.TaskHoursSubmitted(id=id, hours=hours))
+            uow.published_events.append(_commands.TrackTask(id=id,
+                                                            hours=hours))
 
     @register(cmd=_commands.ListTask)
     def list(cmd: _commands.ListTask,
@@ -524,7 +562,7 @@ class TaskEventHandlers(Handler):
                   handler: Handler,
                   context: dict = {}) -> None:
         with handler.uow as uow:
-            task_event = entities.event_history.TaskEvent(task_id=event.id,
+            task_event = entities.event_history.TaskEvent(task=event.id,
                                                           event_type="STATUS",
                                                           old_value="",
                                                           new_value="DONE")
@@ -538,24 +576,11 @@ class TaskEventHandlers(Handler):
                 handler: Handler,
                 context: dict = {}) -> None:
         with handler.uow as uow:
-            uow.tasks.update(entities.task.Task, event.id,
-                             event.update_mask.get_only_set_attributes())
-            current_task = uow.tasks.get_by_id(entities.task.Task, event.id)
-            for key, updated_value in asdict(event.update_mask).items():
-                old_value = getattr(current_task, key)
-                if hasattr(old_value, "name"):
-                    old_value = old_value.name
-                if old_value != updated_value:
-                    if updated_value or key.endswith("date"):
-                        task_event = entities.event_history.TaskEvent(
-                            task_id=event.id,
-                            event_type=key.upper(),
-                            old_value=old_value,
-                            new_value=updated_value)
-                        uow.tasks.add(task_event)
-            uow.commit()
-            uow.tasks.update(entities.task.Task, event.id,
+            task_event = entities.event_history.TaskEvent(**asdict(event))
+            uow.tasks.add(task_event)
+            uow.tasks.update(entities.task.Task, event.task,
                              {"modification_date": datetime.now()})
+            uow.commit()
             logging.debug(f"Task updated, context {event}")
 
     @register(event=events.TaskDeleted)
@@ -568,7 +593,7 @@ class TaskEventHandlers(Handler):
                                                           old_value="",
                                                           new_value="DELETED")
             uow.tasks.add(task_event)
-            uow.tasks.update(entities.task.Task, event.id,
+            uow.tasks.update(entities.task.Task, event.d,
                              {"modification_date": datetime.now()})
             uow.commit()
 

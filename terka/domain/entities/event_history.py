@@ -1,4 +1,5 @@
 from enum import Enum, auto
+from dataclasses import dataclass
 from datetime import datetime
 
 
@@ -12,42 +13,27 @@ class EventType(Enum):
     ASSIGNEE = auto()
 
 
-class BaseEvent:
+@dataclass
+class TaskEvent:
+    task: int
+    event_type: str
+    old_value: str
+    new_value: str
+    date: datetime = datetime.now()
 
-    def __init__(self,
-                 event_type: str,
-                 old_value: str,
-                 new_value: str,
-                 date: datetime = datetime.now()) -> None:
-        if event_type.upper() not in [e.name for e in EventType]:
-            raise ValueError(f"{event_type} is invalid EventType")
-        self.type = event_type.upper()
-        self.old_value = old_value
-        self.new_value = new_value
-        self.date = datetime.now()
-
-    def __repr__(self) -> str:
-        return (f"<{self.__class__.__name__}> [{self.type.name}] "
-                f"{self.old_value} -> {self.new_value}")
+    def __post__init__(self) -> None:
+        if self.event_type.upper() not in [e.name for e in EventType]:
+            raise ValueError(f"{self.event_type} is invalid EventType")
 
 
-class TaskEvent(BaseEvent):
+@dataclass
+class ProjectEvent:
+    project: int
+    event_type: str
+    old_value: str
+    new_value: str
+    date: datetime = datetime.now()
 
-    def __init__(self, task_id: int, event_type: str, old_value: str,
-                 new_value: str, date: datetime = datetime.now()) -> None:
-        self.task = task_id
-        super().__init__(event_type=event_type,
-                         old_value=old_value,
-                         new_value=new_value,
-                         date=date)
-
-
-class ProjectEvent(BaseEvent):
-
-    def __init__(self, project_id: int, event_type: str, old_value: str,
-                 new_value: str, date: datetime = datetime.now()) -> None:
-        self.project = project_id
-        super().__init__(event_type=event_type,
-                         old_value=old_value,
-                         new_value=new_value,
-                         date=date)
+    def __post__init__(self) -> None:
+        if self.event_type.upper() not in [e.name for e in EventType]:
+            raise ValueError(f"{self.event_type} is invalid EventType")
