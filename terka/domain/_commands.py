@@ -6,7 +6,11 @@ from dataclasses import dataclass, asdict
 class Command:
 
     def get_only_set_attributes(self) -> dict:
-        return {key: value for key, value in asdict(self).items() if value}
+        set_attributes = {}
+        for key, value in asdict(self).items():
+            if key == "due_date" or value:
+                set_attributes[key] = value
+        return set_attributes
 
     @classmethod
     def from_kwargs(cls, **kwargs: dict) -> Type["Command"]:
@@ -326,7 +330,7 @@ class CommentEpic(Comment):
 @dataclass
 class AddEpic(Command):
     id: int
-    sprint_id: int
+    sprint: int
 
 
 @dataclass
@@ -368,7 +372,7 @@ class CommentStory(Comment):
 @dataclass
 class AddStory(Command):
     id: int
-    sprint_id: int
+    sprint: int
 
 
 # WORKSPACES

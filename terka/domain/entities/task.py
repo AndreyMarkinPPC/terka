@@ -31,6 +31,7 @@ class TaskInfo:
     priority: str
     due_date: datetime
 
+
 class Task:
 
     _next_task_id = 1
@@ -123,3 +124,14 @@ class Task:
 
     def _cast_to_enum(self, enum: Type[Enum], value: str | Enum) -> Enum:
         return enum[value] if isinstance(value, str) else value
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Task):
+            return False
+        if (self.name, self.description, self.project, self.status,
+                self.priority, self.due_date,
+                self.assignee) != (other.name, other.description,
+                                   other.project, other.status, other.priority,
+                                   other.due_date, other.assignee):
+            return False
+        return True

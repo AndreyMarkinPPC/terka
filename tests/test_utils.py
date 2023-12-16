@@ -1,4 +1,4 @@
-from src import utils
+from terka import utils
 
 def test_create_task_dict():
     kwargs = ['-n', 'task_name', '-p', 'project_name', '-a', 'am']

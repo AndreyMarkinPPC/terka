@@ -53,7 +53,7 @@ class SprintCommandHandlers:
     @register(cmd=_commands.CreateSprint)
     def create(cmd: _commands.CreateSprint,
                handler: Handler,
-               context: dict = {}) -> None:
+               context: dict = {}) -> int:
         if not cmd:
             cmd, context = templates.create_command_from_editor(
                 entities.sprint.Sprint, type(cmd))
@@ -62,6 +62,8 @@ class SprintCommandHandlers:
             new_sprint = entities.sprint.Sprint(**asdict(cmd))
             uow.tasks.add(new_sprint)
             uow.commit()
+            new_sprint_id = new_sprint.id
+            return new_sprint_id
 
     @register(cmd=_commands.StartSprint)
     def start(cmd: _commands.StartSprint,
@@ -72,9 +74,6 @@ class SprintCommandHandlers:
                     entities.sprint.Sprint, cmd.id)):
                 raise exceptions.EntityNotFound(
                     f"Sprint id {cmd.id} is not found")
-            if existing_sprint.end_date < datetime.today().date():
-                raise exceptions.TerkaSprintEndDateInThePast(
-                    "Cannot start the sprint, end date in the past")
             if existing_sprint.status.name == "ACTIVE":
                 raise exceptions.TerkaSprintActive("Sprint already started")
             if existing_sprint.status.name == "COMPLETED":
@@ -86,20 +85,21 @@ class SprintCommandHandlers:
                 task = sprint_task.tasks
                 task_params = {}
                 if task.status.name == "BACKLOG":
-                    task_params.update(
-                        {"status": entities.task.TaskStatus.TODO})
+                    task_params.update({"status": "TODO"})
                 if not task.due_date or task.due_date > existing_sprint.end_date:
                     task_params.update({"due_date": existing_sprint.end_date})
                 if task_params:
                     task_params["id"] = task.id
                     uow.published_events.append(
                         _commands.UpdateTask(**task_params))
-                if sprint_task.story_points == 0:
+                # FIXME: ask-input should be provided via CLI
+                if sprint_task.story_points == 0 and context.get("ask-input"):
                     story_points = input(
                         "Please enter story points estimation "
                         f"for task <{task.id}>: {task.name}: ")
                     try:
                         story_points = float(story_points)
+                        # TODO: Should call command (AddTask with arguments story_points)
                         uow.published_events.append(
                             events.SprintTaskStoryPointAssigned(
                                 sprint_task.id, story_points))
@@ -133,9 +133,12 @@ class SprintCommandHandlers:
                     uow.published_events.append(
                         _commands.UpdateTask(**task_params))
             uow.commit()
+            # TODO: SprintCompleted is not used in the file
             uow.published_events.append(events.SprintCompleted(cmd.id))
             if comment := cmd.comment:
                 uow.published_events.append(
+                    # FIXME: Sprintommented is not defined
+                    # TODO: _process_extra_args
                     events.Sprintommented(id=cmd.id, text=comment))
             uow.commit()
             logging.debug(f"Sprint completed, context: {cmd}")
@@ -208,7 +211,8 @@ class TaskCommandHandlers:
                 old_value = getattr(existing_task, f)
                 if hasattr(old_value, "name"):
                     old_value = old_value.name
-                if new_value and new_value != old_value:
+                if (f == "due_date" and new_value != old_value) or (
+                        new_value and new_value != old_value):
                     uow.published_events.append(
                         events.TaskUpdated(cmd.id,
                                            event_type=f.upper(),
@@ -323,14 +327,14 @@ class TaskCommandHandlers:
                         if existing_task.status.name == "BACKLOG":
                             task_params.update({"status": "TODO"})
                         if (not existing_task.due_date
-                                or existing_task.due_date >
-                                existing_entity.end_date
-                                or existing_task.due_date <
-                                existing_entity.start_date):
+                                or existing_task.due_date
+                                > existing_entity.end_date
+                                or existing_task.due_date
+                                < existing_entity.start_date):
                             task_params.update(
                                 {"due_date": existing_entity.end_date})
                         if task_params:
-                            task_params["id"] = task.id
+                            task_params["id"] = existing_task.id
                             uow.published_events.append(
                                 _commands.UpdateTask(**task_params))
 
@@ -359,10 +363,10 @@ class TaskCommandHandlers:
                              {"status": entities.task.TaskStatus.DONE})
             if comment := cmd.comment:
                 uow.published_events.append(
-                    events.TaskCommentAdded(id=cmd.id, text=comment))
+                    _commanads.CommentTask(id=cmd.id, text=comment))
             if hours := cmd.hours:
                 uow.published_events.append(
-                    events.TaskHoursSubmitted(id=cmd.id, hours=hours))
+                    _commands.TrackTask(id=cmd.id, hours=hours))
             uow.commit()
             handler.publisher.publish("Topic", task_completed_event)
 
@@ -371,11 +375,13 @@ class TaskCommandHandlers:
                handler: Handler,
                context: dict = {}) -> None:
 
+        updated_context = {}
         for field in cmd.__dataclass_fields__:
-            if not (field_value := getattr(cmd, field)):
-                TaskCommandHandlers._delete(cmd, handler, context)
-                break
-            else:
+            if field == "id":
+                continue
+            field_value = getattr(cmd, field)
+
+            if field_value := getattr(cmd, field):
                 updated_context = {
                     "entity_type": field,
                     "entity_id": field_value
@@ -392,6 +398,8 @@ class TaskCommandHandlers:
                     TaskCommandHandlers._delete(
                         _commands.DeleteTask(cmd.id, story=field_value),
                         handler, updated_context)
+        if not updated_context:
+            TaskCommandHandlers._delete(cmd, handler, context)
 
     def _delete(cmd: _commands.DeleteTask,
                 handler: Handler,
@@ -416,7 +424,8 @@ class TaskCommandHandlers:
                         f"{entity_name} id {entity_id} is not found")
                 if existing_entity_task := uow.tasks.list(
                         entity_task_type, entity_dict):
-                    uow.tasks.delete(entity_task_type, cmd.id)
+                    uow.tasks.delete(entity_task_type,
+                                     existing_entity_task[0].id)
                     uow.commit()
                     logging.debug(
                         f"Task deleted from {entity_name.capitalize()} "
@@ -426,13 +435,11 @@ class TaskCommandHandlers:
                                 entities.task.Task, cmd.id):
                             task_params = {}
                             if existing_task.status.name == "TODO":
-                                task_params.update({
-                                    "status":
-                                    entities.task.TaskStatus.BACKLOG
-                                })
+                                task_params.update({"status": "BACKLOG"})
                             task_params.update({"due_date": None})
                             if task_params:
-                                task_params["id"] = task.id
+                                # FIXME: Duplication
+                                task_params["id"] = existing_task.id
                                 uow.published_events.append(
                                     _commands.UpdateTask(**task_params))
             else:
@@ -445,6 +452,7 @@ class TaskCommandHandlers:
                 uow.tasks.update(entities.task.Task, cmd.id,
                                  {"status": entities.task.TaskStatus.DELETED})
                 uow.published_events.append(task_deleted_event)
+            # TODO: replace with _process_extra_args
             if comment := cmd.comment:
                 uow.published_events.append(
                     events.TaskCommentAdded(id=cmd.id, text=comment))
@@ -596,14 +604,6 @@ class TaskEventHandlers(Handler):
             uow.tasks.update(entities.task.Task, event.d,
                              {"modification_date": datetime.now()})
             uow.commit()
-
-    @register(event=events.TaskTagAdded)
-    def tag_added(event: events.TaskTagAdded,
-                  handler: Handler,
-                  context: dict = {}) -> None:
-        TaskCommandHandlers.tag(cmd=_commands.TagTask(**asdict(event)),
-                                handler=handler,
-                                context=context)
 
     @register(event=events.TaskCommentAdded)
     def comment_added(event: events.TaskCommentAdded,
@@ -920,7 +920,9 @@ class EpicCommandHandlers:
             new_epic = entities.epic.Epic(**asdict(cmd))
             uow.tasks.add(new_epic)
             uow.commit()
+            new_epic_id = new_epic.id
             handler.printer.console.print_new_object(new_epic)
+            return new_epic_id
 
     @register(cmd=_commands.CompleteEpic)
     def complete(cmd: _commands.CompleteEpic,
@@ -966,16 +968,14 @@ class EpicCommandHandlers:
             if not (existing_epic := uow.tasks.get_by_id(
                     entities.epic.Epic, cmd.id)):
                 raise exceptions.EntityNotFound(f"Epic {cmd.id} is not found")
-            if not uow.tasks.get_by_id(entities.sprint.Sprint, cmd.sprint_id):
+            if not uow.tasks.get_by_id(entities.sprint.Sprint, cmd.sprint):
                 raise exceptions.EntityNotFound(
-                    f"Sprint {cmd.sprint_id} is not found")
+                    f"Sprint {cmd.sprint} is not found")
             for epic_task in existing_epic.tasks:
                 task = epic_task.tasks
                 if task.status.name not in ("DONE", "DELETED"):
-                    TaskCommandHandlers.add(
-                        _commands.AddTask(id=task.id,
-                                          entity_type="sprint",
-                                          entity_id=cmd.sprint_id), handler)
+                    uow.published_events.append(
+                        _commands.AddTask(id=task.id, sprint=cmd.sprint))
 
     @register(cmd=_commands.ListEpic)
     def list(cmd: _commands.ListEpic,
@@ -997,7 +997,7 @@ class StoryCommandHandlers:
     @register(cmd=_commands.CreateStory)
     def create(cmd: _commands.CreateStory,
                handler: Handler,
-               context: dict = {}):
+               context: dict = {}) -> int:
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
                 entities.story.Story, type(cmd))
@@ -1006,7 +1006,9 @@ class StoryCommandHandlers:
             new_story = entities.story.Story(**asdict(cmd))
             uow.tasks.add(new_story)
             uow.commit()
+            new_story_id = new_story.id
             handler.printer.console.print_new_object(new_story)
+            return new_story_id
 
     @register(cmd=_commands.CompleteStory)
     def complete(cmd: _commands.CompleteStory,
@@ -1053,16 +1055,14 @@ class StoryCommandHandlers:
             if not (existing_story := uow.tasks.get_by_id(
                     entities.story.Story, cmd.id)):
                 raise exceptions.EntityNotFound(f"Story {cmd.id} is not found")
-            if not uow.tasks.get_by_id(entities.sprint.Sprint, cmd.sprint_id):
+            if not uow.tasks.get_by_id(entities.sprint.Sprint, cmd.sprint):
                 raise exceptions.EntityNotFound(
-                    f"Sprint {cmd.sprint_id} is not found")
+                    f"Sprint {cmd.sprint} is not found")
             for story_task in existing_story.tasks:
                 task = story_task.tasks
                 if task.status.name not in ("DONE", "DELETED"):
-                    TaskCommandHandlers.add(
-                        _commands.AddTask(id=task.id,
-                                          entity_type="sprint",
-                                          entity_id=cmd.sprint_id), handler)
+                    uow.published_events.append(
+                        _commands.AddTask(id=task.id, sprint=cmd.sprint))
 
 
 class WorkspaceCommandHandlers:

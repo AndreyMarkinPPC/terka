@@ -1,4 +1,6 @@
 import pytest
+from datetime import datetime, timedelta
+import terka
 from terka import bootstrap
 from terka.domain import _commands, entities, events
 
@@ -9,7 +11,15 @@ class TestTask:
         cmd = _commands.CreateTask(name="test")
         bus.handle(cmd)
         new_task = bus.handler.uow.tasks.get_by_id(entities.task.Task, 1)
-        assert new_task.name == "test"
+        expected_task = entities.task.Task(
+            name="test",
+            description=None,
+            project=None,
+            assignee=None,
+            due_date=None,
+            status=entities.task.TaskStatus.BACKLOG,
+            priority=entities.task.TaskPriority.NORMAL)
+        assert new_task == expected_task
 
     def test_updating_task_sets_modification_date(self, bus):
         cmd = _commands.CreateTask(name="test")
@@ -78,3 +88,204 @@ class TestTask:
         new_task_comment = bus.handler.uow.tasks.get_by_conditions(
             entities.commentary.TaskCommentary, {"task": task_id})
         assert new_task_comment
+
+
+class TestSprint:
+
+    @pytest.fixture(scope="class")
+    def tasks(self, bus):
+        create_task_1 = _commands.CreateTask(name="task_1")
+        create_task_2 = _commands.CreateTask(name="task_2")
+        task_1 = bus.handle(create_task_1)
+        task_2 = bus.handle(create_task_2)
+        return task_1, task_2
+
+    @pytest.fixture
+    def new_sprint(self, bus):
+        today = datetime.now()
+        next_monday = (today + timedelta(days=(7 - today.weekday())))
+        next_sunday = (today + timedelta(days=(13 - today.weekday())))
+        cmd = _commands.CreateSprint(start_date=next_monday,
+                                     end_date=next_sunday)
+        sprint_id = bus.handle(cmd)
+        return sprint_id
+
+    @pytest.fixture
+    def sprint_with_tasks(self, bus, new_sprint, tasks):
+        task_1, task_2 = tasks
+        add_task_1 = _commands.AddTask(id=task_1, sprint=new_sprint)
+        add_task_2 = _commands.AddTask(id=task_2, sprint=new_sprint)
+        bus.handle(add_task_1)
+        bus.handle(add_task_2)
+
+    def test_new_sprint_created(self, new_sprint):
+        assert new_sprint
+
+    def test_cannot_create_sprint_with_end_date_in_past(self, bus):
+        today = datetime.now()
+        start_date = (today - timedelta(days=(7 - today.weekday())))
+        end_date = (today - timedelta(days=(1 - today.weekday())))
+        cmd = _commands.CreateSprint(start_date=start_date, end_date=end_date)
+        # TODO: check for a specific message
+        with pytest.raises(ValueError):
+            bus.handle(cmd)
+
+    def test_adding_task_to_sprint(self, bus, new_sprint, sprint_with_tasks):
+        sprint_tasks = bus.handler.uow.tasks.get_by_conditions(
+            entities.sprint.SprintTask, {"sprint": new_sprint})
+        assert len(sprint_tasks) == 2
+        for task in sprint_tasks:
+            assert task.story_points == 0
+
+    def test_starting_sprint_changes_status_due_date(self, bus, new_sprint,
+                                                     sprint_with_tasks):
+        cmd = _commands.StartSprint(new_sprint)
+        bus.handle(cmd)
+        sprint = bus.handler.uow.tasks.get_by_id(entities.sprint.Sprint,
+                                                 new_sprint)
+        assert sprint.status == entities.sprint.SprintStatus.ACTIVE
+        sprint_tasks = bus.handler.uow.tasks.get_by_conditions(
+            entities.sprint.SprintTask, {"sprint": new_sprint})
+        for sprint_task in sprint_tasks:
+            task = bus.handler.uow.tasks.get_by_id(entities.task.Task,
+                                                   sprint_task.task)
+            assert task.status == entities.task.TaskStatus.TODO
+            assert task.due_date == sprint.end_date
+
+    def test_cannot_start_active_sprint(self, bus, new_sprint):
+        cmd = _commands.StartSprint(new_sprint)
+        bus.handle(cmd)
+        cmd = _commands.StartSprint(new_sprint)
+        with pytest.raises(terka.service_layer.exceptions.TerkaSprintActive):
+            bus.handle(cmd)
+
+    def test_cannot_start_completed_sprint(self, bus, new_sprint):
+        cmd = _commands.StartSprint(new_sprint)
+        bus.handle(cmd)
+        cmd = _commands.CompleteSprint(new_sprint)
+        bus.handle(cmd)
+        cmd = _commands.StartSprint(new_sprint)
+        with pytest.raises(
+                terka.service_layer.exceptions.TerkaSprintCompleted):
+            bus.handle(cmd)
+
+    def test_completing_sprint_changes_status_due_date(self, bus, new_sprint,
+                                                       sprint_with_tasks):
+        cmd = _commands.CompleteSprint(new_sprint)
+        bus.handle(cmd)
+        sprint = bus.handler.uow.tasks.get_by_id(entities.sprint.Sprint,
+                                                 new_sprint)
+        assert sprint.status == entities.sprint.SprintStatus.COMPLETED
+        sprint_tasks = bus.handler.uow.tasks.get_by_conditions(
+            entities.sprint.SprintTask, {"sprint": new_sprint})
+        for sprint_task in sprint_tasks:
+            task = bus.handler.uow.tasks.get_by_id(entities.task.Task,
+                                                   sprint_task.task)
+            assert task.status == entities.task.TaskStatus.BACKLOG
+            assert not task.due_date
+
+    def test_completing_sprint_with_in_progress_review_tasks_doesnt_change_their_status(
+            self, bus, new_sprint, sprint_with_tasks):
+        cmd = _commands.StartSprint(new_sprint)
+        bus.handle(cmd)
+        sprint = bus.handler.uow.tasks.get_by_id(entities.sprint.Sprint,
+                                                 new_sprint)
+        update_task = _commands.UpdateTask(id=1, status="REVIEW")
+        bus.handle(update_task)
+        sprint_tasks = bus.handler.uow.tasks.get_by_conditions(
+            entities.sprint.SprintTask, {"sprint": new_sprint})
+        for sprint_task in sprint_tasks:
+            task = bus.handler.uow.tasks.get_by_id(entities.task.Task,
+                                                   sprint_task.task)
+            if task.id == 1:
+                assert task.status == entities.task.TaskStatus.REVIEW
+
+    def test_cannot_add_ask_to_completed_sprint(self, bus, new_sprint,
+                                                sprint_with_tasks):
+        cmd = _commands.CompleteSprint(new_sprint)
+        bus.handle(cmd)
+        create_task_3 = _commands.CreateTask(name="task_3")
+        task_3 = bus.handle(create_task_3)
+        cmd = _commands.AddTask(id=task_3, sprint=new_sprint)
+        with pytest.raises(
+                terka.service_layer.exceptions.TerkaSprintCompleted):
+            bus.handle(cmd)
+
+    def test_deleting_task_from_sprint(self, bus, new_sprint,
+                                       sprint_with_tasks):
+        cmd = _commands.StartSprint(new_sprint)
+        bus.handle(cmd)
+        sprint = bus.handler.uow.tasks.get_by_id(entities.sprint.Sprint,
+                                                 new_sprint)
+        delete_task = _commands.DeleteTask(id=sprint.tasks[0].task,
+                                           sprint=new_sprint)
+        bus.handle(delete_task)
+        sprint = bus.handler.uow.tasks.get_by_id(entities.sprint.Sprint,
+                                                 new_sprint)
+        assert len(sprint.tasks) == 1
+
+    def test_adding_story_to_sprint_adds_non_completed_tasks(
+            self, bus, new_sprint, tasks):
+        task_1, task_2 = tasks
+        create_story = _commands.CreateStory(name="story_1")
+        story_id = bus.handle(create_story)
+        add_task_1 = _commands.AddTask(id=task_1, story=story_id)
+        add_task_2 = _commands.AddTask(id=task_2, story=story_id)
+        bus.handle(add_task_1)
+        bus.handle(add_task_2)
+        add_story_to_sprint = _commands.AddStory(id=story_id,
+                                                 sprint=new_sprint)
+        bus.handle(add_story_to_sprint)
+        sprint = bus.handler.uow.tasks.get_by_id(entities.sprint.Sprint,
+                                                 new_sprint)
+        assert len(sprint.tasks) == 2
+
+    def test_adding_epic_to_sprint_adds_non_completed_tasks(
+            self, bus, new_sprint, tasks):
+        task_1, task_2 = tasks
+        create_epic = _commands.CreateEpic(name="epic_1")
+        epic_id = bus.handle(create_epic)
+        add_task_1 = _commands.AddTask(id=task_1, epic=epic_id)
+        add_task_2 = _commands.AddTask(id=task_2, epic=epic_id)
+        bus.handle(add_task_1)
+        bus.handle(add_task_2)
+        add_epic_to_sprint = _commands.AddEpic(id=epic_id, sprint=new_sprint)
+        bus.handle(add_epic_to_sprint)
+        sprint = bus.handler.uow.tasks.get_by_id(entities.sprint.Sprint,
+                                                 new_sprint)
+        assert len(sprint.tasks) == 2
+
+    def test_adding_story_to_sprint_adds_only_non_completed_tasks(
+            self, bus, new_sprint, tasks):
+        task_1, task_2 = tasks
+        create_story = _commands.CreateStory(name="story_1")
+        story_id = bus.handle(create_story)
+        add_task_1 = _commands.AddTask(id=task_1, story=story_id)
+        add_task_2 = _commands.AddTask(id=task_2, story=story_id)
+        bus.handle(add_task_1)
+        bus.handle(add_task_2)
+        complete_task = _commands.CompleteTask(task_1)
+        bus.handle(complete_task)
+        add_story_to_sprint = _commands.AddStory(id=story_id,
+                                                 sprint=new_sprint)
+        bus.handle(add_story_to_sprint)
+        sprint = bus.handler.uow.tasks.get_by_id(entities.sprint.Sprint,
+                                                 new_sprint)
+        assert len(sprint.tasks) == 1
+
+    def test_adding_epic_to_sprint_adds_only_non_completed_tasks(
+            self, bus, new_sprint, tasks):
+        task_1, task_2 = tasks
+        create_epic = _commands.CreateEpic(name="epic_1")
+        epic_id = bus.handle(create_epic)
+        add_task_1 = _commands.AddTask(id=task_1, epic=epic_id)
+        add_task_2 = _commands.AddTask(id=task_2, epic=epic_id)
+        bus.handle(add_task_1)
+        bus.handle(add_task_2)
+        complete_task = _commands.CompleteTask(task_1)
+        bus.handle(complete_task)
+        add_epic_to_sprint = _commands.AddEpic(id=epic_id, sprint=new_sprint)
+        bus.handle(add_epic_to_sprint)
+        sprint = bus.handler.uow.tasks.get_by_id(entities.sprint.Sprint,
+                                                 new_sprint)
+        assert len(sprint.tasks) == 1
