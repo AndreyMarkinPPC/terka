@@ -89,6 +89,28 @@ class TestTask:
             entities.commentary.TaskCommentary, {"task": task_id})
         assert new_task_comment
 
+    def test_commenting_task_with_empty_comment_is_ignored(self, bus):
+        cmd = _commands.CreateTask(name="test")
+        task_id = bus.handle(cmd, context={"comment": " "})
+        new_task_comment = bus.handler.uow.tasks.get_by_conditions(
+            entities.commentary.TaskCommentary, {"task": task_id})
+        assert not new_task_comment
+
+    def test_tagging_task_with_empty_tag_is_ignored(self, bus):
+        cmd = _commands.CreateTask(name="test")
+        task_id = bus.handle(cmd, context={"tag": " "})
+        new_task_tag = bus.handler.uow.tasks.get_by_conditions(
+            entities.tag.TaskTag, {"task": task_id})
+        assert not new_task_tag
+
+    @pytest.mark.parametrize("entity", ["epic", "sprint", "story"])
+    def test_tagging_task_with_service_tag_is_ignored(self, bus, entity):
+        cmd = _commands.CreateTask(name="test")
+        task_id = bus.handle(cmd, context={"tag": f"{entity}: 1"})
+        new_task_tag = bus.handler.uow.tasks.get_by_conditions(
+            entities.tag.TaskTag, {"task": task_id})
+        assert not new_task_tag
+
 
 class TestSprint:
 
@@ -120,6 +142,11 @@ class TestSprint:
 
     def test_new_sprint_created(self, new_sprint):
         assert new_sprint
+
+    def test_referencing_non_existing_sprints_raises_entity_not_found_exception(
+            self, bus):
+        with pytest.raises(terka.service_layer.exceptions.EntityNotFound):
+            bus.handle(_commands.StartSprint(9999))
 
     def test_cannot_create_sprint_with_end_date_in_past(self, bus):
         today = datetime.now()

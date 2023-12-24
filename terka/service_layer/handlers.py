@@ -63,6 +63,7 @@ class SprintCommandHandlers:
             uow.tasks.add(new_sprint)
             uow.commit()
             new_sprint_id = new_sprint.id
+            handler.printer.console.print_new_object(new_sprint)
             return new_sprint_id
 
     @register(cmd=_commands.StartSprint)
@@ -132,14 +133,6 @@ class SprintCommandHandlers:
                     task_params["id"] = task.id
                     uow.published_events.append(
                         _commands.UpdateTask(**task_params))
-            uow.commit()
-            # TODO: SprintCompleted is not used in the file
-            uow.published_events.append(events.SprintCompleted(cmd.id))
-            if comment := cmd.comment:
-                uow.published_events.append(
-                    # FIXME: Sprintommented is not defined
-                    # TODO: _process_extra_args
-                    events.Sprintommented(id=cmd.id, text=comment))
             uow.commit()
             logging.debug(f"Sprint completed, context: {cmd}")
         handler.publisher.publish("Topic", events.SprintCompleted(cmd.id))
@@ -361,12 +354,7 @@ class TaskCommandHandlers:
             uow.published_events.append(task_completed_event)
             uow.tasks.update(entities.task.Task, cmd.id,
                              {"status": entities.task.TaskStatus.DONE})
-            if comment := cmd.comment:
-                uow.published_events.append(
-                    _commanads.CommentTask(id=cmd.id, text=comment))
-            if hours := cmd.hours:
-                uow.published_events.append(
-                    _commands.TrackTask(id=cmd.id, hours=hours))
+            TaskCommandHandlers._process_extra_args(cmd.id, context, uow)
             uow.commit()
             handler.publisher.publish("Topic", task_completed_event)
 
@@ -452,13 +440,7 @@ class TaskCommandHandlers:
                 uow.tasks.update(entities.task.Task, cmd.id,
                                  {"status": entities.task.TaskStatus.DELETED})
                 uow.published_events.append(task_deleted_event)
-            # TODO: replace with _process_extra_args
-            if comment := cmd.comment:
-                uow.published_events.append(
-                    events.TaskCommentAdded(id=cmd.id, text=comment))
-            if hours := cmd.hours:
-                uow.published_events.append(
-                    events.TaskHoursSubmitted(id=cmd.id, hours=hours))
+            TaskCommandHandlers._process_extra_args(cmd.id, context, uow)
             uow.commit()
         handler.publisher.publish("Topic", events.TaskCompleted(cmd.id))
 
@@ -467,11 +449,12 @@ class TaskCommandHandlers:
                 handler: Handler,
                 context: dict = {}) -> None:
         with handler.uow as uow:
-            uow.tasks.add(
-                entities.commentary.TaskCommentary(id=cmd.id, text=cmd.text))
-            uow.tasks.update(entities.task.Task, cmd.id,
-                             {"modification_date": datetime.now()})
-            uow.commit()
+            if text := cmd.text.strip():
+                uow.tasks.add(
+                    entities.commentary.TaskCommentary(id=cmd.id, text=text))
+                uow.tasks.update(entities.task.Task, cmd.id,
+                                 {"modification_date": datetime.now()})
+                uow.commit()
 
     @register(cmd=_commands.TrackTask)
     def track(cmd: _commands.TrackTask,
@@ -1131,7 +1114,7 @@ def convert_project(cmd: _commands.Command,
                                                       project_name)):
         answer = Confirm.ask(
             f"Creating new project: {project_name}. Do you want to continue?")
-        while answer[0].lower() != "y":
+        if not answer:
             project_name = Prompt.ask("Provide a project name: ")
             answer = Confirm.ask(
                 f"Creating new project: {project_name}. Do you want to continue?"
