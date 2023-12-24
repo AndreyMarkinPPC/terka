@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections import abc
 from dataclasses import dataclass
 from datetime import datetime
 import inspect
@@ -21,6 +22,7 @@ class PrintOptions:
     show_stories: bool = True
     show_notes: bool = True
     show_viz: bool = False
+    sort: str = "id"
     columns: str = ""
     expand_table: bool = True
 
@@ -171,6 +173,18 @@ class ConsolePrinter:
         for column in printable_columns:
             if column in ("id", "name", "description", "status", "open_tasks"):
                 non_active_projects.add_column(column)
+        try:
+            reverse = True
+            sorting_field = getattr(entities[0], print_options.sort)
+            if isinstance(sorting_field, abc.MutableSequence):
+                sort_fn = lambda x: len(getattr(x, print_options.sort))
+            else:
+                sort_fn = lambda x: getattr(x, print_options.sort)
+        except AttributeError:
+            sort_fn = lambda x: "id"
+        if print_options.sort == "id":
+            reverse = False
+        entities.sort(key=sort_fn, reverse=reverse)
         for entity in entities:
             if len(open_tasks :=
                    entity.open_tasks) > 0 and entity.status.name == "ACTIVE":
