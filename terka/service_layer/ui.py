@@ -85,12 +85,14 @@ class PopupsMixin:
 
     def task_edit_callback(self, result: tuple[_commands.UpdateTask,
                                                _commands.CommentTask]):
-        update, comment = result
+        update, *rest = result
         update.id = self.selected_task
-        comment.id = self.selected_task
         self.bus.handle(update)
-        self.bus.handle(comment)
         self.notify(f"Task: {self.selected_task} is updated!")
+        for cmd in rest:
+            cmd.id = self.selected_task
+            self.bus.handle(cmd)
+            self.notify(f"command {cmd}!")
 
     def action_task_add(self) -> None:
         self.push_screen(ui_components.TaskAdd(), self.task_add_callback)
@@ -172,17 +174,21 @@ class PopupsMixin:
         if self.selected_column == "time_spent":
             self.push_screen(ui_components.TaskHoursSubmitted(),
                              self.task_update_hours_callback)
+        if self.selected_column == "tags":
+            self.push_screen(ui_components.TaskTagEdit(),
+                             self.task_update_tag_callback)
+        if self.selected_column == "collaborators":
+            self.push_screen(ui_components.TaskCollaboratorEdit(),
+                             self.task_update_collaborator_callback)
 
     def task_update_status_callback(self, result: str):
         self.bus.handle(
-            _commands.UpdateTask(id=self.selected_task,
-                                 status=entities.task.TaskStatus[result]))
+            _commands.UpdateTask(id=self.selected_task, status=result))
         self.notify(f"Task: {self.selected_task} status updated to {result}!")
 
     def task_update_priority_callback(self, result: str):
         self.bus.handle(
-            _commands.UpdateTask(id=self.selected_task,
-                                 priority=entities.task.TaskPriority[result]))
+            _commands.UpdateTask(id=self.selected_task, priority=result))
         self.notify(
             f"Task: {self.selected_task} priority updated to {result}!")
 
@@ -198,6 +204,17 @@ class PopupsMixin:
         self.bus.handle(
             _commands.TrackTask(id=self.selected_task, hours=result))
         self.notify(f"Tracked {result} minutes for task {self.selected_task}!")
+
+    def task_update_tag_callback(self, result: str):
+        self.bus.handle(_commands.TagTask(id=self.selected_task, tag=result))
+        self.notify(f"Tagged task {self.selected_task} with tag(s): {result}!")
+
+    def task_update_collaborator_callback(self, result: str):
+        self.bus.handle(
+            _commands.CollaborateTask(id=self.selected_task,
+                                      collaborator=result))
+        self.notify(
+            f"Added collaborator {result} for task {self.selected_task}!")
 
     def action_show_info(self) -> None:
         sidebar = self.query_one(ui_components.Sidebar)
@@ -686,7 +703,10 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
 
     def on_mount(self) -> None:
         self.title = "Sprint"
-        self.sub_title = f'Workspace: {self.bus.config.get("workspace")}'
+        self.sub_title = (
+            f'Workspace: {self.bus.config.get("workspace")}; '
+            f'Time spent today - {Formatter.format_time_spent(self.entity.time_spent_today)}'
+        )
 
     def compose(self) -> ComposeResult:
         yield ui_components.Sidebar(classes="-hidden")

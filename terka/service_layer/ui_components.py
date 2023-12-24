@@ -278,15 +278,20 @@ class TaskEdit(TerkaModalScreen):
             priority = self.query_one("#priority", Select)
             due_date = self.query_one("#due_date", Input)
             comment = self.query_one("#comment", Input)
+            hours = self.query_one("#hours", Input)
             if due_date := due_date.value:
                 due_date = datetime.strptime(due_date, "%Y-%m-%d")
-            self.dismiss((_commands.UpdateTask(id=None,
-                                               name=name.value,
-                                               description=description.value,
-                                               due_date=due_date,
-                                               status=status.value,
-                                               priority=priority.value),
-                          _commands.CommentTask(id=None, text=comment.value)))
+            self.dismiss((
+                _commands.UpdateTask(
+                    id=None,
+                    name=name.value,
+                    description=description.value,
+                    # FIXME: Bring back
+                    # due_date=due_date,
+                    status=status.value,
+                    priority=priority.value),
+                _commands.CommentTask(id=None, text=comment.value),
+                _commands.TrackTask(id=None, hours=hours.value)))
         else:
             self.app.pop_screen()
 
@@ -428,5 +433,43 @@ class TaskHoursSubmitted(ModalScreen[str]):
         if event.button.id == "yes":
             story_points = self.query_one("#hours", Input)
             self.dismiss(story_points.value)
+        else:
+            self.app.pop_screen()
+
+
+class TaskTagEdit(TerkaModalScreen):
+
+    def compose(self) -> ComposeResult:
+        yield Grid(
+            Label(f"Add tag", id="question"),
+            Input(placeholder="Tags", id="tags"),
+            Button("Confim", id="yes"),
+            Button("Cancel", id="no"),
+            id="dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "yes":
+            tags = self.query_one("#tags", Input)
+            self.dismiss(tags.value)
+        else:
+            self.app.pop_screen()
+
+
+class TaskCollaboratorEdit(TerkaModalScreen):
+
+    def compose(self) -> ComposeResult:
+        yield Grid(
+            Label(f"Add collaborators", id="question"),
+            Input(placeholder="Collaborators", id="collaborators"),
+            Button("Confim", id="yes"),
+            Button("Cancel", id="no"),
+            id="dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "yes":
+            collaborators = self.query_one("#collaborators", Input)
+            self.dismiss(collaborators.value)
         else:
             self.app.pop_screen()
