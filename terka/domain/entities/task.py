@@ -75,6 +75,15 @@ class Task:
             return sum([t.time_spent_minutes for t in self.time_spent])
         return 0
 
+    @property
+    def time_spent_today(self):
+        if self.time_spent:
+            return sum([
+                t.time_spent_minutes for t in self.time_spent
+                if t.creation_date.date() == datetime.today().date()
+            ])
+        return 0
+
     def daily_time_entries_hours(
             self,
             start_date: str | date | None = None,
@@ -124,6 +133,11 @@ class Task:
 
     def _cast_to_enum(self, enum: Type[Enum], value: str | Enum) -> Enum:
         return enum[value] if isinstance(value, str) else value
+
+    def __hash__(self):
+        return hash(
+            ((self.id, self.name, self.description, self.project, self.status,
+              self.priority, self.due_date, self.assignee)))
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, Task):

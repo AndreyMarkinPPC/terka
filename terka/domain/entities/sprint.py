@@ -73,6 +73,13 @@ class Sprint:
         return total_time_spent / (velocity * 60)
 
     @property
+    def time_spent_today(self):
+        time_spent_today = 0
+        for sprint_task in self.tasks:
+            time_spent_today += sprint_task.tasks.time_spent_today
+        return time_spent_today
+
+    @property
     def total_time_spent(self):
         total_time_spent_sprint = 0
         for sprint_task in self.tasks:
