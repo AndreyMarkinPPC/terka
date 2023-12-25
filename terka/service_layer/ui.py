@@ -75,9 +75,17 @@ class PopupsMixin:
         self.push_screen(ui_components.TaskComplete(),
                          self.task_complete_callback)
 
-    def task_complete_callback(self, result: _commands.CompleteTask):
-        result.id = self.selected_task
-        self.bus.handle(result)
+    def task_complete_callback(self, result: tuple[_commands.CompleteTask,
+                                                   _commands.CommentTask,
+                                                   _commands.TrackTask]):
+        complete, *rest = result
+        complete.id = self.selected_task
+        self.bus.handle(complete)
+        for cmd in rest:
+            cmd.id = self.selected_task
+            if cmd:
+                self.bus.handle(cmd)
+                self.notify(f"command {cmd}!")
         self.notify(f"Task: {self.selected_task} is completed!")
 
     def action_task_edit(self) -> None:
@@ -145,14 +153,22 @@ class PopupsMixin:
     def action_task_delete(self) -> None:
         self.push_screen(ui_components.TaskDelete(), self.task_delete_callback)
 
-    def task_delete_callback(self, result: _commands.DeleteTask):
-        result.id = self.selected_task
+    def task_delete_callback(self, result: tuple[_commands.CompleteTask,
+                                                 _commands.CommentTask,
+                                                 _commands.TrackTask]):
+        delete, *rest = result
+        delete.id = self.selected_task
         is_sprint = False
         if hasattr(self, "sprint_id"):
-            result.sprint = self.sprint_id
+            delete.sprint = self.sprint_id
             is_sprint = True
 
-        self.bus.handle(result)
+        self.bus.handle(delete)
+        for cmd in rest:
+            cmd.id = self.selected_task
+            if cmd:
+                self.bus.handle(cmd)
+                self.notify(f"command {cmd}!")
         if is_sprint:
             self.notify(
                 f"Task: {self.selected_task} is deleted from "

@@ -314,10 +314,9 @@ class TaskComplete(TerkaModalScreen):
         if event.button.id == "yes":
             comment = self.query_one("#comment", Input)
             hours = self.query_one("#hours", Input)
-            self.dismiss(
-                _commands.CompleteTask(id=None,
-                                       comment=comment.value,
-                                       hours=hours.value))
+            self.dismiss((_commands.CompleteTask(id=None),
+                          _commands.CommentTask(id=None, text=comment.value),
+                          _commands.TrackTask(id=None, hours=hours.value)))
         else:
             self.app.pop_screen()
 
@@ -340,10 +339,9 @@ class TaskDelete(TerkaModalScreen):
         if event.button.id == "yes":
             comment = self.query_one("#comment", Input)
             hours = self.query_one("#hours", Input)
-            self.dismiss(
-                _commands.DeleteTask(id=None,
-                                     comment=comment.value,
-                                     hours=hours.value))
+            self.dismiss((_commands.DeleteTask(id=None),
+                          _commands.CommentTask(id=None, text=comment.value),
+                          _commands.TrackTask(id=None, hours=hours.value)))
         else:
             self.app.pop_screen()
 
