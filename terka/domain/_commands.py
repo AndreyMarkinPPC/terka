@@ -16,8 +16,11 @@ class Command:
     def from_kwargs(cls, **kwargs: dict) -> Type["Command"]:
         return cls(**{
             k: v
-            for k, v in kwargs.items() if k in cls.__match_args__ and v
+            for k, v in kwargs.items() if k in cls.__match_args__ and v is not None
         })
+
+    def __bool__(self) -> bool:
+        return all(f for f in self.__dataclass_fields__ if f != "id")
 
 
 # Base Commands
@@ -32,17 +35,20 @@ class Comment(Command):
     id: int
     text: str
 
+    def __bool__(self) -> bool:
+        if self.text:
+            return True
+        return False
+
 
 @dataclass
 class Complete(Command):
     id: int
-    comment: str | None = None
 
 
 @dataclass
 class Delete(Command):
     id: int
-    comment: str | None = None
 
 
 @dataclass
@@ -132,6 +138,7 @@ class CreateTask(Command):
     due_date: str | None = None
     status: str = "BACKLOG"
     priority: str = "NORMAL"
+    sync: bool = True
 
 
 @dataclass
@@ -157,9 +164,6 @@ class UpdateTask(Command):
     due_date: str | None = None
     status: str | None = None
     priority: str | None = None
-
-    def __bool__(self) -> bool:
-        return all(f for f in self.__dataclass_fields__ if f != "id")
 
 
 @dataclass
@@ -202,6 +206,11 @@ class TrackTask(Command):
     id: int
     hours: int | None = None
 
+    def __bool__(self) -> bool:
+        if self.hours:
+            return True
+        return False
+
 
 @dataclass
 class SyncTask(Sync):
@@ -223,8 +232,6 @@ class UpdateProject(Command):
     name: str | None = None
     description: str | None = None
     workspace: str | None = None
-    # tags: str | None = None
-    # collaborators: str | None = None
     status: str | None = None
 
 

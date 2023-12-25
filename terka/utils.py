@@ -54,9 +54,6 @@ def format_task_dict(config: dict, entity: str,
         return task_dicts
     if len(kwargs) > 1:
         new_dict = create_task_dict(kwargs)
-        if new_dict.get("f") or new_dict.get("file"):
-            ...
-
         task_dict = {
             "id":
             new_dict.get("id") if entity != "commentaries" else None,
@@ -181,6 +178,7 @@ def format_task_dict(config: dict, entity: str,
     if any(key in task_dict.keys() for key in ("epics", "stories", "tasks")):
         task_dict["partial_project_view"] = True
     task_dict["expand_table"] = not task_dict.get("no-expand", False)
+    task_dict["sync"] = not _new_dict.get("no-sync", False)
     task_dict["show_completed"] = task_dict.get("all", False)
     if tags := task_dict.get("tag"):
         task_dict["tags"] = tags

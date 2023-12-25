@@ -1,5 +1,4 @@
 from __future__ import annotations
-import asana
 from datetime import datetime
 from dataclasses import dataclass
 import logging
@@ -8,6 +7,12 @@ import os
 from terka.domain.entities.commentary import TaskCommentary
 from terka.domain.entities.task import Task
 from terka.service_layer import exceptions
+
+try:
+    import asana
+except ImportError:
+    raise exceptions.TerkaException(
+        "Please install `terka[asana]` to connect to asana")
 
 
 @dataclass

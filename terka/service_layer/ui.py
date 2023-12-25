@@ -91,8 +91,9 @@ class PopupsMixin:
         self.notify(f"Task: {self.selected_task} is updated!")
         for cmd in rest:
             cmd.id = self.selected_task
-            self.bus.handle(cmd)
-            self.notify(f"command {cmd}!")
+            if cmd:
+                self.bus.handle(cmd)
+                self.notify(f"command {cmd}!")
 
     def action_task_add(self) -> None:
         self.push_screen(ui_components.TaskAdd(), self.task_add_callback)

@@ -46,6 +46,7 @@ class Task:
                  due_date: datetime | None = None,
                  status: str = "BACKLOG",
                  priority: str = "NORMAL",
+                 sync: bool = True,
                  **kwargs) -> None:
         if not name:
             raise ValueError("task name cannot be empty!")
@@ -68,6 +69,7 @@ class Task:
             self.due_date = due_date
         self.status = self._cast_to_enum(TaskStatus, status)
         self.priority = self._cast_to_enum(TaskPriority, priority)
+        self.sync = sync
 
     @property
     def total_time_spent(self):

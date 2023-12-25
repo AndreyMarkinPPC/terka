@@ -721,11 +721,9 @@ class ProjectCommandHandlers:
             uow.tasks.update(entities.project.Project, project.id,
                              {"status": "COMPLETED"})
             uow.published_events.append(events.ProjectCompleted(project.id))
-            if comment := cmd.comment:
-                uow.published_events.append(
-                    events.ProjectCommented(id=project.id, text=comment))
+            # TODO: implement _process_extra_args for projects
             uow.commit()
-        handler.publisher.publish("Topic", events.ProjectCompleted(project.id))
+            handler.publisher.publish("Topic", events.ProjectCompleted(project.id))
 
     @register(cmd=_commands.DeleteProject)
     def delete(cmd: _commands.DeleteProject,
@@ -845,6 +843,8 @@ class ProjectCommandHandlers:
         asana_migrator = asana.AsanaMigrator(asana_client)
         asana_migrator.load_task_statuses(asana_project_id)
         for i, task in enumerate(tasks):
+            if not task.sync:
+                continue
             sync_info = synced_tasks.get(task.id)
             if asana_task_id := asana_migrator.migrate_task(
                     asana_project_id, task, sync_info):

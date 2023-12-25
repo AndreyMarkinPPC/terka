@@ -35,7 +35,8 @@ tasks = Table("tasks", metadata,
               Column("created_by", ForeignKey("users.id"), nullable=True),
               Column("due_date", Date, nullable=True),
               Column("status", Enum(task.TaskStatus)),
-              Column("priority", Enum(task.TaskPriority)))
+              Column("priority", Enum(task.TaskPriority)),
+              Column("sync", Boolean))
 
 projects = Table(
     "projects",
