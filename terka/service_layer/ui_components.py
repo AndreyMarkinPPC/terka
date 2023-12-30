@@ -62,6 +62,18 @@ class Sidebar(Container):
                         Priority(), Project(), Commentaries())
 
 
+class EpicSidebar(Container):
+
+    def compose(self) -> ComposeResult:
+        yield Container(Title(classes="header"), Description())
+
+
+class StorySidebar(Container):
+
+    def compose(self) -> ComposeResult:
+        yield Container(Title(classes="header"), Description())
+
+
 class TerkaModalScreen(ModalScreen[str]):
     BINDINGS = [("escape", "quit", "Quit")]
 
@@ -82,6 +94,9 @@ class NewTask(TerkaModalScreen):
             Input(placeholder="Description",
                   id="description",
                   classes="description-input"),
+            Input(placeholder="Project",
+                  id="project",
+                  classes="project-input"),
             Select(((line, line) for line in [
                 "BACKLOG", "TODO", "IN_PROGRESS", "REVIEW", "DONE", "DELETED"
             ]),
@@ -108,6 +123,7 @@ class NewTask(TerkaModalScreen):
         if event.button.id == "yes":
             name = self.query_one("#name", Input)
             description = self.query_one("#description", Input)
+            project = self.query_one("#project", Input)
             status = self.query_one("#status", Select)
             priority = self.query_one("#priority", Select)
             due_date = self.query_one("#due_date", Input)
@@ -124,6 +140,7 @@ class NewTask(TerkaModalScreen):
             create_command = _commands.CreateTask(
                 name=name.value,
                 description=description.value,
+                project=project.value,
                 due_date=due_date,
                 status=status.value,
                 priority=priority.value)

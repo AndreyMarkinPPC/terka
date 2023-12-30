@@ -84,8 +84,9 @@ class PopupsMixin:
     def __init__(self):
         ...
 
-    def _process_chain_of_commands(
-        self, result: tuple[_commands.Command, ...], project: str | None = None) -> int | None:
+    def _process_chain_of_commands(self,
+                                   result: tuple[_commands.Command, ...],
+                                   project: str | None = None) -> int | None:
         main_command, *rest = result
         main_command.id = self.selected_task
         if project:
@@ -577,7 +578,8 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
                 for column in ("id", "name", "description", "status",
                                "open_tasks", "completed_tasks"):
                     table.add_column(column, key=f"epic_{column}")
-                    inactive_table.add_column(column, key=f"inactive_epic_{column}")
+                    inactive_table.add_column(column,
+                                              key=f"inactive_epic_{column}")
                 for epic in sorted(self.entity.epics,
                                    key=lambda x: len(x.tasks),
                                    reverse=True):
@@ -591,12 +593,12 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
                                       key=epic.id)
                     else:
                         inactive_table.add_row(str(epic.id),
-                                      shorten_text(epic.name),
-                                      shorten_text(epic.description),
-                                      epic.status.name,
-                                      str(len(epic.open_tasks)),
-                                      str(len(epic.completed_tasks)),
-                                      key=epic.id)
+                                               shorten_text(epic.name),
+                                               shorten_text(epic.description),
+                                               epic.status.name,
+                                               str(len(epic.open_tasks)),
+                                               str(len(epic.completed_tasks)),
+                                               key=epic.id)
                 if table.row_count:
                     yield Label("Active epics")
                     yield table
@@ -614,10 +616,11 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
                 for column in ("id", "name", "description", "status",
                                "open_tasks", "completed_tasks"):
                     table.add_column(column, key=f"story_{column}")
-                    inactive_table.add_column(column, key=f"inactive_story_{column}")
+                    inactive_table.add_column(column,
+                                              key=f"inactive_story_{column}")
                 for story in sorted(self.entity.stories,
-                                   key=lambda x: len(x.tasks),
-                                   reverse=True):
+                                    key=lambda x: len(x.tasks),
+                                    reverse=True):
                     if story.open_tasks:
                         table.add_row(str(story.id),
                                       shorten_text(story.name),
@@ -628,12 +631,12 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
                                       key=story.id)
                     else:
                         inactive_table.add_row(str(story.id),
-                                      shorten_text(story.name),
-                                      shorten_text(story.description),
-                                      story.status.name,
-                                      str(len(epic.open_tasks)),
-                                      str(len(epic.completed_tasks)),
-                                      key=story.id)
+                                               shorten_text(story.name),
+                                               shorten_text(story.description),
+                                               story.status.name,
+                                               str(len(epic.open_tasks)),
+                                               str(len(epic.completed_tasks)),
+                                               key=story.id)
                 if table.row_count:
                     yield Label("Active stories")
                     yield table
@@ -723,7 +726,8 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
             self.push_screen(ui_components.NewStory(), self.story_new_callback)
 
     def task_new_callback(self, result: list[_commands.Command]):
-        object_id = self._process_chain_of_commands(result, project=self.project_id)
+        object_id = self._process_chain_of_commands(result,
+                                                    project=self.project_id)
         self.notify(f"New task created with id {object_id}!")
 
     def epic_new_callback(self, result: _commands.CreateEpic):
@@ -741,12 +745,12 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
 
     CSS_PATH = "entities.css"
 
-    BINDINGS = [("t", "tasks", "Tasks"), ("n", "notes", "Notes"),
-                ("i", "show_info", "Info"), ("o", "overview", "Overview"),
-                ("q", "quit", "Quit"), ("s", "sort", "Sort"),
-                ("E", "task_edit", "Edit"), ("r", "refresh", "Refresh"),
-                ("d", "task_complete", "Done"), ("X", "task_delete", "Delete"),
-                ("a", "task_add", "Add"),
+    BINDINGS = [("n", "new_task", "New Task"), ("t", "tasks", "Tasks"),
+                ("N", "notes", "Notes"), ("i", "show_info", "Info"),
+                ("o", "overview", "Overview"), ("q", "quit", "Quit"),
+                ("s", "sort", "Sort"), ("E", "task_edit", "Edit"),
+                ("r", "refresh", "Refresh"), ("d", "task_complete", "Done"),
+                ("X", "task_delete", "Delete"), ("a", "task_add", "Add"),
                 ("U", "task_update_context", "Update"), ("T", "time", "Time")]
 
     def __init__(self, repo, sprint_id, bus) -> None:
@@ -791,6 +795,10 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
             classes="header")
         with TabbedContent(initial="tasks"):
             with TabPane("Tasks", id="tasks"):
+                yield Button("+Task",
+                             id="new_task",
+                             variant="success",
+                             classes="new_entity")
                 table = DataTable(id="sprint_open_tasks_table")
                 for column in ("id", "name", "status", "priority",
                                "story_points", "project", "due_date", "tags",
@@ -964,6 +972,17 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
     def action_notes(self) -> None:
         self.query_one(TabbedContent).active = "notes"
 
+    def action_new_task(self):
+        self.push_screen(ui_components.NewTask(), self.task_new_callback)
+
+    def task_new_callback(self, result: list[_commands.Command]):
+        object_id = self._process_chain_of_commands(result)
+        self.notify(f"New task created with id {object_id}!")
+
+    @on(Button.Pressed)
+    def open_new_element_window(self, event: Button.Pressed) -> None:
+        if event.button.id == "new_task":
+            self.push_screen(ui_components.NewTask(), self.task_new_callback)
 
 # TODO: implement
 # class TerkaProjectScreen(TerkaProject):
