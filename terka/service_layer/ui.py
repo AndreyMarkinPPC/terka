@@ -789,7 +789,12 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
 
     def compose(self) -> ComposeResult:
         yield ui_components.Sidebar(classes="-hidden")
-        yield Header()
+        if self.entity.status.name == "COMPLETED":
+            yield Header(classes="completed_sprint")
+        elif self.entity.status.name == "ACTIVE":
+            yield Header(classes="active_sprint")
+        else:
+            yield Header(classes="planned_sprint")
         yield Static(
             f"[bold]Sprint {self.entity.id}[/bold]: \n{self.entity.goal}",
             classes="header")

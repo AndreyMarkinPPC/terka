@@ -120,3 +120,15 @@ Sidebar.-hidden {
 Sidebar:focus-within {
 	offset: 0 0 !important;
 }
+.completed_sprint {
+	color: white;
+	background: green;
+}
+.active_sprint {
+	color: white;
+	background: blue;
+}
+.planned_sprint {
+	color: white;
+	background: black;
+}
