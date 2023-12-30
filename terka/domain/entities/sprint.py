@@ -63,7 +63,7 @@ class Sprint:
 
     @property
     def velocity(self) -> float:
-        return sum([t.story_points for t in self.tasks])
+        return round(sum([t.story_points for t in self.tasks]), 1)
 
     @property
     def utilization(self) -> float:
