@@ -17,7 +17,7 @@ from textual.validation import Number
 from textual.widget import Widget
 from textual.widgets import (Button, Input, Header, Footer, Label, Tabs,
                              DataTable, TabbedContent, TabPane, Static,
-                             Markdown, MarkdownViewer, Pretty, Select)
+                             Markdown, MarkdownViewer, Pretty, Rule, Select)
 
 from terka.domain import _commands, events, entities
 from terka.service_layer import services, views, exceptions, ui_components
@@ -52,24 +52,51 @@ class SelectionMixin:
         self.selected_column = event.cell_key.column_key.value
         self.selected_data_table = event.data_table.id
         with self.bus.handler.uow as uow:
-            task_obj = uow.tasks.get_by_id(entities.task.Task, selected_id)
-            self.query_one(ui_components.Title).text = task_obj.name
-            self.query_one(
-                ui_components.Description).text = task_obj.description
-            self.query_one(ui_components.Status).value = task_obj.status.name
-            self.query_one(
-                ui_components.Priority).value = task_obj.priority.name
-            self.query_one(ui_components.Project).value = task_obj.project
-            self.query_one(ui_components.Commentaries).values = [
-                (t.date.strftime("%Y-%m-%d %H:%M"), t.text)
-                for t in task_obj.commentaries
-            ]
+            if "task" in self.selected_data_table:
+                task_obj = uow.tasks.get_by_id(entities.task.Task, selected_id)
+                self.query_one(ui_components.Title).text = task_obj.name
+                self.query_one(
+                    ui_components.Description).text = task_obj.description
+                self.query_one(
+                    ui_components.Status).value = task_obj.status.name
+                self.query_one(
+                    ui_components.Priority).value = task_obj.priority.name
+                self.query_one(ui_components.Project).value = task_obj.project
+                self.query_one(ui_components.Commentaries).values = [
+                    (t.date.strftime("%Y-%m-%d %H:%M"), t.text)
+                    for t in task_obj.commentaries
+                ]
+            if "epic" in self.selected_data_table:
+                epic_obj = uow.tasks.get_by_id(entities.epic.Epic, selected_id)
+                self.query_one(ui_components.Title).text = epic_obj.name
+                self.query_one(
+                    ui_components.Description).text = epic_obj.description
+            if "story" in self.selected_data_table:
+                story_obj = uow.tasks.get_by_id(entities.story.Story,
+                                                selected_id)
+                self.query_one(ui_components.Title).text = story_obj.name
+                self.query_one(
+                    ui_components.Description).text = story_obj.description
 
 
 class PopupsMixin:
 
     def __init__(self):
         ...
+
+    def _process_chain_of_commands(
+        self, result: tuple[_commands.Command, ...], project: str | None = None) -> int | None:
+        main_command, *rest = result
+        main_command.id = self.selected_task
+        if project:
+            main_command.project = project
+        object_id = self.bus.handle(main_command)
+        for cmd in rest:
+            cmd.id = object_id or self.selected_task
+            if cmd:
+                self.bus.handle(cmd)
+                self.notify(f"command {cmd}!")
+        return object_id
 
     def action_task_complete(self) -> None:
         self.push_screen(ui_components.TaskComplete(),
@@ -78,14 +105,7 @@ class PopupsMixin:
     def task_complete_callback(self, result: tuple[_commands.CompleteTask,
                                                    _commands.CommentTask,
                                                    _commands.TrackTask]):
-        complete, *rest = result
-        complete.id = self.selected_task
-        self.bus.handle(complete)
-        for cmd in rest:
-            cmd.id = self.selected_task
-            if cmd:
-                self.bus.handle(cmd)
-                self.notify(f"command {cmd}!")
+        self._process_chain_of_commands(result)
         self.notify(f"Task: {self.selected_task} is completed!")
 
     def action_task_edit(self) -> None:
@@ -93,15 +113,8 @@ class PopupsMixin:
 
     def task_edit_callback(self, result: tuple[_commands.UpdateTask,
                                                _commands.CommentTask]):
-        update, *rest = result
-        update.id = self.selected_task
-        self.bus.handle(update)
+        self._process_chain_of_commands(result)
         self.notify(f"Task: {self.selected_task} is updated!")
-        for cmd in rest:
-            cmd.id = self.selected_task
-            if cmd:
-                self.bus.handle(cmd)
-                self.notify(f"command {cmd}!")
 
     def action_task_add(self) -> None:
         self.push_screen(ui_components.TaskAdd(), self.task_add_callback)
@@ -234,14 +247,19 @@ class PopupsMixin:
             f"Added collaborator {result} for task {self.selected_task}!")
 
     def action_show_info(self) -> None:
-        sidebar = self.query_one(ui_components.Sidebar)
-        self.set_focus(None)
-        if sidebar.has_class("-hidden"):
-            sidebar.remove_class("-hidden")
-        else:
-            if sidebar.query("*:focus"):
-                self.screen.set_focus(None)
-            sidebar.add_class("-hidden")
+        if "task" in self.selected_data_table:
+            sidebar = self.query_one(ui_components.Sidebar)
+            # elif "epic" in self.selected_data_table:
+            #     sidebar = self.query_one(ui_components.EpicSidebar)
+            # elif "story" in self.selected_data_table:
+            #     sidebar = self.query_one(ui_components.Sidebar)
+            self.set_focus(None)
+            if sidebar.has_class("-hidden"):
+                sidebar.remove_class("-hidden")
+            else:
+                if sidebar.query("*:focus"):
+                    self.screen.set_focus(None)
+                sidebar.add_class("-hidden")
 
 
 class Comment(Widget):
@@ -420,7 +438,7 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
                              id="new_task",
                              variant="success",
                              classes="new_entity")
-                table = DataTable(id="project_backlog_table")
+                table = DataTable(id="project_tasks_backlog_table")
                 for column in ("id", "name", "priority", "due_date",
                                "created_at", "tags", "collaborators",
                                "time_spent"):
@@ -555,37 +573,84 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
                              variant="success",
                              classes="new_entity")
                 table = DataTable(id="project_epics_table")
-                table.add_columns("id", "name", "description", "status",
-                                  "tasks")
+                inactive_table = DataTable(id="project_inactive_epics_table")
+                for column in ("id", "name", "description", "status",
+                               "open_tasks", "completed_tasks"):
+                    table.add_column(column, key=f"epic_{column}")
+                    inactive_table.add_column(column, key=f"inactive_epic_{column}")
                 for epic in sorted(self.entity.epics,
                                    key=lambda x: len(x.tasks),
                                    reverse=True):
-                    table.add_row(str(epic.id), shorten_text(epic.name),
-                                  shorten_text(epic.description),
-                                  epic.status.name, str(len(epic.tasks)))
-                yield table
+                    if epic.open_tasks:
+                        table.add_row(str(epic.id),
+                                      shorten_text(epic.name),
+                                      shorten_text(epic.description),
+                                      epic.status.name,
+                                      str(len(epic.open_tasks)),
+                                      str(len(epic.completed_tasks)),
+                                      key=epic.id)
+                    else:
+                        inactive_table.add_row(str(epic.id),
+                                      shorten_text(epic.name),
+                                      shorten_text(epic.description),
+                                      epic.status.name,
+                                      str(len(epic.open_tasks)),
+                                      str(len(epic.completed_tasks)),
+                                      key=epic.id)
+                if table.row_count:
+                    yield Label("Active epics")
+                    yield table
+                if inactive_table.row_count:
+                    yield Rule(line_style="heavy")
+                    yield Label("Inactive epics")
+                    yield inactive_table
             with TabPane("Stories", id="stories"):
                 yield Button("+Story",
                              id="new_story",
                              variant="success",
                              classes="new_entity")
                 table = DataTable(id="project_stories_table")
-                table.add_columns("id", "name", "description", "status",
-                                  "tasks")
-                for story in self.entity.stories:
-                    table.add_row(str(story.id), shorten_text(story.name),
-                                  shorten_text(story.description),
-                                  story.status.name, str(len(story.tasks)))
-                yield table
+                inactive_table = DataTable(id="project_inactive_stories_table")
+                for column in ("id", "name", "description", "status",
+                               "open_tasks", "completed_tasks"):
+                    table.add_column(column, key=f"story_{column}")
+                    inactive_table.add_column(column, key=f"inactive_story_{column}")
+                for story in sorted(self.entity.stories,
+                                   key=lambda x: len(x.tasks),
+                                   reverse=True):
+                    if story.open_tasks:
+                        table.add_row(str(story.id),
+                                      shorten_text(story.name),
+                                      shorten_text(story.description),
+                                      story.status.name,
+                                      str(len(epic.open_tasks)),
+                                      str(len(epic.completed_tasks)),
+                                      key=story.id)
+                    else:
+                        inactive_table.add_row(str(story.id),
+                                      shorten_text(story.name),
+                                      shorten_text(story.description),
+                                      story.status.name,
+                                      str(len(epic.open_tasks)),
+                                      str(len(epic.completed_tasks)),
+                                      key=story.id)
+                if table.row_count:
+                    yield Label("Active stories")
+                    yield table
+                if inactive_table.row_count:
+                    yield Rule(line_style="heavy")
+                    yield Label("Inactive stories")
+                    yield inactive_table
             with TabPane("Notes", id="notes"):
                 yield Button("+Note",
                              id="new_note",
                              variant="success",
                              classes="new_entity")
                 table = DataTable(id="project_notes_table")
-                table.add_columns("id", "text")
-                for task in self.entity.notes:
-                    table.add_row(str(task.id), task.name)
+                for column in ("id", "text"):
+                    table.add_column(column, key=f"note_{column}")
+                for note in self.entity.notes:
+                    table.add_row(str(note.id), note.name, key=note.id)
                 yield table
             with TabPane("Time", id="time"):
                 plotext = PlotextPlot(classes="plotext")
@@ -658,14 +723,8 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
             self.push_screen(ui_components.NewStory(), self.story_new_callback)
 
     def task_new_callback(self, result: list[_commands.Command]):
-        create_task, *rest = result
-        create_task.project = self.entity.name
-        new_task = self.bus.handle(create_task)
-        self.notify(f"New task created with id {new_task}!")
-        for cmd in rest:
-            cmd.id = new_task
-            self.bus.handle(cmd)
-            self.notify(f"command {cmd}!")
+        object_id = self._process_chain_of_commands(result, project=self.project_id)
+        self.notify(f"New task created with id {object_id}!")
 
     def epic_new_callback(self, result: _commands.CreateEpic):
         result.project = self.entity.name
@@ -715,7 +774,6 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
         previous_tasks = list(self.tasks)
         self.tasks = list(self.get_tasks())
         new_tasks = list(self.tasks)
-        exit(f"{len(new_tasks)}, {len(previous_tasks)}")
         self.notify("Refreshing data...")
 
     def on_mount(self) -> None:

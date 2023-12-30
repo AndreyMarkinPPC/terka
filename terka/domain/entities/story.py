@@ -36,6 +36,24 @@ class Story:
         self.status = status
         self.is_completed = False
 
+    @property
+    def open_tasks(self) -> list[Task]:
+        tasks = []
+        for entity_task in self.tasks:
+            task = entity_task.tasks
+            if task.status.name not in ("DONE", "DELETED"):
+                tasks.append(task)
+        return tasks
+
+    @property
+    def completed_tasks(self) -> list[Task]:
+        tasks = []
+        for entity_task in self.tasks:
+            task = entity_task.tasks
+            if task.status.name in ("DONE", "DELETED"):
+                tasks.append(task)
+        return tasks
+
     def complete(self, tasks) -> None:
         incompleted_tasks = list()
         for task in tasks:
