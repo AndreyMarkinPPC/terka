@@ -165,12 +165,12 @@ class TaskCommandHandlers:
     def create(cmd: _commands.CreateTask,
                handler: Handler,
                context: dict = {}) -> int:
-        # TODO: get user from handler.config
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
                 entities.task.Task, _commands.CreateTask)
         with handler.uow as uow:
             cmd = convert_project(cmd, handler)
+            cmd = convert_user(cmd, handler)
             new_task = entities.task.Task(**asdict(cmd))
             uow.tasks.add(new_task)
             uow.flush()
@@ -1159,6 +1159,25 @@ def convert_workspace(cmd: _commands.Command,
         cmd.workspace = int(existing_workspace.id)
     return cmd
 
+
+def convert_user(cmd: _commands.Command,
+                      handler: Handler,
+                      context: dict = {}) -> Type[_commands.Command]:
+    if not (created_by := cmd.created_by):
+        return cmd
+    try:
+        cmd.created_by = int(created_by)
+        return cmd
+    except ValueError:
+        ...
+    if not (existing_user := handler.uow.tasks.get(
+            entities.user.User, created_by)):
+        user_id = UserCommandHandlers.create(
+            cmd=_commands.CreateUser(name=created_by), handler=handler)
+        cmd.created_by = user_id
+    else:
+        cmd.created_by = int(existing_user.id)
+    return cmd
 
 def get_note_type(kwargs: dict[str, str]) -> entities.note.BaseNote:
     if "project" in kwargs:

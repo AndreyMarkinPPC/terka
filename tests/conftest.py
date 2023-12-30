@@ -46,4 +46,8 @@ def uow():
 def bus(fake_publisher, uow):
     return bootstrap.bootstrap(start_orm=True,
                                uow=uow,
-                               publish_service=fake_publisher)
+                               publish_service=fake_publisher,
+                               config={
+                                   "user": "test_user",
+                                   "workspace": "default"
+                               })

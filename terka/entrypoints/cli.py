@@ -126,6 +126,7 @@ class _CommandHandler:
         else:
             command = format_command(command)
             entity = format_entity(entity)
+            task_dict = self.update_task_dict(task_dict)
             _command = f"{command.capitalize()}{entity.capitalize()}"
             try:
                 self.bus.handle(getattr(_commands,
@@ -135,6 +136,11 @@ class _CommandHandler:
                 print(e)
                 raise exceptions.TerkaCommandException(
                     f"Unknown command: `terka {command} {entity}`")
+
+    def update_task_dict(self, task_dict: dict) -> dict:
+        task_dict.update(self.bus.config)
+        task_dict["created_by"] = task_dict["user"]
+        return task_dict
 
 
 def load_config(home_dir):

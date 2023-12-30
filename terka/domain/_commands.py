@@ -139,6 +139,7 @@ class CreateTask(Command):
     status: str = "BACKLOG"
     priority: str = "NORMAL"
     sync: bool = True
+    created_by: str | None = None
 
 
 @dataclass
