@@ -208,7 +208,7 @@ class TaskCommandHandlers:
                         new_value and new_value != old_value):
                     uow.published_events.append(
                         events.TaskUpdated(cmd.id,
-                                           event_type=f.upper(),
+                                           type=f.upper(),
                                            old_value=old_value,
                                            new_value=new_value))
             update_dict = cmd.get_only_set_attributes()

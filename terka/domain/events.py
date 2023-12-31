@@ -86,7 +86,7 @@ class UpdateMask:
 @dataclass
 class TaskUpdated(TaskEvent):
     task: int
-    event_type: str
+    type: str
     old_value: Any
     new_value: Any
 

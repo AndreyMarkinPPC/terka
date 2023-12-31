@@ -16,7 +16,7 @@ class EventType(Enum):
 @dataclass
 class TaskEvent:
     task: int
-    event_type: str
+    type: str
     old_value: str
     new_value: str
     date: datetime = datetime.now()
