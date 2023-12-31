@@ -1,4 +1,5 @@
 from typing import Dict, Literal, Optional, Type
+from datetime import datetime
 from dataclasses import dataclass, asdict
 
 
@@ -14,13 +15,25 @@ class Command:
 
     @classmethod
     def from_kwargs(cls, **kwargs: dict) -> Type["Command"]:
-        return cls(**{
+        attributes = {
             k: v
-            for k, v in kwargs.items() if k in cls.__match_args__ and v is not None
-        })
+            for k, v in kwargs.items()
+            if k in cls.__match_args__ and v is not None
+        }
+        [
+            Command.format_date(attributes, d)
+            for d in ("due_date", "start_date", "end_date")
+        ]
+        return cls(**attributes)
 
     def __bool__(self) -> bool:
         return all(f for f in self.__dataclass_fields__ if f != "id")
+
+    @staticmethod
+    def format_date(attributes: dict, date_attribute: str):
+        if date_attribute_value := attributes.get(date_attribute):
+            attributes[date_attribute] = datetime.strptime(
+                date_attribute_value, "%Y-%m-%d")
 
 
 # Base Commands
