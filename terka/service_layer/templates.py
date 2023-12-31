@@ -191,11 +191,11 @@ def create_command_from_editor(
             entry_value = ": ".join(entry_value)
             entry_value = entry_value.strip()
             if entry_type == "epics":
-                command_arguments["epic_id"] = entry_value
+                command_arguments["epic"] = entry_value
             elif entry_type == "sprints":
-                command_arguments["sprint_id"] = entry_value
+                command_arguments["sprint"] = entry_value
             elif entry_type == "stories":
-                command_arguments["story_id"] = entry_value
+                command_arguments["story"] = entry_value
             if entry_type == "time_spent":
                 time_spent = entry_value.split(" (")
                 try:
@@ -207,8 +207,11 @@ def create_command_from_editor(
                     pass
             elif entry_type == "status":
                 command_arguments["status"] = convert_status(entry_value)
-            elif entry_type.endswith("date") and entry_value:
-                entry_value = datetime.strptime(entry_value, "%Y-%m-%d")
+            elif entry_type.endswith("date"):
+                if entry_value:
+                    entry_value = datetime.strptime(entry_value, "%Y-%m-%d")
+                else:
+                    entry_value = None
                 command_arguments[entry_type] = entry_value
             else:
                 command_arguments[entry_type] = entry_value
