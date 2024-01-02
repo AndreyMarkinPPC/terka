@@ -10,9 +10,11 @@ from rich.prompt import Confirm, Prompt
 
 from terka import utils
 from terka.adapters import publisher, printer
-from terka.domain import _commands, events, entities
+from terka.domain import commands, events, entities
 from terka.domain.external_connectors import asana
-from terka.service_layer import exceptions, templates, unit_of_work, views
+from terka.service_layer import exceptions, messagebus, templates, unit_of_work, views
+from terka.utils import format_command, format_entity
+
 
 COMMAND_HANDLERS = {}
 EVENT_HANDLERS = defaultdict(list)
@@ -37,23 +39,45 @@ def register(cmd=None, event=None):
 
 class Handler:
 
-    def __init__(
-        self,
-        uow: unit_of_work.AbstractUnitOfWork,
-        publisher: publisher.BasePublisher | None = None,
-        printer: printer.Printer = printer.Printer(),
-        config: dict | None = None
-    ) -> None:
+    def __init__(self,
+                 uow: unit_of_work.AbstractUnitOfWork,
+                 publisher: publisher.BasePublisher | None = None,
+                 printer: printer.Printer = printer.Printer(),
+                 config: dict | None = None) -> None:
         self.uow = uow
         self.publisher = publisher
         self.printer = printer
         self.config = config
 
 
+class CommandHandler:
+
+    def __init__(self, bus: messagebus.MessageBus) -> None:
+        self.bus = bus
+
+    def execute(self, command: str, entity: str,
+                task_dict: dict | list[dict]) -> None:
+        if isinstance(task_dict, list):
+            for _task_dict in task_dict:
+                self.execute(command, entity, _task_dict)
+        else:
+            command = format_command(command)
+            entity = format_entity(entity)
+            _command = f"{command.capitalize()}{entity.capitalize()}"
+            try:
+                self.bus.handle(getattr(commands,
+                                        _command).from_kwargs(**task_dict),
+                                context=task_dict)
+            except AttributeError as e:
+                print(e)
+                raise exceptions.TerkaCommandException(
+                    f"Unknown command: `terka {command} {entity}`")
+
+
 class SprintCommandHandlers:
 
-    @register(cmd=_commands.CreateSprint)
-    def create(cmd: _commands.CreateSprint,
+    @register(cmd=commands.CreateSprint)
+    def create(cmd: commands.CreateSprint,
                handler: Handler,
                context: dict = {}) -> int:
         if not cmd:
@@ -68,8 +92,8 @@ class SprintCommandHandlers:
             handler.printer.console.print_new_object(new_sprint)
             return new_sprint_id
 
-    @register(cmd=_commands.StartSprint)
-    def start(cmd: _commands.StartSprint,
+    @register(cmd=commands.StartSprint)
+    def start(cmd: commands.StartSprint,
               handler: Handler,
               context: dict = {}) -> None:
         with handler.uow as uow:
@@ -94,7 +118,7 @@ class SprintCommandHandlers:
                 if task_params:
                     task_params["id"] = task.id
                     uow.published_events.append(
-                        _commands.UpdateTask(**task_params))
+                        commands.UpdateTask(**task_params))
                 # FIXME: ask-input should be provided via CLI
                 if sprint_task.story_points == 0 and context.get("ask-input"):
                     story_points = input(
@@ -113,8 +137,8 @@ class SprintCommandHandlers:
             uow.commit()
             logging.debug(f"Sprint started, context: {cmd}")
 
-    @register(cmd=_commands.CompleteSprint)
-    def complete(cmd: _commands.CompleteSprint,
+    @register(cmd=commands.CompleteSprint)
+    def complete(cmd: commands.CompleteSprint,
                  handler: Handler,
                  context: dict = {}) -> None:
         with handler.uow as uow:
@@ -134,13 +158,13 @@ class SprintCommandHandlers:
                 if task_params:
                     task_params["id"] = task.id
                     uow.published_events.append(
-                        _commands.UpdateTask(**task_params))
+                        commands.UpdateTask(**task_params))
             uow.commit()
             logging.debug(f"Sprint completed, context: {cmd}")
         handler.publisher.publish("Topic", events.SprintCompleted(cmd.id))
 
-    @register(cmd=_commands.ListSprint)
-    def list(cmd: _commands.ListSprint,
+    @register(cmd=commands.ListSprint)
+    def list(cmd: commands.ListSprint,
              handler: Handler,
              context: dict = {}) -> None:
         with handler.uow as uow:
@@ -163,13 +187,13 @@ class SprintEventHandlers:
 
 class TaskCommandHandlers:
 
-    @register(cmd=_commands.CreateTask)
-    def create(cmd: _commands.CreateTask,
+    @register(cmd=commands.CreateTask)
+    def create(cmd: commands.CreateTask,
                handler: Handler,
                context: dict = {}) -> int:
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
-                entities.task.Task, _commands.CreateTask)
+                entities.task.Task, commands.CreateTask)
         with handler.uow as uow:
             cmd.inject(handler.config)
             cmd = convert_project(cmd, handler)
@@ -186,8 +210,8 @@ class TaskCommandHandlers:
             handler.printer.console.print_new_object(new_task)
             return new_task_id
 
-    @register(cmd=_commands.UpdateTask)
-    def update(cmd: _commands.UpdateTask,
+    @register(cmd=commands.UpdateTask)
+    def update(cmd: commands.UpdateTask,
                handler: Handler,
                context: dict = {}) -> None:
         with handler.uow as uow:
@@ -197,7 +221,7 @@ class TaskCommandHandlers:
                     f"Task id {cmd.id} is not found")
             if not cmd:
                 cmd, context = templates.create_command_from_editor(
-                    existing_task, _commands.UpdateTask)
+                    existing_task, commands.UpdateTask)
                 cmd.id = existing_task.id
             cmd = convert_project(cmd, handler)
             for f in cmd.__dataclass_fields__:
@@ -223,8 +247,8 @@ class TaskCommandHandlers:
             uow.commit()
             TaskCommandHandlers._process_extra_args(cmd.id, context, uow)
 
-    @register(cmd=_commands.CollaborateTask)
-    def collaborate(cmd: _commands.CollaborateTask,
+    @register(cmd=commands.CollaborateTask)
+    def collaborate(cmd: commands.CollaborateTask,
                     handler: Handler,
                     context: dict = {}) -> None:
         with handler.uow as uow:
@@ -249,17 +273,17 @@ class TaskCommandHandlers:
                         id=cmd.id, collaborator_id=user_id))
                 uow.commit()
 
-    @register(cmd=_commands.AddTask)
-    def add(cmd: _commands.AddTask,
+    @register(cmd=commands.AddTask)
+    def add(cmd: commands.AddTask,
             handler: Handler,
             context: dict = {}) -> None:
 
         if (sprint := cmd.sprint) and (story_points := cmd.story_points):
             updated_context = {"entity_type": "sprint", "entity_id": sprint}
             TaskCommandHandlers._add(
-                _commands.AddTask(cmd.id,
-                                  sprint=sprint,
-                                  story_points=story_points), handler,
+                commands.AddTask(cmd.id,
+                                 sprint=sprint,
+                                 story_points=story_points), handler,
                 updated_context)
 
         else:
@@ -271,18 +295,18 @@ class TaskCommandHandlers:
                     }
                     if field == "sprint":
                         TaskCommandHandlers._add(
-                            _commands.AddTask(cmd.id, sprint=field_value),
+                            commands.AddTask(cmd.id, sprint=field_value),
                             handler, updated_context)
                     if field == "epic":
                         TaskCommandHandlers._add(
-                            _commands.AddTask(cmd.id, epic=field_value),
+                            commands.AddTask(cmd.id, epic=field_value),
                             handler, updated_context)
                     if field == "story":
                         TaskCommandHandlers._add(
-                            _commands.AddTask(cmd.id, story=field_value),
+                            commands.AddTask(cmd.id, story=field_value),
                             handler, updated_context)
 
-    def _add(cmd: _commands.AddTask, handler: Handler, context) -> None:
+    def _add(cmd: commands.AddTask, handler: Handler, context) -> None:
         entity_name, entity_id = context["entity_type"], context["entity_id"]
         entity_module = getattr(entities, entity_name)
         entity = getattr(entity_module, entity_name.capitalize())
@@ -332,16 +356,16 @@ class TaskCommandHandlers:
                         if task_params:
                             task_params["id"] = existing_task.id
                             uow.published_events.append(
-                                _commands.UpdateTask(**task_params))
+                                commands.UpdateTask(**task_params))
 
-    @register(cmd=_commands.AssignTask)
-    def assign(cmd: _commands.AssignTask,
+    @register(cmd=commands.AssignTask)
+    def assign(cmd: commands.AssignTask,
                handler: Handler,
                context: dict = {}) -> None:
         ...
 
-    @register(cmd=_commands.CompleteTask)
-    def complete(cmd: _commands.CompleteTask,
+    @register(cmd=commands.CompleteTask)
+    def complete(cmd: commands.CompleteTask,
                  handler: Handler,
                  context: dict = {}) -> None:
         with handler.uow as uow:
@@ -361,8 +385,8 @@ class TaskCommandHandlers:
             uow.commit()
             handler.publisher.publish("Topic", task_completed_event)
 
-    @register(cmd=_commands.DeleteTask)
-    def delete(cmd: _commands.DeleteTask,
+    @register(cmd=commands.DeleteTask)
+    def delete(cmd: commands.DeleteTask,
                handler: Handler,
                context: dict = {}) -> None:
 
@@ -379,20 +403,20 @@ class TaskCommandHandlers:
                 }
                 if field == "sprint":
                     TaskCommandHandlers._delete(
-                        _commands.DeleteTask(cmd.id, sprint=field_value),
+                        commands.DeleteTask(cmd.id, sprint=field_value),
                         handler, updated_context)
                 if field == "epic":
                     TaskCommandHandlers._delete(
-                        _commands.DeleteTask(cmd.id, epic=field_value),
-                        handler, updated_context)
+                        commands.DeleteTask(cmd.id, epic=field_value), handler,
+                        updated_context)
                 if field == "story":
                     TaskCommandHandlers._delete(
-                        _commands.DeleteTask(cmd.id, story=field_value),
+                        commands.DeleteTask(cmd.id, story=field_value),
                         handler, updated_context)
         if not updated_context:
             TaskCommandHandlers._delete(cmd, handler, context)
 
-    def _delete(cmd: _commands.DeleteTask,
+    def _delete(cmd: commands.DeleteTask,
                 handler: Handler,
                 context: dict = {}) -> None:
         with handler.uow as uow:
@@ -432,7 +456,7 @@ class TaskCommandHandlers:
                                 # FIXME: Duplication
                                 task_params["id"] = existing_task.id
                                 uow.published_events.append(
-                                    _commands.UpdateTask(**task_params))
+                                    commands.UpdateTask(**task_params))
             else:
                 task_deleted_event = events.TaskUpdated(
                     task=cmd.id,
@@ -447,8 +471,8 @@ class TaskCommandHandlers:
             uow.commit()
         handler.publisher.publish("Topic", events.TaskCompleted(cmd.id))
 
-    @register(cmd=_commands.CommentTask)
-    def comment(cmd: _commands.CommentTask,
+    @register(cmd=commands.CommentTask)
+    def comment(cmd: commands.CommentTask,
                 handler: Handler,
                 context: dict = {}) -> None:
         with handler.uow as uow:
@@ -459,8 +483,8 @@ class TaskCommandHandlers:
                                  {"modification_date": datetime.now()})
                 uow.commit()
 
-    @register(cmd=_commands.TrackTask)
-    def track(cmd: _commands.TrackTask,
+    @register(cmd=commands.TrackTask)
+    def track(cmd: commands.TrackTask,
               handler: Handler,
               context: dict = {}) -> None:
         with handler.uow as uow:
@@ -473,8 +497,8 @@ class TaskCommandHandlers:
                     task=cmd.id, time_spent_minutes=cmd.hours))
             uow.commit()
 
-    @register(cmd=_commands.TagTask)
-    def tag(cmd: _commands.TagTask,
+    @register(cmd=commands.TagTask)
+    def tag(cmd: commands.TagTask,
             handler: Handler,
             context: dict = {}) -> None:
         with handler.uow as uow:
@@ -500,33 +524,31 @@ class TaskCommandHandlers:
     def _process_extra_args(id, context, uow):
         if tags := context.get("tags"):
             for tag in tags.split(","):
-                uow.published_events.append(_commands.TagTask(id=id, tag=tag))
+                uow.published_events.append(commands.TagTask(id=id, tag=tag))
         if collaborators := context.get("collaborators"):
             for collaborator_name in collaborators.split(","):
                 uow.published_events.append(
-                    _commands.CollaborateTask(id=id,
-                                              collaborator=collaborator_name))
+                    commands.CollaborateTask(id=id,
+                                             collaborator=collaborator_name))
         if sprints := context.get("sprint"):
             for sprint in sprints.split(","):
                 uow.published_events.append(
-                    _commands.AddTask(id=id, sprint=sprint))
+                    commands.AddTask(id=id, sprint=sprint))
         if epics := context.get("epic"):
             for epic in epics.split(","):
-                uow.published_events.append(_commands.AddTask(id=id,
-                                                              epic=epic))
+                uow.published_events.append(commands.AddTask(id=id, epic=epic))
         if stories := context.get("story"):
             for story in stories.split(","):
                 uow.published_events.append(
-                    _commands.AddTask(id=id, story=story))
+                    commands.AddTask(id=id, story=story))
         if comment := context.get("comment"):
             uow.published_events.append(
-                _commands.CommentTask(id=id, text=comment))
+                commands.CommentTask(id=id, text=comment))
         if hours := context.get("time_spent"):
-            uow.published_events.append(_commands.TrackTask(id=id,
-                                                            hours=hours))
+            uow.published_events.append(commands.TrackTask(id=id, hours=hours))
 
-    @register(cmd=_commands.ListTask)
-    def list(cmd: _commands.ListTask,
+    @register(cmd=commands.ListTask)
+    def list(cmd: commands.ListTask,
              handler: Handler,
              context: dict = {}) -> None:
         filter_options = utils.FilterOptions.from_kwargs(**context)
@@ -595,7 +617,7 @@ class TaskEventHandlers(Handler):
     def comment_added(event: events.TaskCommentAdded,
                       handler: Handler,
                       context: dict = {}) -> None:
-        TaskCommandHandlers.comment(cmd=_commands.CommentTask(**asdict(event)),
+        TaskCommandHandlers.comment(cmd=commands.CommentTask(**asdict(event)),
                                     handler=handler,
                                     context=context)
         with handler.uow as uow:
@@ -607,7 +629,7 @@ class TaskEventHandlers(Handler):
                            handler: Handler,
                            context: dict = {}) -> None:
         TaskCommandHandlers.collaborate(
-            cmd=_commands.CollaborateTask(**asdict(event)),
+            cmd=commands.CollaborateTask(**asdict(event)),
             handler=handler,
             context=context)
 
@@ -615,8 +637,8 @@ class TaskEventHandlers(Handler):
     def hours_submitted(event: events.TaskHoursSubmitted,
                         handler: Handler,
                         context: dict = {}) -> None:
-        TaskCommandHandlers.track(cmd=_commands.TrackTask(id=event.id,
-                                                          hours=event.hours),
+        TaskCommandHandlers.track(cmd=commands.TrackTask(id=event.id,
+                                                         hours=event.hours),
                                   handler=handler,
                                   context=context)
 
@@ -624,8 +646,8 @@ class TaskEventHandlers(Handler):
     def added_to_epic(event: events.TaskAddedToEpic,
                       handler: Handler,
                       context: dict = {}) -> None:
-        TaskCommandHandlers.add(cmd=_commands.AddTask(id=event.id,
-                                                      epic=event.epic_id),
+        TaskCommandHandlers.add(cmd=commands.AddTask(id=event.id,
+                                                     epic=event.epic_id),
                                 handler=handler,
                                 context=context)
 
@@ -633,8 +655,8 @@ class TaskEventHandlers(Handler):
     def added_to_sprint(event: events.TaskAddedToSprint,
                         handler: Handler,
                         context: dict = {}) -> None:
-        TaskCommandHandlers.add(cmd=_commands.AddTask(id=event.id,
-                                                      sprint=event.sprint_id),
+        TaskCommandHandlers.add(cmd=commands.AddTask(id=event.id,
+                                                     sprint=event.sprint_id),
                                 handler=handler,
                                 context=context)
 
@@ -642,8 +664,8 @@ class TaskEventHandlers(Handler):
     def added_to_story(event: events.TaskAddedToStory,
                        handler: Handler,
                        context: dict = {}) -> None:
-        TaskCommandHandlers.add(cmd=_commands.AddTask(id=event.id,
-                                                      story=event.story_id),
+        TaskCommandHandlers.add(cmd=commands.AddTask(id=event.id,
+                                                     story=event.story_id),
                                 handler=handler,
                                 context=context)
 
@@ -663,13 +685,13 @@ class TaskEventHandlers(Handler):
 
 class ProjectCommandHandlers:
 
-    @register(cmd=_commands.CreateProject)
-    def create(cmd: _commands.CreateProject,
+    @register(cmd=commands.CreateProject)
+    def create(cmd: commands.CreateProject,
                handler: Handler,
                context: dict = {}) -> None:
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
-                entities.project.Project, _commands.CreateProject)
+                entities.project.Project, commands.CreateProject)
         project_id = None
         with handler.uow as uow:
             if not (existing_project := uow.tasks.get(entities.project.Project,
@@ -689,15 +711,15 @@ class ProjectCommandHandlers:
                 project_id = existing_project.id
             return project_id
 
-    @register(cmd=_commands.UpdateProject)
-    def update(cmd: _commands.UpdateProject,
+    @register(cmd=commands.UpdateProject)
+    def update(cmd: commands.UpdateProject,
                handler: Handler,
                context: dict = {}) -> None:
         with handler.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
             if not cmd.name:
                 cmd, context = templates.create_command_from_editor(
-                    project, _commands.UpdateProject)
+                    project, commands.UpdateProject)
                 cmd.id = project.id
             uow.tasks.update(entities.project.Project, project.id,
                              cmd.get_only_set_attributes())
@@ -715,8 +737,8 @@ class ProjectCommandHandlers:
                     events.ProjectCommentAdded(id=project_id, text=comment))
             uow.commit()
 
-    @register(cmd=_commands.CompleteProject)
-    def complete(cmd: _commands.CompleteProject,
+    @register(cmd=commands.CompleteProject)
+    def complete(cmd: commands.CompleteProject,
                  handler: Handler,
                  context: dict = {}) -> None:
         with handler.uow as uow:
@@ -726,10 +748,11 @@ class ProjectCommandHandlers:
             uow.published_events.append(events.ProjectCompleted(project.id))
             # TODO: implement _process_extra_args for projects
             uow.commit()
-            handler.publisher.publish("Topic", events.ProjectCompleted(project.id))
+            handler.publisher.publish("Topic",
+                                      events.ProjectCompleted(project.id))
 
-    @register(cmd=_commands.DeleteProject)
-    def delete(cmd: _commands.DeleteProject,
+    @register(cmd=commands.DeleteProject)
+    def delete(cmd: commands.DeleteProject,
                handler: Handler,
                context: dict = {}) -> None:
         with handler.uow as uow:
@@ -744,8 +767,8 @@ class ProjectCommandHandlers:
             handler.publisher.publish("Topic",
                                       events.ProjectDeleted(project.id))
 
-    @register(cmd=_commands.CommentProject)
-    def comment(cmd: _commands.CommentProject,
+    @register(cmd=commands.CommentProject)
+    def comment(cmd: commands.CommentProject,
                 handler: Handler,
                 context: dict = {}) -> None:
         with handler.uow as uow:
@@ -755,8 +778,8 @@ class ProjectCommandHandlers:
                                                       text=cmd.text))
             uow.commit()
 
-    @register(cmd=_commands.TagProject)
-    def tag(cmd: _commands.TagProject,
+    @register(cmd=commands.TagProject)
+    def tag(cmd: commands.TagProject,
             handler: Handler,
             context: dict = {}) -> None:
         with handler.uow as uow:
@@ -777,8 +800,8 @@ class ProjectCommandHandlers:
                     entities.tag.ProjectTag(id=project.id, tag_id=tag_id))
                 uow.commit()
 
-    @register(cmd=_commands.ListProject)
-    def list(cmd: _commands.ListProject,
+    @register(cmd=commands.ListProject)
+    def list(cmd: commands.ListProject,
              handler: Handler,
              context: dict = {}) -> None:
         with handler.uow as uow:
@@ -793,8 +816,8 @@ class ProjectCommandHandlers:
                 handler.printer.console.print_project(
                     projects, printer.PrintOptions.from_kwargs(**context))
 
-    @register(cmd=_commands.SyncProject)
-    def sync(cmd: _commands.SyncProject,
+    @register(cmd=commands.SyncProject)
+    def sync(cmd: commands.SyncProject,
              handler: Handler,
              context: dict = {}) -> None:
         with handler.uow as uow:
@@ -875,7 +898,7 @@ class ProjectEventHandlers:
                   handler: Handler,
                   context: dict = {}) -> None:
         ProjectCommandHandlers.comment(
-            cmd=_commands.CommentProject(**asdict(event)), handler=handler)
+            cmd=commands.CommentProject(**asdict(event)), handler=handler)
 
     @register(event=events.ProjectSynced)
     def synced(event: events.ProjectSynced,
@@ -894,10 +917,8 @@ class ProjectEventHandlers:
 
 class EpicCommandHandlers:
 
-    @register(cmd=_commands.CreateEpic)
-    def create(cmd: _commands.CreateEpic,
-               handler: Handler,
-               context: dict = {}):
+    @register(cmd=commands.CreateEpic)
+    def create(cmd: commands.CreateEpic, handler: Handler, context: dict = {}):
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
                 entities.epic.Epic, type(cmd))
@@ -910,8 +931,8 @@ class EpicCommandHandlers:
             handler.printer.console.print_new_object(new_epic)
             return new_epic_id
 
-    @register(cmd=_commands.CompleteEpic)
-    def complete(cmd: _commands.CompleteEpic,
+    @register(cmd=commands.CompleteEpic)
+    def complete(cmd: commands.CompleteEpic,
                  handler: Handler,
                  context: dict = {}) -> None:
         with handler.uow as uow:
@@ -924,8 +945,8 @@ class EpicCommandHandlers:
             uow.commit()
         handler.publisher.publish("Topic", events.EpicCompleted(cmd.id))
 
-    @register(cmd=_commands.DeleteEpic)
-    def delete(cmd: _commands.DeleteEpic,
+    @register(cmd=commands.DeleteEpic)
+    def delete(cmd: commands.DeleteEpic,
                handler: Handler,
                context: dict = {}) -> None:
         with handler.uow as uow:
@@ -937,8 +958,8 @@ class EpicCommandHandlers:
             uow.commit()
         handler.publisher.publish("Topic", events.EpicDeleted(cmd.id))
 
-    @register(cmd=_commands.CommentEpic)
-    def comment(cmd: _commands.CommentEpic,
+    @register(cmd=commands.CommentEpic)
+    def comment(cmd: commands.CommentEpic,
                 handler: Handler,
                 context: dict = {}) -> None:
         with handler.uow as uow:
@@ -946,8 +967,8 @@ class EpicCommandHandlers:
                 entities.commentary.EpicCommentary(id=cmd.id, text=cmd.text))
             uow.commit()
 
-    @register(cmd=_commands.AddEpic)
-    def add(cmd: _commands.AddEpic,
+    @register(cmd=commands.AddEpic)
+    def add(cmd: commands.AddEpic,
             handler: Handler,
             context: dict = {}) -> None:
         with handler.uow as uow:
@@ -961,10 +982,10 @@ class EpicCommandHandlers:
                 task = epic_task.tasks
                 if task.status.name not in ("DONE", "DELETED"):
                     uow.published_events.append(
-                        _commands.AddTask(id=task.id, sprint=cmd.sprint))
+                        commands.AddTask(id=task.id, sprint=cmd.sprint))
 
-    @register(cmd=_commands.ListEpic)
-    def list(cmd: _commands.ListEpic,
+    @register(cmd=commands.ListEpic)
+    def list(cmd: commands.ListEpic,
              handler: Handler,
              context: dict = {}) -> None:
         with handler.uow as uow:
@@ -980,8 +1001,8 @@ class EpicEventHandlers:
 
 class StoryCommandHandlers:
 
-    @register(cmd=_commands.CreateStory)
-    def create(cmd: _commands.CreateStory,
+    @register(cmd=commands.CreateStory)
+    def create(cmd: commands.CreateStory,
                handler: Handler,
                context: dict = {}) -> int:
         if not cmd.name:
@@ -996,8 +1017,8 @@ class StoryCommandHandlers:
             handler.printer.console.print_new_object(new_story)
             return new_story_id
 
-    @register(cmd=_commands.CompleteStory)
-    def complete(cmd: _commands.CompleteStory,
+    @register(cmd=commands.CompleteStory)
+    def complete(cmd: commands.CompleteStory,
                  handler: Handler,
                  context: dict = {}) -> None:
         with handler.uow as uow:
@@ -1010,8 +1031,8 @@ class StoryCommandHandlers:
             uow.commit()
         handler.publisher.publish("Topic", events.StoryCompleted(cmd.id))
 
-    @register(cmd=_commands.DeleteStory)
-    def delete(cmd: _commands.DeleteStory,
+    @register(cmd=commands.DeleteStory)
+    def delete(cmd: commands.DeleteStory,
                handler: Handler,
                context: dict = {}) -> None:
         with handler.uow as uow:
@@ -1024,8 +1045,8 @@ class StoryCommandHandlers:
             uow.commit()
         handler.publisher.publish("Topic", events.StoryDeleted(cmd.id))
 
-    @register(cmd=_commands.CommentStory)
-    def comment(cmd: _commands.CommentStory,
+    @register(cmd=commands.CommentStory)
+    def comment(cmd: commands.CommentStory,
                 handler: Handler,
                 context: dict = {}) -> None:
         with handler.uow as uow:
@@ -1033,8 +1054,8 @@ class StoryCommandHandlers:
                 entities.commentary.StoryCommentary(id=cmd.id, text=cmd.text))
             uow.commit()
 
-    @register(cmd=_commands.AddStory)
-    def add(cmd: _commands.AddStory,
+    @register(cmd=commands.AddStory)
+    def add(cmd: commands.AddStory,
             handler: Handler,
             context: dict = {}) -> None:
         with handler.uow as uow:
@@ -1048,13 +1069,13 @@ class StoryCommandHandlers:
                 task = story_task.tasks
                 if task.status.name not in ("DONE", "DELETED"):
                     uow.published_events.append(
-                        _commands.AddTask(id=task.id, sprint=cmd.sprint))
+                        commands.AddTask(id=task.id, sprint=cmd.sprint))
 
 
 class WorkspaceCommandHandlers:
 
-    @register(cmd=_commands.CreateWorkspace)
-    def create(cmd: _commands.CreateWorkspace,
+    @register(cmd=commands.CreateWorkspace)
+    def create(cmd: commands.CreateWorkspace,
                handler: Handler,
                context: dict = {}) -> None:
         if not cmd:
@@ -1072,8 +1093,8 @@ class WorkspaceCommandHandlers:
 
 class TagCommandHandlers:
 
-    @register(cmd=_commands.ListTag)
-    def list(cmd: _commands.ListTag,
+    @register(cmd=commands.ListTag)
+    def list(cmd: commands.ListTag,
              handler: Handler,
              context: dict = {}) -> None:
         with handler.uow as uow:
@@ -1083,8 +1104,21 @@ class TagCommandHandlers:
 
 class UserCommandHandlers:
 
-    @register(cmd=_commands.ListUser)
-    def list(cmd: _commands.ListUser,
+    @register(cmd=commands.CreateUser)
+    def create(cmd: commands.CreateUser,
+               handler: Handler,
+               context: dict = {}) -> None:
+        with handler.uow as uow:
+            if not uow.tasks.get(entities.user.User, cmd.name):
+                new_user = entities.user.User(**asdict(cmd))
+                uow.tasks.add(new_user)
+                uow.commit()
+                handler.printer.console.print_new_object(new_user)
+            else:
+                logging.warning(f"User {cmd.name} already exists")
+
+    @register(cmd=commands.ListUser)
+    def list(cmd: commands.ListUser,
              handler: Handler,
              context: dict = {}) -> None:
         with handler.uow as uow:
@@ -1094,8 +1128,8 @@ class UserCommandHandlers:
 
 class NoteCommandHandlers:
 
-    @register(cmd=_commands.ShowNote)
-    def show(cmd: _commands.ShowNote,
+    @register(cmd=commands.ShowNote)
+    def show(cmd: commands.ShowNote,
              handler: Handler,
              context: dict = {}) -> None:
         with handler.uow as uow:
@@ -1104,9 +1138,9 @@ class NoteCommandHandlers:
                 handler.printer.tui.show_note(note)
 
 
-def convert_project(cmd: _commands.Command,
+def convert_project(cmd: commands.Command,
                     handler: Handler,
-                    context: dict = {}) -> Type[_commands.Command]:
+                    context: dict = {}) -> Type[commands.Command]:
     if not (project_name := cmd.project):
         cmd.project = None
         return cmd
@@ -1123,7 +1157,7 @@ def convert_project(cmd: _commands.Command,
                 f"Creating new project: {project_name}. Do you want to continue?"
             )
         project_id = ProjectCommandHandlers.create(
-            cmd=_commands.CreateProject(name=project_name),
+            cmd=commands.CreateProject(name=project_name),
             handler=handler,
             context=context)
         cmd.project = project_id
@@ -1132,9 +1166,9 @@ def convert_project(cmd: _commands.Command,
     return cmd
 
 
-def convert_workspace(cmd: _commands.Command,
+def convert_workspace(cmd: commands.Command,
                       handler: Handler,
-                      context: dict = {}) -> Type[_commands.Command]:
+                      context: dict = {}) -> Type[commands.Command]:
     if not (workspace := cmd.workspace):
         # TODO: Get workspace from config
         cmd.workspace = 1
@@ -1156,16 +1190,18 @@ def convert_workspace(cmd: _commands.Command,
                   "Do you want to continue (Y/n)?")
             answer = input()
         workspace_id = WorkspaceCommandHandlers.create(
-            cmd=_commands.CreateWorkspace(name=workspace), handler=handler)
+            cmd=commands.CreateWorkspace(name=workspace),
+            handler=handler,
+            context=context)
         cmd.workspace = workspace_id
     else:
         cmd.workspace = int(existing_workspace.id)
     return cmd
 
 
-def convert_user(cmd: _commands.Command,
-                      handler: Handler,
-                      context: dict = {}) -> Type[_commands.Command]:
+def convert_user(cmd: commands.Command,
+                 handler: Handler,
+                 context: dict = {}) -> Type[commands.Command]:
     if not (created_by := cmd.created_by):
         return cmd
     try:
@@ -1173,14 +1209,17 @@ def convert_user(cmd: _commands.Command,
         return cmd
     except ValueError:
         ...
-    if not (existing_user := handler.uow.tasks.get(
-            entities.user.User, created_by)):
+    if not (existing_user := handler.uow.tasks.get(entities.user.User,
+                                                   created_by)):
         user_id = UserCommandHandlers.create(
-            cmd=_commands.CreateUser(name=created_by), handler=handler)
+            cmd=commands.CreateUser(name=created_by),
+            handler=handler,
+            context=context)
         cmd.created_by = user_id
     else:
         cmd.created_by = int(existing_user.id)
     return cmd
+
 
 def get_note_type(kwargs: dict[str, str]) -> entities.note.BaseNote:
     if "project" in kwargs:

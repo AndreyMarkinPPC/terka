@@ -20,16 +20,15 @@ from terka.adapters.orm import metadata, start_mappers
 from terka.adapters.repository import SqlAlchemyRepository
 
 from terka import bootstrap
-from terka.domain import _commands
+from terka.domain import commands
 from terka.utils import (
     format_task_dict,
     process_command,
     update_task_dict,
     create_task_dict,
 )
-from terka.service_layer import exceptions, services, unit_of_work
+from terka.service_layer import exceptions, handlers, services, unit_of_work
 from terka.service_layer.ui import TerkaTask, TerkaProject, TerkaSprint
-from terka.utils import format_command, format_entity
 
 HOME_DIR = os.path.expanduser("~")
 DB_URL = f"sqlite:////{HOME_DIR}/.terka/tasks.db"
@@ -62,14 +61,15 @@ def main():
         console.print(services.get_config())
         exit()
     if args.command == "init":
-        services.ServiceCommandHander(home_dir, None, None).execute(command, None, None)
+        services.ServiceCommandHander(home_dir, None,
+                                      None).execute(command, None, None)
 
     file_handler = logging.FileHandler(filename=f"{home_dir}/.terka/terka.log")
     stdout_handler = logging.StreamHandler(stream=sys.stdout)
-    handlers = [file_handler, stdout_handler]
+    log_handlers = [file_handler, stdout_handler]
     logging.basicConfig(
         format="[%(asctime)s][%(name)s][%(levelname)s] %(message)s",
-        handlers=handlers,
+        handlers=log_handlers,
         level=args.loglevel.upper(),
         datefmt="%Y-%m-%d %H:%M:%S",
     )
@@ -110,31 +110,7 @@ def main():
                                    bus=bus)
                 app.run()
             exit()
-    _CommandHandler(bus).execute(command, entity, task_dict)
-
-
-class _CommandHandler:
-
-    def __init__(self, bus) -> None:
-        self.bus = bus
-
-    def execute(self, command: str, entity: str,
-                task_dict: dict | list[dict]) -> None:
-        if isinstance(task_dict, list):
-            for _task_dict in task_dict:
-                self.execute(command, entity, _task_dict)
-        else:
-            command = format_command(command)
-            entity = format_entity(entity)
-            _command = f"{command.capitalize()}{entity.capitalize()}"
-            try:
-                self.bus.handle(getattr(_commands,
-                                        _command).from_kwargs(**task_dict),
-                                context=task_dict)
-            except AttributeError as e:
-                print(e)
-                raise exceptions.TerkaCommandException(
-                    f"Unknown command: `terka {command} {entity}`")
+    handlers.CommandHandler(bus).execute(command, entity, task_dict)
 
 
 def load_config(home_dir):

@@ -4,7 +4,7 @@ import re
 from subprocess import run
 import tempfile
 
-from terka.domain import entities, _commands
+from terka.domain import entities, commands
 from terka.utils import convert_date, convert_status
 
 
@@ -177,7 +177,7 @@ def flush_message(entity):
 
 
 def create_command_from_editor(
-        entity, command) -> tuple[Type[_commands.Command], dict]:
+        entity, command) -> tuple[Type[commands.Command], dict]:
     new_entry = flush_message(entity)
     new_entry = new_entry.decode("utf-8").rstrip()
     command_arguments: dict = {}

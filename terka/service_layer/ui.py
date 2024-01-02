@@ -19,7 +19,7 @@ from textual.widgets import (Button, Input, Header, Footer, Label, Tabs,
                              DataTable, TabbedContent, TabPane, Static,
                              Markdown, MarkdownViewer, Pretty, Rule, Select)
 
-from terka.domain import _commands, events, entities
+from terka.domain import commands, events, entities
 from terka.service_layer import services, views, exceptions, ui_components
 from terka.service_layer.formatter import Formatter
 
@@ -84,8 +84,8 @@ class PopupsMixin:
     def __init__(self):
         ...
 
-    def _process_chain_of_commands(self,
-                                   result: tuple[_commands.Command, ...],
+    def _process_chain_ofcommands(self,
+                                   result: tuple[commands.Command, ...],
                                    project: str | None = None) -> int | None:
         main_command, *rest = result
         main_command.id = self.selected_task
@@ -103,28 +103,28 @@ class PopupsMixin:
         self.push_screen(ui_components.TaskComplete(),
                          self.task_complete_callback)
 
-    def task_complete_callback(self, result: tuple[_commands.CompleteTask,
-                                                   _commands.CommentTask,
-                                                   _commands.TrackTask]):
-        self._process_chain_of_commands(result)
+    def task_complete_callback(self, result: tuple[commands.CompleteTask,
+                                                   commands.CommentTask,
+                                                   commands.TrackTask]):
+        self._process_chain_ofcommands(result)
         self.notify(f"Task: {self.selected_task} is completed!")
 
     def action_task_edit(self) -> None:
         self.push_screen(ui_components.TaskEdit(), self.task_edit_callback)
 
-    def task_edit_callback(self, result: tuple[_commands.UpdateTask,
-                                               _commands.CommentTask]):
-        self._process_chain_of_commands(result)
+    def task_edit_callback(self, result: tuple[commands.UpdateTask,
+                                               commands.CommentTask]):
+        self._process_chain_ofcommands(result)
         self.notify(f"Task: {self.selected_task} is updated!")
 
     def action_task_add(self) -> None:
         self.push_screen(ui_components.TaskAdd(), self.task_add_callback)
 
-    def task_add_callback(self, result: _commands.AddTask):
+    def task_add_callback(self, result: commands.AddTask):
         if epic := result.epic:
             try:
                 self.bus.handle(
-                    _commands.AddTask(
+                    commands.AddTask(
                         id=self.selected_task,
                         epic=int(epic),
                     ))
@@ -133,7 +133,7 @@ class PopupsMixin:
             except exceptions.EntityNotFound:
                 self.notify(f"Epic {epic} not found!", severity="error")
         if sprint := result.sprint:
-            cmd = _commands.AddTask(
+            cmd = commands.AddTask(
                 id=self.selected_task,
                 sprint=sprint,
             )
@@ -155,7 +155,7 @@ class PopupsMixin:
         if story := result.story:
             try:
                 self.bus.handle(
-                    _commands.AddTask(
+                    commands.AddTask(
                         id=self.selected_task,
                         story=story,
                     ))
@@ -167,9 +167,9 @@ class PopupsMixin:
     def action_task_delete(self) -> None:
         self.push_screen(ui_components.TaskDelete(), self.task_delete_callback)
 
-    def task_delete_callback(self, result: tuple[_commands.CompleteTask,
-                                                 _commands.CommentTask,
-                                                 _commands.TrackTask]):
+    def task_delete_callback(self, result: tuple[commands.CompleteTask,
+                                                 commands.CommentTask,
+                                                 commands.TrackTask]):
         delete, *rest = result
         delete.id = self.selected_task
         is_sprint = False
@@ -214,18 +214,18 @@ class PopupsMixin:
 
     def task_update_status_callback(self, result: str):
         self.bus.handle(
-            _commands.UpdateTask(id=self.selected_task, status=result))
+            commands.UpdateTask(id=self.selected_task, status=result))
         self.notify(f"Task: {self.selected_task} status updated to {result}!")
 
     def task_update_priority_callback(self, result: str):
         self.bus.handle(
-            _commands.UpdateTask(id=self.selected_task, priority=result))
+            commands.UpdateTask(id=self.selected_task, priority=result))
         self.notify(
             f"Task: {self.selected_task} priority updated to {result}!")
 
     def task_update_story_points_callback(self, result: str):
         self.bus.handle(
-            _commands.AddTask(id=self.selected_task,
+            commands.AddTask(id=self.selected_task,
                               sprint=self.sprint_id,
                               story_points=result))
         self.notify(
@@ -233,16 +233,16 @@ class PopupsMixin:
 
     def task_update_hours_callback(self, result: str):
         self.bus.handle(
-            _commands.TrackTask(id=self.selected_task, hours=result))
+            commands.TrackTask(id=self.selected_task, hours=result))
         self.notify(f"Tracked {result} minutes for task {self.selected_task}!")
 
     def task_update_tag_callback(self, result: str):
-        self.bus.handle(_commands.TagTask(id=self.selected_task, tag=result))
+        self.bus.handle(commands.TagTask(id=self.selected_task, tag=result))
         self.notify(f"Tagged task {self.selected_task} with tag(s): {result}!")
 
     def task_update_collaborator_callback(self, result: str):
         self.bus.handle(
-            _commands.CollaborateTask(id=self.selected_task,
+            commands.CollaborateTask(id=self.selected_task,
                                       collaborator=result))
         self.notify(
             f"Added collaborator {result} for task {self.selected_task}!")
@@ -725,17 +725,17 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
         elif event.button.id == "new_story":
             self.push_screen(ui_components.NewStory(), self.story_new_callback)
 
-    def task_new_callback(self, result: list[_commands.Command]):
-        object_id = self._process_chain_of_commands(result,
+    def task_new_callback(self, result: list[commands.Command]):
+        object_id = self._process_chain_ofcommands(result,
                                                     project=self.project_id)
         self.notify(f"New task created with id {object_id}!")
 
-    def epic_new_callback(self, result: _commands.CreateEpic):
+    def epic_new_callback(self, result: commands.CreateEpic):
         result.project = self.entity.name
         self.bus.handle(result)
         self.notify(f"New epic created!")
 
-    def story_new_callback(self, result: _commands.CreateStory):
+    def story_new_callback(self, result: commands.CreateStory):
         result.project = self.entity.name
         self.bus.handle(result)
         self.notify(f"New story created!")
@@ -982,8 +982,8 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
         if self.entity.status.name != "COMPLETED":
             self.push_screen(ui_components.NewTask(), self.task_new_callback)
 
-    def task_new_callback(self, result: list[_commands.Command]):
-        object_id = self._process_chain_of_commands(result)
+    def task_new_callback(self, result: list[commands.Command]):
+        object_id = self._process_chain_ofcommands(result)
         self.notify(f"New task created with id {object_id}!")
 
     @on(Button.Pressed)

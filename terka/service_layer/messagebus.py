@@ -1,10 +1,10 @@
 from __future__ import annotations
 from typing import Type
 
-from terka.domain import _commands, events
+from terka.domain import commands, events
 from terka.service_layer import unit_of_work, handlers
 
-Message = _commands.Command | events.Event
+Message = commands.Command | events.Event
 
 
 class MessageBus:
@@ -29,13 +29,13 @@ class MessageBus:
             message = self.queue.pop(0)
             if isinstance(message, events.Event):
                 self.handle_event(message, context)
-            elif isinstance(message, _commands.Command):
+            elif isinstance(message, commands.Command):
                 self.handle_command(message, context)
 
         if self.return_value:
             return self.return_value
 
-    def handle_command(self, command: _commands.Command,
+    def handle_command(self, command: commands.Command,
                        context: dict) -> None:
         handler = self.command_handlers[type(command)]
         if result := handler(command, self.handler, context):
