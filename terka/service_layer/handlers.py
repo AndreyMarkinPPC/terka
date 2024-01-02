@@ -348,7 +348,7 @@ class TaskCommandHandlers:
                     f"Task id {cmd.id} is not found")
             task_completed_event = events.TaskUpdated(
                 task=cmd.id,
-                event_type="STATUS",
+                type="STATUS",
                 old_value=existing_task.status.name,
                 new_value="DONE")
             uow.published_events.append(task_completed_event)
@@ -433,7 +433,7 @@ class TaskCommandHandlers:
             else:
                 task_deleted_event = events.TaskUpdated(
                     task=cmd.id,
-                    event_type="STATUS",
+                    type="STATUS",
                     old_value=existing_task.status.name,
                     new_value="DELETED")
                 uow.published_events.append(task_deleted_event)
@@ -554,7 +554,7 @@ class TaskEventHandlers(Handler):
                   context: dict = {}) -> None:
         with handler.uow as uow:
             task_event = entities.event_history.TaskEvent(task=event.id,
-                                                          event_type="STATUS",
+                                                          type="STATUS",
                                                           old_value="",
                                                           new_value="DONE")
             uow.tasks.add(task_event)
@@ -580,7 +580,7 @@ class TaskEventHandlers(Handler):
                 context: dict = {}) -> None:
         with handler.uow as uow:
             task_event = entities.event_history.TaskEvent(task_id=event.id,
-                                                          event_type="STATUS",
+                                                          type="STATUS",
                                                           old_value="",
                                                           new_value="DELETED")
             uow.tasks.add(task_event)
