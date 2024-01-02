@@ -97,6 +97,9 @@ class NewTask(TerkaModalScreen):
             Input(placeholder="Project",
                   id="project",
                   classes="project-input"),
+            Input(placeholder="Assignee",
+                  id="assignee",
+                  classes="assignee-input"),
             Select(((line, line) for line in [
                 "BACKLOG", "TODO", "IN_PROGRESS", "REVIEW", "DONE", "DELETED"
             ]),

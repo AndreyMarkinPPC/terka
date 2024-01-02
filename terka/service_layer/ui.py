@@ -800,10 +800,11 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
             classes="header")
         with TabbedContent(initial="tasks"):
             with TabPane("Tasks", id="tasks"):
-                yield Button("+Task",
-                             id="new_task",
-                             variant="success",
-                             classes="new_entity")
+                if self.entity.status.name != "COMPLETED":
+                    yield Button("+Task",
+                                 id="new_task",
+                                 variant="success",
+                                 classes="new_entity")
                 table = DataTable(id="sprint_open_tasks_table")
                 for column in ("id", "name", "status", "priority",
                                "story_points", "project", "due_date", "tags",
@@ -978,7 +979,8 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
         self.query_one(TabbedContent).active = "notes"
 
     def action_new_task(self):
-        self.push_screen(ui_components.NewTask(), self.task_new_callback)
+        if self.entity.status.name != "COMPLETED":
+            self.push_screen(ui_components.NewTask(), self.task_new_callback)
 
     def task_new_callback(self, result: list[_commands.Command]):
         object_id = self._process_chain_of_commands(result)
