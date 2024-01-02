@@ -29,6 +29,10 @@ class Command:
     def __bool__(self) -> bool:
         return all(f for f in self.__dataclass_fields__ if f != "id")
 
+    def inject(self, config: dict) -> None:
+        self.__dict__.update(config)
+        self.__dict__["created_by"] = self.__dict__.pop("user")
+
     @staticmethod
     def format_date(attributes: dict, date_attribute: str):
         if date_attribute_value := attributes.get(date_attribute):

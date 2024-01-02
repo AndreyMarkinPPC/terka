@@ -40,12 +40,14 @@ class Handler:
     def __init__(
         self,
         uow: unit_of_work.AbstractUnitOfWork,
-        publisher: publisher.BasePublisher = None,
-        printer: printer.Printer = printer.Printer()
+        publisher: publisher.BasePublisher | None = None,
+        printer: printer.Printer = printer.Printer(),
+        config: dict | None = None
     ) -> None:
         self.uow = uow
         self.publisher = publisher
         self.printer = printer
+        self.config = config
 
 
 class SprintCommandHandlers:
@@ -169,6 +171,7 @@ class TaskCommandHandlers:
             cmd, context = templates.create_command_from_editor(
                 entities.task.Task, _commands.CreateTask)
         with handler.uow as uow:
+            cmd.inject(handler.config)
             cmd = convert_project(cmd, handler)
             cmd = convert_user(cmd, handler)
             new_task = entities.task.Task(**asdict(cmd))

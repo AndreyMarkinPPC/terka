@@ -9,11 +9,15 @@ Message = _commands.Command | events.Event
 
 class MessageBus:
 
-    def __init__(self, uow: unit_of_work.AbstractUnitOfWork, publisher,
+    def __init__(self,
+                 uow: unit_of_work.AbstractUnitOfWork,
+                 publisher,
                  event_handlers: Type[handlers.Handler],
                  command_handlers: Type[handlers.Handler],
                  config: dict | None = None) -> None:
-        self.handler = handlers.Handler(uow, publisher)
+        self.handler = handlers.Handler(uow=uow,
+                                        publisher=publisher,
+                                        config=config)
         self.event_handlers = event_handlers
         self.command_handlers = command_handlers
         self.config = config
@@ -31,7 +35,8 @@ class MessageBus:
         if self.return_value:
             return self.return_value
 
-    def handle_command(self, command: _commands.Command, context: dict) -> None:
+    def handle_command(self, command: _commands.Command,
+                       context: dict) -> None:
         handler = self.command_handlers[type(command)]
         if result := handler(command, self.handler, context):
             self.return_value = result
