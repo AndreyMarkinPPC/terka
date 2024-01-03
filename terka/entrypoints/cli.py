@@ -24,11 +24,9 @@ from terka.domain import commands
 from terka.utils import (
     format_task_dict,
     process_command,
-    update_task_dict,
-    create_task_dict,
+    load_config
 )
 from terka.service_layer import exceptions, handlers, services, unit_of_work
-from terka.service_layer.ui import TerkaTask, TerkaProject, TerkaSprint
 
 HOME_DIR = os.path.expanduser("~")
 DB_URL = f"sqlite:////{HOME_DIR}/.terka/tasks.db"
@@ -94,33 +92,7 @@ def main():
     bus = bootstrap.bootstrap(start_orm=True,
                               uow=unit_of_work.SqlAlchemyUnitOfWork(DB_URL),
                               config=config)
-    engine = init_db(home_dir)
-    Session = sessionmaker(engine)
-    with Session() as session:
-        repo = SqlAlchemyRepository(session)
-        if command == "show":
-            if entity == "sprint":
-                app = TerkaSprint(repo=repo,
-                                  sprint_id=task_dict.get("id"),
-                                  bus=bus)
-                app.run()
-            if entity == "project":
-                app = TerkaProject(repo=repo,
-                                   project_id=task_dict.get("id"),
-                                   bus=bus)
-                app.run()
-            exit()
     handlers.CommandHandler(bus).execute(command, entity, task_dict)
-
-
-def load_config(home_dir):
-    try:
-        with open(f"{home_dir}/.terka/config.yaml", encoding="utf-8") as f:
-            config = yaml.safe_load(f)
-        return config
-    except FileNotFoundError:
-        raise exceptions.TerkaInitError(
-            "call `terka init` to initialize terka")
 
 
 if __name__ == "__main__":

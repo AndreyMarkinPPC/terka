@@ -317,6 +317,11 @@ class CompleteSprint(Complete):
 
 
 @dataclass
+class ShowSprint(Show):
+    ...
+
+
+@dataclass
 class ListSprint(List):
     ...
 

@@ -310,6 +310,17 @@ def format_entity(entity: str) -> str:
     return entity
 
 
+def load_config(home_dir: str) -> dict:
+    try:
+        with open(f"{home_dir}/.terka/config.yaml", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+        return config
+    except FileNotFoundError:
+        raise exceptions.TerkaInitError(
+            "call `terka init` to initialize terka")
+
+
+
 @dataclass
 class FilterOptions:
     id: str | None = None

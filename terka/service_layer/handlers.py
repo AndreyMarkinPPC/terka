@@ -15,7 +15,6 @@ from terka.domain.external_connectors import asana
 from terka.service_layer import exceptions, messagebus, templates, unit_of_work, views
 from terka.utils import format_command, format_entity
 
-
 COMMAND_HANDLERS = {}
 EVENT_HANDLERS = defaultdict(list)
 
@@ -162,6 +161,17 @@ class SprintCommandHandlers:
             uow.commit()
             logging.debug(f"Sprint completed, context: {cmd}")
         handler.publisher.publish("Topic", events.SprintCompleted(cmd.id))
+
+    @register(cmd=commands.ShowSprint)
+    def show(cmd: commands.ShowSprint,
+             handler: Handler,
+             context: dict = {}) -> None:
+        with handler.uow as uow:
+            if not (existing_sprint := uow.tasks.get_by_id(
+                    entities.sprint.Sprint, cmd.id)):
+                raise exceptions.EntityNotFound(
+                    f"Sprint id {cmd.id} is not found")
+            handler.printer.tui.print_sprint(existing_sprint, handler)
 
     @register(cmd=commands.ListSprint)
     def list(cmd: commands.ListSprint,
@@ -347,10 +357,10 @@ class TaskCommandHandlers:
                         if existing_task.status.name == "BACKLOG":
                             task_params.update({"status": "TODO"})
                         if (not existing_task.due_date
-                                or existing_task.due_date
-                                > existing_entity.end_date
-                                or existing_task.due_date
-                                < existing_entity.start_date):
+                                or existing_task.due_date >
+                                existing_entity.end_date
+                                or existing_task.due_date <
+                                existing_entity.start_date):
                             task_params.update(
                                 {"due_date": existing_entity.end_date})
                         if task_params:
@@ -799,6 +809,14 @@ class ProjectCommandHandlers:
                 uow.tasks.add(
                     entities.tag.ProjectTag(id=project.id, tag_id=tag_id))
                 uow.commit()
+
+    @register(cmd=commands.ShowProject)
+    def show(cmd: commands.ShowProject,
+             handler: Handler,
+             context: dict = {}) -> None:
+        with handler.uow as uow:
+            project = ProjectCommandHandlers._validate_project(cmd.id, uow)
+            handler.printer.tui.print_project(project, handler)
 
     @register(cmd=commands.ListProject)
     def list(cmd: commands.ListProject,

@@ -409,18 +409,15 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
 
     show_sidebar = reactive(False)
 
-    def __init__(self, repo, project_id, bus) -> None:
+    def __init__(self, entity, bus) -> None:
         super().__init__()
-        self.repo = repo
+        self.entity = entity
         self.bus = bus
         self.tasks = list()
         self.selected_task = None
         self.selected_column = None
-        self.project_id = project_id
-        self.entity = self.get_entity()
+        self.project_id = entity.id
 
-    def get_entity(self):
-        return self.repo.get(entities.project.Project, self.project_id)
 
     def action_refresh(self):
         self.entity = self.get_entity()
@@ -753,18 +750,14 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                 ("X", "task_delete", "Delete"), ("a", "task_add", "Add"),
                 ("U", "task_update_context", "Update"), ("T", "time", "Time")]
 
-    def __init__(self, repo, sprint_id, bus) -> None:
+    def __init__(self, entity, bus) -> None:
         super().__init__()
-        self.repo = repo
+        self.entity = entity
         self.bus = bus
-        self.sprint_id = sprint_id
-        self.entity = self.get_entity()
+        self.sprint_id = entity.id
         self.tasks = self.get_tasks()
         self.selected_task = None
         self.selected_column = None
-
-    def get_entity(self):
-        return self.repo.get_by_id(entities.sprint.Sprint, self.sprint_id)
 
     def get_tasks(self, all: bool = False):
         for sprint_task in self.entity.tasks:
@@ -836,8 +829,9 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                         task_id = f"[yellow]{task.id}[/yellow]"
                     else:
                         task_id = str(task.id)
-                    project = services.lookup_project_name(
-                        task.project, self.repo)
+                    with self.bus.uow as uow:
+                        project = services.lookup_project_name(
+                            task.project, uow.repo)
                     if len(commentaries := task.commentaries) > 0:
                         task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
                     else:
@@ -882,8 +876,9 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                         collaborator_string = ",".join(collaborators_texts)
                     else:
                         collaborator_string = ""
-                    project = services.lookup_project_name(
-                        task.project, self.repo)
+                    with self.bus.uow as uow:
+                        project = services.lookup_project_name(
+                            task.project, uow.repo)
                     if len(commentaries := task.commentaries) > 0:
                         task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
                     else:
@@ -914,8 +909,9 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                 if not (sprint_time := self.entity.daily_time_entries_hours()):
                     yield Static("No time tracked")
                 else:
-                    workspace = services.get_workplace_by_name(
-                        self.bus.config.get("workspace"), self.repo)
+                    with self.bus.uow as uow:
+                        workspace = services.get_workplace_by_name(
+                            self.bus.config.get("workspace"), uow.repo)
                     all_workspace_time = workspace.daily_time_entries_hours(
                         start_date=self.entity.start_date,
                         end_date=self.entity.end_date)
@@ -936,8 +932,9 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
             with TabPane("Overview", id="overview"):
                 project_split = defaultdict(int)
                 for task in self.get_tasks(all=True):
-                    project = services.lookup_project_name(
-                        task.project, self.repo)
+                    with self.bus.uow as uow:
+                        project = services.lookup_project_name(
+                            task.project, uow.repo)
                     project_split[project] += task.total_time_spent
                 collaborators = self.entity.collaborators
                 sorted_collaborators = ""

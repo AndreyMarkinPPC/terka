@@ -56,6 +56,13 @@ class TextualPrinter:
         app = NoteMarkdownViewer()
         app.run()
 
+    def print_project(self, project, bus):
+        app = ui.TerkaProject(project, bus)
+        app.run()
+
+    def print_sprint(self, sprint, bus):
+        app = ui.TerkaSprint(sprint, bus)
+        app.run()
 
 class ConsolePrinter:
 
