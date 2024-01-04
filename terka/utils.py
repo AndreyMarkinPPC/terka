@@ -3,8 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 import re
+import yaml
 
-from terka.service_layer import services
+from terka.domain import commands
+from terka.service_layer import exceptions, services
 from terka.adapters.repository import AbsRepository
 
 
@@ -286,6 +288,18 @@ def format_command(command: str) -> str:
     if "comment".startswith(command):
         return "comment"
     return command
+
+
+def create_command(command: str, entity: str, task_dict: dict) -> commands.Command:
+    command = format_command(command)
+    entity = format_entity(entity)
+    _command = f"{command.capitalize()}{entity.capitalize()}"
+    try:
+        return getattr(commands, _command).from_kwargs(**task_dict)
+    except AttributeError as e:
+        print(e)
+        raise exceptions.TerkaCommandException(
+            f"Unknown command: `terka {command} {entity}`")
 
 
 def format_entity(entity: str) -> str:

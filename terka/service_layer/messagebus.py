@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Type
 
+from terka.adapters import publisher, printer
 from terka.domain import commands, events
 from terka.service_layer import unit_of_work, handlers
 
@@ -11,13 +12,14 @@ class MessageBus:
 
     def __init__(self,
                  uow: unit_of_work.AbstractUnitOfWork,
-                 publisher,
                  event_handlers: Type[handlers.Handler],
                  command_handlers: Type[handlers.Handler],
-                 config: dict | None = None) -> None:
-        self.handler = handlers.Handler(uow=uow,
-                                        publisher=publisher,
-                                        config=config)
+                 config: dict | None = None,
+                 publisher: publisher.BasePublisher | None = None,
+                 printer = printer.Printer()) -> None:
+        self.uow = uow
+        self.publisher = publisher
+        self.printer = printer
         self.event_handlers = event_handlers
         self.command_handlers = command_handlers
         self.config = config
@@ -38,12 +40,12 @@ class MessageBus:
     def handle_command(self, command: commands.Command,
                        context: dict) -> None:
         handler = self.command_handlers[type(command)]
-        if result := handler(command, self.handler, context):
+        if result := handler(command, self, context):
             self.return_value = result
-        self.queue.extend(self.handler.uow.collect_new_events())
+        self.queue.extend(self.uow.collect_new_events())
 
     def handle_event(self, event: events.Event, context: dict) -> None:
         for handler in self.event_handlers[type(event)]:
-            if result := handler(event, self.handler, context):
+            if result := handler(event, self, context):
                 self.return_value = result
-            self.queue.extend(self.handler.uow.collect_new_events())
+            self.queue.extend(self.uow.collect_new_events())

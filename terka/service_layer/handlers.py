@@ -13,7 +13,7 @@ from terka.adapters import publisher, printer
 from terka.domain import commands, events, entities
 from terka.domain.external_connectors import asana
 from terka.service_layer import exceptions, messagebus, templates, unit_of_work, views
-from terka.utils import format_command, format_entity
+from terka.utils import create_command
 
 COMMAND_HANDLERS = {}
 EVENT_HANDLERS = defaultdict(list)
@@ -24,8 +24,8 @@ def register(cmd=None, event=None):
     def fn(func):
 
         @functools.wraps(func)
-        def inner_function(cmd, handler, context):
-            return func(cmd, handler, context)
+        def inner_function(cmd, bus, context):
+            return func(cmd, bus, context)
 
         if cmd:
             COMMAND_HANDLERS[cmd] = inner_function
@@ -34,19 +34,6 @@ def register(cmd=None, event=None):
         return inner_function
 
     return fn
-
-
-class Handler:
-
-    def __init__(self,
-                 uow: unit_of_work.AbstractUnitOfWork,
-                 publisher: publisher.BasePublisher | None = None,
-                 printer: printer.Printer = printer.Printer(),
-                 config: dict | None = None) -> None:
-        self.uow = uow
-        self.publisher = publisher
-        self.printer = printer
-        self.config = config
 
 
 class CommandHandler:
@@ -60,13 +47,9 @@ class CommandHandler:
             for _task_dict in task_dict:
                 self.execute(command, entity, _task_dict)
         else:
-            command = format_command(command)
-            entity = format_entity(entity)
-            _command = f"{command.capitalize()}{entity.capitalize()}"
+            cmd = create_command(command, entity, task_dict)
             try:
-                self.bus.handle(getattr(commands,
-                                        _command).from_kwargs(**task_dict),
-                                context=task_dict)
+                self.bus.handle(cmd, context=task_dict)
             except AttributeError as e:
                 print(e)
                 raise exceptions.TerkaCommandException(
@@ -77,25 +60,25 @@ class SprintCommandHandlers:
 
     @register(cmd=commands.CreateSprint)
     def create(cmd: commands.CreateSprint,
-               handler: Handler,
+               bus: messagebus.MessageBus,
                context: dict = {}) -> int:
         if not cmd:
             cmd, context = templates.create_command_from_editor(
                 entities.sprint.Sprint, type(cmd))
-        with handler.uow as uow:
+        with bus.uow as uow:
             # TODO: Add code for checking existing sprints
             new_sprint = entities.sprint.Sprint(**asdict(cmd))
             uow.tasks.add(new_sprint)
             uow.commit()
             new_sprint_id = new_sprint.id
-            handler.printer.console.print_new_object(new_sprint)
+            bus.printer.console.print_new_object(new_sprint)
             return new_sprint_id
 
     @register(cmd=commands.StartSprint)
     def start(cmd: commands.StartSprint,
-              handler: Handler,
+              bus: messagebus.MessageBus,
               context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if not (existing_sprint := uow.tasks.get_by_id(
                     entities.sprint.Sprint, cmd.id)):
                 raise exceptions.EntityNotFound(
@@ -138,9 +121,9 @@ class SprintCommandHandlers:
 
     @register(cmd=commands.CompleteSprint)
     def complete(cmd: commands.CompleteSprint,
-                 handler: Handler,
+                 bus: messagebus.MessageBus,
                  context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if not (existing_sprint := uow.tasks.get_by_id(
                     entities.sprint.Sprint, cmd.id)):
                 raise exceptions.EntityNotFound(
@@ -160,35 +143,35 @@ class SprintCommandHandlers:
                         commands.UpdateTask(**task_params))
             uow.commit()
             logging.debug(f"Sprint completed, context: {cmd}")
-        handler.publisher.publish("Topic", events.SprintCompleted(cmd.id))
+        bus.publisher.publish("Topic", events.SprintCompleted(cmd.id))
 
     @register(cmd=commands.ShowSprint)
     def show(cmd: commands.ShowSprint,
-             handler: Handler,
+             bus: messagebus.MessageBus,
              context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if not (existing_sprint := uow.tasks.get_by_id(
                     entities.sprint.Sprint, cmd.id)):
                 raise exceptions.EntityNotFound(
                     f"Sprint id {cmd.id} is not found")
-            handler.printer.tui.print_sprint(existing_sprint, handler)
+            bus.printer.tui.print_sprint(existing_sprint, bus)
 
     @register(cmd=commands.ListSprint)
     def list(cmd: commands.ListSprint,
-             handler: Handler,
+             bus: messagebus.MessageBus,
              context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if sprints := uow.tasks.list(entities.sprint.Sprint):
-                handler.printer.console.print_sprint(
+                bus.printer.console.print_sprint(
                     sprints, printer.PrintOptions.from_kwargs(**context))
 
 
 class SprintEventHandlers:
 
     def assign_story_points(event: events.SprintTaskStoryPointAssigned,
-                            handler: Handler,
+                            bus: messagebus.MessageBus,
                             context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             uow.tasks.update(entities.sprint.SprintTask, event.id,
                              {"story_points": event.story_points})
             uow.commit()
@@ -199,15 +182,15 @@ class TaskCommandHandlers:
 
     @register(cmd=commands.CreateTask)
     def create(cmd: commands.CreateTask,
-               handler: Handler,
+               bus: messagebus.MessageBus,
                context: dict = {}) -> int:
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
                 entities.task.Task, commands.CreateTask)
-        with handler.uow as uow:
-            cmd.inject(handler.config)
-            cmd = convert_project(cmd, handler)
-            cmd = convert_user(cmd, handler)
+        with bus.uow as uow:
+            cmd.inject(bus.config)
+            cmd = convert_project(cmd, bus)
+            cmd = convert_user(cmd, bus)
             new_task = entities.task.Task(**asdict(cmd))
             uow.tasks.add(new_task)
             uow.flush()
@@ -216,15 +199,15 @@ class TaskCommandHandlers:
             uow.published_events.append(task_created_event)
             uow.commit()
             TaskCommandHandlers._process_extra_args(new_task.id, context, uow)
-            handler.publisher.publish("Topic", task_created_event)
-            handler.printer.console.print_new_object(new_task)
+            bus.publisher.publish("Topic", task_created_event)
+            bus.printer.console.print_new_object(new_task)
             return new_task_id
 
     @register(cmd=commands.UpdateTask)
     def update(cmd: commands.UpdateTask,
-               handler: Handler,
+               bus: messagebus.MessageBus,
                context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
                     entities.task.Task, cmd.id)):
                 raise exceptions.EntityNotFound(
@@ -233,7 +216,7 @@ class TaskCommandHandlers:
                 cmd, context = templates.create_command_from_editor(
                     existing_task, commands.UpdateTask)
                 cmd.id = existing_task.id
-            cmd = convert_project(cmd, handler)
+            cmd = convert_project(cmd, bus)
             for f in cmd.__dataclass_fields__:
                 if f == "id":
                     continue
@@ -259,9 +242,9 @@ class TaskCommandHandlers:
 
     @register(cmd=commands.CollaborateTask)
     def collaborate(cmd: commands.CollaborateTask,
-                    handler: Handler,
+                    bus: messagebus.MessageBus,
                     context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
                     entities.task.Task, cmd.id)):
                 raise exceptions.EntityNotFound(
@@ -285,7 +268,7 @@ class TaskCommandHandlers:
 
     @register(cmd=commands.AddTask)
     def add(cmd: commands.AddTask,
-            handler: Handler,
+            bus: messagebus.MessageBus,
             context: dict = {}) -> None:
 
         if (sprint := cmd.sprint) and (story_points := cmd.story_points):
@@ -293,7 +276,7 @@ class TaskCommandHandlers:
             TaskCommandHandlers._add(
                 commands.AddTask(cmd.id,
                                  sprint=sprint,
-                                 story_points=story_points), handler,
+                                 story_points=story_points), bus,
                 updated_context)
 
         else:
@@ -305,18 +288,19 @@ class TaskCommandHandlers:
                     }
                     if field == "sprint":
                         TaskCommandHandlers._add(
-                            commands.AddTask(cmd.id, sprint=field_value),
-                            handler, updated_context)
+                            commands.AddTask(cmd.id, sprint=field_value), bus,
+                            updated_context)
                     if field == "epic":
                         TaskCommandHandlers._add(
-                            commands.AddTask(cmd.id, epic=field_value),
-                            handler, updated_context)
+                            commands.AddTask(cmd.id, epic=field_value), bus,
+                            updated_context)
                     if field == "story":
                         TaskCommandHandlers._add(
-                            commands.AddTask(cmd.id, story=field_value),
-                            handler, updated_context)
+                            commands.AddTask(cmd.id, story=field_value), bus,
+                            updated_context)
 
-    def _add(cmd: commands.AddTask, handler: Handler, context) -> None:
+    def _add(cmd: commands.AddTask, bus: messagebus.MessageBus,
+             context) -> None:
         entity_name, entity_id = context["entity_type"], context["entity_id"]
         entity_module = getattr(entities, entity_name)
         entity = getattr(entity_module, entity_name.capitalize())
@@ -325,7 +309,7 @@ class TaskCommandHandlers:
         entity_dict = {"task": cmd.id}
         entity_dict[entity_name] = entity_id
         story_points = cmd.story_points
-        with handler.uow as uow:
+        with bus.uow as uow:
             if not (existing_entity := uow.tasks.get_by_id(entity, entity_id)):
                 raise exceptions.EntityNotFound(
                     f"{entity_name} id {entity_id} is not found")
@@ -357,10 +341,10 @@ class TaskCommandHandlers:
                         if existing_task.status.name == "BACKLOG":
                             task_params.update({"status": "TODO"})
                         if (not existing_task.due_date
-                                or existing_task.due_date >
-                                existing_entity.end_date
-                                or existing_task.due_date <
-                                existing_entity.start_date):
+                                or existing_task.due_date
+                                > existing_entity.end_date
+                                or existing_task.due_date
+                                < existing_entity.start_date):
                             task_params.update(
                                 {"due_date": existing_entity.end_date})
                         if task_params:
@@ -370,15 +354,15 @@ class TaskCommandHandlers:
 
     @register(cmd=commands.AssignTask)
     def assign(cmd: commands.AssignTask,
-               handler: Handler,
+               bus: messagebus.MessageBus,
                context: dict = {}) -> None:
         ...
 
     @register(cmd=commands.CompleteTask)
     def complete(cmd: commands.CompleteTask,
-                 handler: Handler,
+                 bus: messagebus.MessageBus,
                  context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
                     entities.task.Task, cmd.id)):
                 raise exceptions.EntityNotFound(
@@ -393,11 +377,11 @@ class TaskCommandHandlers:
                              {"status": entities.task.TaskStatus.DONE})
             TaskCommandHandlers._process_extra_args(cmd.id, context, uow)
             uow.commit()
-            handler.publisher.publish("Topic", task_completed_event)
+            bus.publisher.publish("Topic", task_completed_event)
 
     @register(cmd=commands.DeleteTask)
     def delete(cmd: commands.DeleteTask,
-               handler: Handler,
+               bus: messagebus.MessageBus,
                context: dict = {}) -> None:
 
         updated_context = {}
@@ -413,23 +397,23 @@ class TaskCommandHandlers:
                 }
                 if field == "sprint":
                     TaskCommandHandlers._delete(
-                        commands.DeleteTask(cmd.id, sprint=field_value),
-                        handler, updated_context)
+                        commands.DeleteTask(cmd.id, sprint=field_value), bus,
+                        updated_context)
                 if field == "epic":
                     TaskCommandHandlers._delete(
-                        commands.DeleteTask(cmd.id, epic=field_value), handler,
+                        commands.DeleteTask(cmd.id, epic=field_value), bus,
                         updated_context)
                 if field == "story":
                     TaskCommandHandlers._delete(
-                        commands.DeleteTask(cmd.id, story=field_value),
-                        handler, updated_context)
+                        commands.DeleteTask(cmd.id, story=field_value), bus,
+                        updated_context)
         if not updated_context:
-            TaskCommandHandlers._delete(cmd, handler, context)
+            TaskCommandHandlers._delete(cmd, bus, context)
 
     def _delete(cmd: commands.DeleteTask,
-                handler: Handler,
+                bus: messagebus.MessageBus,
                 context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
                     entities.task.Task, cmd.id)):
                 raise exceptions.EntityNotFound(
@@ -479,13 +463,13 @@ class TaskCommandHandlers:
                 uow.published_events.append(task_deleted_event)
             TaskCommandHandlers._process_extra_args(cmd.id, context, uow)
             uow.commit()
-        handler.publisher.publish("Topic", events.TaskCompleted(cmd.id))
+        bus.publisher.publish("Topic", events.TaskCompleted(cmd.id))
 
     @register(cmd=commands.CommentTask)
     def comment(cmd: commands.CommentTask,
-                handler: Handler,
+                bus: messagebus.MessageBus,
                 context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if text := cmd.text.strip():
                 uow.tasks.add(
                     entities.commentary.TaskCommentary(id=cmd.id, text=text))
@@ -495,9 +479,9 @@ class TaskCommandHandlers:
 
     @register(cmd=commands.TrackTask)
     def track(cmd: commands.TrackTask,
-              handler: Handler,
+              bus: messagebus.MessageBus,
               context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
                     entities.task.Task, cmd.id)):
                 raise exceptions.EntityNotFound(
@@ -509,9 +493,9 @@ class TaskCommandHandlers:
 
     @register(cmd=commands.TagTask)
     def tag(cmd: commands.TagTask,
-            handler: Handler,
+            bus: messagebus.MessageBus,
             context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
                     entities.task.Task, cmd.id)):
                 raise exceptions.EntityNotFound(
@@ -559,10 +543,10 @@ class TaskCommandHandlers:
 
     @register(cmd=commands.ListTask)
     def list(cmd: commands.ListTask,
-             handler: Handler,
+             bus: messagebus.MessageBus,
              context: dict = {}) -> None:
         filter_options = utils.FilterOptions.from_kwargs(**context)
-        with handler.uow as uow:
+        with bus.uow as uow:
             if filter_options:
                 tasks = uow.tasks.get_by_conditions(
                     entities.task.Task,
@@ -571,27 +555,24 @@ class TaskCommandHandlers:
                 tasks = uow.tasks.list(entities.task.Task)
             if tasks:
                 print_options = printer.PrintOptions.from_kwargs(**context)
-                handler.printer.console.print_task(tasks, print_options)
+                bus.printer.console.print_task(tasks, print_options)
 
 
-class TaskEventHandlers(Handler):
+class TaskEventHandlers:
 
     @register(event=events.TaskCreated)
     def created(event: events.TaskCreated,
-                handler: Handler,
+                bus: messagebus.MessageBus,
                 context: dict = {}) -> None:
         # TODO: Decide what to do here
         ...
 
     @register(event=events.TaskCompleted)
     def completed(event: events.TaskCompleted,
-                  handler: Handler,
+                  bus: messagebus.MessageBus,
                   context: dict = {}) -> None:
-        with handler.uow as uow:
-            task_event = entities.event_history.TaskEvent(task=event.id,
-                                                          type="STATUS",
-                                                          old_value="",
-                                                          new_value="DONE")
+        with bus.uow as uow:
+            task_event = entities.event_history.TaskEvent(**asdict(event))
             uow.tasks.add(task_event)
             uow.tasks.update(entities.task.Task, event.id,
                              {"modification_date": datetime.now()})
@@ -599,9 +580,9 @@ class TaskEventHandlers(Handler):
 
     @register(event=events.TaskUpdated)
     def updated(event: events.TaskUpdated,
-                handler: Handler,
+                bus: messagebus.MessageBus,
                 context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             task_event = entities.event_history.TaskEvent(**asdict(event))
             uow.tasks.add(task_event)
             uow.tasks.update(entities.task.Task, event.task,
@@ -611,9 +592,9 @@ class TaskEventHandlers(Handler):
 
     @register(event=events.TaskDeleted)
     def deleted(event: events.TaskDeleted,
-                handler: Handler,
+                bus: messagebus.MessageBus,
                 context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             task_event = entities.event_history.TaskEvent(task_id=event.id,
                                                           type="STATUS",
                                                           old_value="",
@@ -625,65 +606,65 @@ class TaskEventHandlers(Handler):
 
     @register(event=events.TaskCommentAdded)
     def comment_added(event: events.TaskCommentAdded,
-                      handler: Handler,
+                      bus: messagebus.MessageBus,
                       context: dict = {}) -> None:
         TaskCommandHandlers.comment(cmd=commands.CommentTask(**asdict(event)),
-                                    handler=handler,
+                                    bus=bus,
                                     context=context)
-        with handler.uow as uow:
+        with bus.uow as uow:
             uow.tasks.update(entities.task.Task, event.id,
                              {"modification_date": datetime.now()})
 
     @register(event=events.TaskCollaboratorAdded)
     def collaborator_added(event: events.TaskCollaboratorAdded,
-                           handler: Handler,
+                           bus: messagebus.MessageBus,
                            context: dict = {}) -> None:
         TaskCommandHandlers.collaborate(
             cmd=commands.CollaborateTask(**asdict(event)),
-            handler=handler,
+            bus=bus,
             context=context)
 
     @register(event=events.TaskHoursSubmitted)
     def hours_submitted(event: events.TaskHoursSubmitted,
-                        handler: Handler,
+                        bus: messagebus.MessageBus,
                         context: dict = {}) -> None:
         TaskCommandHandlers.track(cmd=commands.TrackTask(id=event.id,
                                                          hours=event.hours),
-                                  handler=handler,
+                                  bus=bus,
                                   context=context)
 
     @register(event=events.TaskAddedToEpic)
     def added_to_epic(event: events.TaskAddedToEpic,
-                      handler: Handler,
+                      bus: messagebus.MessageBus,
                       context: dict = {}) -> None:
         TaskCommandHandlers.add(cmd=commands.AddTask(id=event.id,
                                                      epic=event.epic_id),
-                                handler=handler,
+                                bus=bus,
                                 context=context)
 
     @register(event=events.TaskAddedToSprint)
     def added_to_sprint(event: events.TaskAddedToSprint,
-                        handler: Handler,
+                        bus: messagebus.MessageBus,
                         context: dict = {}) -> None:
         TaskCommandHandlers.add(cmd=commands.AddTask(id=event.id,
                                                      sprint=event.sprint_id),
-                                handler=handler,
+                                bus=bus,
                                 context=context)
 
     @register(event=events.TaskAddedToStory)
     def added_to_story(event: events.TaskAddedToStory,
-                       handler: Handler,
+                       bus: messagebus.MessageBus,
                        context: dict = {}) -> None:
         TaskCommandHandlers.add(cmd=commands.AddTask(id=event.id,
                                                      story=event.story_id),
-                                handler=handler,
+                                bus=bus,
                                 context=context)
 
     @register(event=events.TaskSynced)
     def synced(event: events.TaskSynced,
-               handler: Handler,
+               bus: messagebus.MessageBus,
                context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if synced_task := uow.tasks.get_by_conditions(
                     asana.AsanaTask, {"asana_task_id": event.asana_task_id}):
                 uow.tasks.update(asana.AsanaTask, synced_task[0].id,
@@ -697,16 +678,16 @@ class ProjectCommandHandlers:
 
     @register(cmd=commands.CreateProject)
     def create(cmd: commands.CreateProject,
-               handler: Handler,
+               bus: messagebus.MessageBus,
                context: dict = {}) -> None:
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
                 entities.project.Project, commands.CreateProject)
         project_id = None
-        with handler.uow as uow:
+        with bus.uow as uow:
             if not (existing_project := uow.tasks.get(entities.project.Project,
                                                       cmd.name)):
-                cmd = convert_workspace(cmd, handler)
+                cmd = convert_workspace(cmd, bus)
                 new_project = entities.project.Project(**asdict(cmd))
                 uow.tasks.add(new_project)
                 uow.flush()
@@ -714,8 +695,8 @@ class ProjectCommandHandlers:
                 new_event = events.ProjectCreated(project_id)
                 uow.published_events.append(new_event)
                 uow.commit()
-                handler.printer.console.print_new_object(new_project)
-                handler.publisher.publish("Topic", new_event)
+                bus.printer.console.print_new_object(new_project)
+                bus.publisher.publish("Topic", new_event)
             else:
                 logging.warning(f"Project {cmd.name} already exists")
                 project_id = existing_project.id
@@ -723,9 +704,9 @@ class ProjectCommandHandlers:
 
     @register(cmd=commands.UpdateProject)
     def update(cmd: commands.UpdateProject,
-               handler: Handler,
+               bus: messagebus.MessageBus,
                context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
             if not cmd.name:
                 cmd, context = templates.create_command_from_editor(
@@ -749,23 +730,22 @@ class ProjectCommandHandlers:
 
     @register(cmd=commands.CompleteProject)
     def complete(cmd: commands.CompleteProject,
-                 handler: Handler,
+                 bus: messagebus.MessageBus,
                  context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
             uow.tasks.update(entities.project.Project, project.id,
                              {"status": "COMPLETED"})
             uow.published_events.append(events.ProjectCompleted(project.id))
             # TODO: implement _process_extra_args for projects
             uow.commit()
-            handler.publisher.publish("Topic",
-                                      events.ProjectCompleted(project.id))
+            bus.publisher.publish("Topic", events.ProjectCompleted(project.id))
 
     @register(cmd=commands.DeleteProject)
     def delete(cmd: commands.DeleteProject,
-               handler: Handler,
+               bus: messagebus.MessageBus,
                context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
             uow.tasks.update(entities.project.Project, project.id,
                              {"status": "DELETED"})
@@ -774,14 +754,13 @@ class ProjectCommandHandlers:
                 uow.published_events.append(
                     events.ProjectCommented(id=project.id, text=comment))
             uow.commit()
-            handler.publisher.publish("Topic",
-                                      events.ProjectDeleted(project.id))
+            bus.publisher.publish("Topic", events.ProjectDeleted(project.id))
 
     @register(cmd=commands.CommentProject)
     def comment(cmd: commands.CommentProject,
-                handler: Handler,
+                bus: messagebus.MessageBus,
                 context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
             uow.tasks.add(
                 entities.commentary.ProjectCommentary(id=project.id,
@@ -790,9 +769,9 @@ class ProjectCommandHandlers:
 
     @register(cmd=commands.TagProject)
     def tag(cmd: commands.TagProject,
-            handler: Handler,
+            bus: messagebus.MessageBus,
             context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
             if not (existing_tag := uow.tasks.list(entities.tag.BaseTag,
                                                    {"text": cmd.tag})):
@@ -812,33 +791,33 @@ class ProjectCommandHandlers:
 
     @register(cmd=commands.ShowProject)
     def show(cmd: commands.ShowProject,
-             handler: Handler,
+             bus: messagebus.MessageBus,
              context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
-            handler.printer.tui.print_project(project, handler)
+            bus.printer.tui.print_project(project, bus)
 
     @register(cmd=commands.ListProject)
     def list(cmd: commands.ListProject,
-             handler: Handler,
+             bus: messagebus.MessageBus,
              context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             filter_options = utils.FilterOptions.from_kwargs(**context)
-            with handler.uow as uow:
+            with bus.uow as uow:
                 if filter_options:
                     projects = uow.tasks.get_by_conditions(
                         entities.project.Project,
                         filter_options.get_only_set_attributes())
                 else:
                     projects = uow.tasks.list(entities.project.Project)
-                handler.printer.console.print_project(
+                bus.printer.console.print_project(
                     projects, printer.PrintOptions.from_kwargs(**context))
 
     @register(cmd=commands.SyncProject)
     def sync(cmd: commands.SyncProject,
-             handler: Handler,
+             bus: messagebus.MessageBus,
              context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if cmd.id:
                 project = ProjectCommandHandlers._validate_project(cmd.id, uow)
                 ProjectCommandHandlers._sync_project(uow, project)
@@ -906,23 +885,23 @@ class ProjectEventHandlers:
 
     @register(event=events.ProjectCreated)
     def created(event: events.ProjectCreated,
-                handler: Handler,
+                bus: messagebus.MessageBus,
                 context: dict = {}) -> None:
         # TODO: Decide what to do here
         ...
 
     @register(event=events.ProjectCommented)
     def commented(event: events.ProjectCommented,
-                  handler: Handler,
+                  bus: messagebus.MessageBus,
                   context: dict = {}) -> None:
         ProjectCommandHandlers.comment(
-            cmd=commands.CommentProject(**asdict(event)), handler=handler)
+            cmd=commands.CommentProject(**asdict(event)), bus=bus)
 
     @register(event=events.ProjectSynced)
     def synced(event: events.ProjectSynced,
-               handler: Handler,
+               bus: messagebus.MessageBus,
                context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if synced_project := uow.tasks.get_by_conditions(
                     asana.AsanaProject,
                 {"asana_project_id": event.asana_project_id}):
@@ -936,24 +915,26 @@ class ProjectEventHandlers:
 class EpicCommandHandlers:
 
     @register(cmd=commands.CreateEpic)
-    def create(cmd: commands.CreateEpic, handler: Handler, context: dict = {}):
+    def create(cmd: commands.CreateEpic,
+               bus: messagebus.MessageBus,
+               context: dict = {}):
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
                 entities.epic.Epic, type(cmd))
-        with handler.uow as uow:
-            cmd = convert_project(cmd, handler)
+        with bus.uow as uow:
+            cmd = convert_project(cmd, bus)
             new_epic = entities.epic.Epic(**asdict(cmd))
             uow.tasks.add(new_epic)
             uow.commit()
             new_epic_id = new_epic.id
-            handler.printer.console.print_new_object(new_epic)
+            bus.printer.console.print_new_object(new_epic)
             return new_epic_id
 
     @register(cmd=commands.CompleteEpic)
     def complete(cmd: commands.CompleteEpic,
-                 handler: Handler,
+                 bus: messagebus.MessageBus,
                  context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             uow.tasks.update(entities.project.Epic, cmd.id,
                              {"status": "COMPLETED"})
             uow.published_events.append(events.EpicCompleted(cmd.id))
@@ -961,35 +942,35 @@ class EpicCommandHandlers:
                 uow.published_events.append(
                     events.EpicCommented(id=cmd.id, text=comment))
             uow.commit()
-        handler.publisher.publish("Topic", events.EpicCompleted(cmd.id))
+        bus.publisher.publish("Topic", events.EpicCompleted(cmd.id))
 
     @register(cmd=commands.DeleteEpic)
     def delete(cmd: commands.DeleteEpic,
-               handler: Handler,
+               bus: messagebus.MessageBus,
                context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             uow.tasks.update(entities.epic.Epic, cmd.id, {"status": "DELETED"})
             uow.published_events.append(events.EpicDeleted(cmd.id))
             if comment := cmd.comment:
                 uow.published_events.append(
                     events.EpicCommented(id=cmd.id, text=comment))
             uow.commit()
-        handler.publisher.publish("Topic", events.EpicDeleted(cmd.id))
+        bus.publisher.publish("Topic", events.EpicDeleted(cmd.id))
 
     @register(cmd=commands.CommentEpic)
     def comment(cmd: commands.CommentEpic,
-                handler: Handler,
+                bus: messagebus.MessageBus,
                 context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             uow.tasks.add(
                 entities.commentary.EpicCommentary(id=cmd.id, text=cmd.text))
             uow.commit()
 
     @register(cmd=commands.AddEpic)
     def add(cmd: commands.AddEpic,
-            handler: Handler,
+            bus: messagebus.MessageBus,
             context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if not (existing_epic := uow.tasks.get_by_id(
                     entities.epic.Epic, cmd.id)):
                 raise exceptions.EntityNotFound(f"Epic {cmd.id} is not found")
@@ -1004,11 +985,11 @@ class EpicCommandHandlers:
 
     @register(cmd=commands.ListEpic)
     def list(cmd: commands.ListEpic,
-             handler: Handler,
+             bus: messagebus.MessageBus,
              context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if epics := uow.tasks.list(entities.epic.Epic):
-                handler.printer.console.print_composite(
+                bus.printer.console.print_composite(
                     epics, uow.tasks,
                     printer.PrintOptions.from_kwargs(**context), "epic")
 
@@ -1021,25 +1002,25 @@ class StoryCommandHandlers:
 
     @register(cmd=commands.CreateStory)
     def create(cmd: commands.CreateStory,
-               handler: Handler,
+               bus: messagebus.MessageBus,
                context: dict = {}) -> int:
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
                 entities.story.Story, type(cmd))
-        with handler.uow as uow:
-            cmd = convert_project(cmd, handler)
+        with bus.uow as uow:
+            cmd = convert_project(cmd, bus)
             new_story = entities.story.Story(**asdict(cmd))
             uow.tasks.add(new_story)
             uow.commit()
             new_story_id = new_story.id
-            handler.printer.console.print_new_object(new_story)
+            bus.printer.console.print_new_object(new_story)
             return new_story_id
 
     @register(cmd=commands.CompleteStory)
     def complete(cmd: commands.CompleteStory,
-                 handler: Handler,
+                 bus: messagebus.MessageBus,
                  context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             uow.tasks.update(entities.project.Story, cmd.id,
                              {"status": "COMPLETED"})
             uow.published_events.append(events.StoryCompleted(cmd.id))
@@ -1047,13 +1028,13 @@ class StoryCommandHandlers:
                 uow.published_events.append(
                     events.StoryCommented(id=cmd.id, text=comment))
             uow.commit()
-        handler.publisher.publish("Topic", events.StoryCompleted(cmd.id))
+        bus.publisher.publish("Topic", events.StoryCompleted(cmd.id))
 
     @register(cmd=commands.DeleteStory)
     def delete(cmd: commands.DeleteStory,
-               handler: Handler,
+               bus: messagebus.MessageBus,
                context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             uow.tasks.update(entities.story.Story, cmd.id,
                              {"status": "DELETED"})
             uow.published_events.append(events.StoryDeleted(cmd.id))
@@ -1061,22 +1042,22 @@ class StoryCommandHandlers:
                 uow.published_events.append(
                     events.StoryCommented(id=cmd.id, text=comment))
             uow.commit()
-        handler.publisher.publish("Topic", events.StoryDeleted(cmd.id))
+        bus.publisher.publish("Topic", events.StoryDeleted(cmd.id))
 
     @register(cmd=commands.CommentStory)
     def comment(cmd: commands.CommentStory,
-                handler: Handler,
+                bus: messagebus.MessageBus,
                 context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             uow.tasks.add(
                 entities.commentary.StoryCommentary(id=cmd.id, text=cmd.text))
             uow.commit()
 
     @register(cmd=commands.AddStory)
     def add(cmd: commands.AddStory,
-            handler: Handler,
+            bus: messagebus.MessageBus,
             context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if not (existing_story := uow.tasks.get_by_id(
                     entities.story.Story, cmd.id)):
                 raise exceptions.EntityNotFound(f"Story {cmd.id} is not found")
@@ -1094,17 +1075,17 @@ class WorkspaceCommandHandlers:
 
     @register(cmd=commands.CreateWorkspace)
     def create(cmd: commands.CreateWorkspace,
-               handler: Handler,
+               bus: messagebus.MessageBus,
                context: dict = {}) -> None:
         if not cmd:
             cmd, context = templates.create_command_from_editor(
                 entities.sprint.Sprint, type(cmd))
-        with handler.uow as uow:
+        with bus.uow as uow:
             if not uow.tasks.get(entities.workspace.Workspace, cmd.name):
                 new_workspace = entities.workspace.Workspace(**asdict(cmd))
                 uow.tasks.add(new_workspace)
                 uow.commit()
-                handler.printer.console.print_new_object(new_workspace)
+                bus.printer.console.print_new_object(new_workspace)
             else:
                 logging.warning(f"Workspace {cmd.name} already exists")
 
@@ -1113,60 +1094,62 @@ class TagCommandHandlers:
 
     @register(cmd=commands.ListTag)
     def list(cmd: commands.ListTag,
-             handler: Handler,
+             bus: messagebus.MessageBus,
              context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if tags := uow.tasks.list(entities.tag.BaseTag):
-                handler.printer.console.print_tag(tags)
+                bus.printer.console.print_tag(tags)
 
 
 class UserCommandHandlers:
 
     @register(cmd=commands.CreateUser)
     def create(cmd: commands.CreateUser,
-               handler: Handler,
+               bus: messagebus.MessageBus,
                context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if not uow.tasks.get(entities.user.User, cmd.name):
                 new_user = entities.user.User(**asdict(cmd))
                 uow.tasks.add(new_user)
                 uow.commit()
-                handler.printer.console.print_new_object(new_user)
+                bus.printer.console.print_new_object(new_user)
             else:
                 logging.warning(f"User {cmd.name} already exists")
 
     @register(cmd=commands.ListUser)
     def list(cmd: commands.ListUser,
-             handler: Handler,
+             bus: messagebus.MessageBus,
              context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             if users := uow.tasks.list(entities.user.User):
-                handler.printer.console.print_user(users)
+                bus.printer.console.print_user(users)
 
 
 class NoteCommandHandlers:
 
     @register(cmd=commands.ShowNote)
     def show(cmd: commands.ShowNote,
-             handler: Handler,
+             bus: messagebus.MessageBus,
              context: dict = {}) -> None:
-        with handler.uow as uow:
+        with bus.uow as uow:
             note_type = get_note_type(context)
             if note := uow.tasks.get_by_id(note_type, cmd.id):
-                handler.printer.tui.show_note(note)
+                bus.printer.tui.show_note(note)
 
 
 def convert_project(cmd: commands.Command,
-                    handler: Handler,
+                    bus: messagebus.MessageBus,
                     context: dict = {}) -> Type[commands.Command]:
     if not (project_name := cmd.project):
         cmd.project = None
         return cmd
+    if isinstance(project_name, int):
+        return cmd
     if project_name.isnumeric():
         cmd.project = int(project_name)
         return cmd
-    if not (existing_project := handler.uow.tasks.get(entities.project.Project,
-                                                      project_name)):
+    if not (existing_project := bus.uow.tasks.get(entities.project.Project,
+                                                  project_name)):
         answer = Confirm.ask(
             f"Creating new project: {project_name}. Do you want to continue?")
         if not answer:
@@ -1176,7 +1159,7 @@ def convert_project(cmd: commands.Command,
             )
         project_id = ProjectCommandHandlers.create(
             cmd=commands.CreateProject(name=project_name),
-            handler=handler,
+            bus=bus,
             context=context)
         cmd.project = project_id
     else:
@@ -1185,18 +1168,16 @@ def convert_project(cmd: commands.Command,
 
 
 def convert_workspace(cmd: commands.Command,
-                      handler: Handler,
+                      bus: messagebus.MessageBus,
                       context: dict = {}) -> Type[commands.Command]:
-    if not (workspace := cmd.workspace):
-        # TODO: Get workspace from config
-        cmd.workspace = 1
-        return cmd
     try:
         cmd.workspace = int(workspace)
         return cmd
     except ValueError:
         ...
-    if not (existing_workspace := handler.uow.tasks.get(
+    if not (workspace := cmd.workspace):
+        workspace = bus.config.get("workspace")
+    if not (existing_workspace := bus.uow.tasks.get(
             entities.workspace.Workspace, workspace)):
         print(f"Creating new workspace: {workspace}. "
               "Do you want to continue (Y/n)?")
@@ -1209,7 +1190,7 @@ def convert_workspace(cmd: commands.Command,
             answer = input()
         workspace_id = WorkspaceCommandHandlers.create(
             cmd=commands.CreateWorkspace(name=workspace),
-            handler=handler,
+            bus=bus,
             context=context)
         cmd.workspace = workspace_id
     else:
@@ -1218,7 +1199,7 @@ def convert_workspace(cmd: commands.Command,
 
 
 def convert_user(cmd: commands.Command,
-                 handler: Handler,
+                 bus: messagebus.MessageBus,
                  context: dict = {}) -> Type[commands.Command]:
     if not (created_by := cmd.created_by):
         return cmd
@@ -1227,12 +1208,10 @@ def convert_user(cmd: commands.Command,
         return cmd
     except ValueError:
         ...
-    if not (existing_user := handler.uow.tasks.get(entities.user.User,
-                                                   created_by)):
+    if not (existing_user := bus.uow.tasks.get(entities.user.User,
+                                               created_by)):
         user_id = UserCommandHandlers.create(
-            cmd=commands.CreateUser(name=created_by),
-            handler=handler,
-            context=context)
+            cmd=commands.CreateUser(name=created_by), bus=bus, context=context)
         cmd.created_by = user_id
     else:
         cmd.created_by = int(existing_user.id)
