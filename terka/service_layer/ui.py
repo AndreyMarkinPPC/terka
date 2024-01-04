@@ -1,13 +1,8 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass, asdict
 from datetime import datetime
-import pandas as pd
-from rich.console import Console
-from rich.text import Text
-import subprocess
-from textual import on
+from textual import on, work
 from textual.app import App, ComposeResult
 from textual.containers import Container, Grid, Horizontal, Vertical
 from textual_plotext import PlotextPlot
@@ -20,7 +15,7 @@ from textual.widgets import (Button, Input, Header, Footer, Label, Tabs,
                              Markdown, MarkdownViewer, Pretty, Rule, Select)
 
 from terka.domain import commands, events, entities
-from terka.service_layer import services, views, exceptions, ui_components
+from terka.service_layer import services, exceptions, ui_components
 from terka.service_layer.formatter import Formatter
 
 
@@ -51,7 +46,7 @@ class SelectionMixin:
         self.selected_task = selected_id
         self.selected_column = event.cell_key.column_key.value
         self.selected_data_table = event.data_table.id
-        with self.bus.handler.uow as uow:
+        with self.bus.uow as uow:
             if "task" in self.selected_data_table:
                 task_obj = uow.tasks.get_by_id(entities.task.Task, selected_id)
                 self.query_one(ui_components.Title).text = task_obj.name
@@ -84,7 +79,7 @@ class PopupsMixin:
     def __init__(self):
         ...
 
-    def _process_chain_ofcommands(self,
+    def _process_commands_chain(self,
                                    result: tuple[commands.Command, ...],
                                    project: str | None = None) -> int | None:
         main_command, *rest = result
@@ -106,7 +101,7 @@ class PopupsMixin:
     def task_complete_callback(self, result: tuple[commands.CompleteTask,
                                                    commands.CommentTask,
                                                    commands.TrackTask]):
-        self._process_chain_ofcommands(result)
+        self._process_commands_chain(result)
         self.notify(f"Task: {self.selected_task} is completed!")
 
     def action_task_edit(self) -> None:
@@ -114,7 +109,7 @@ class PopupsMixin:
 
     def task_edit_callback(self, result: tuple[commands.UpdateTask,
                                                commands.CommentTask]):
-        self._process_chain_ofcommands(result)
+        self._process_commands_chain(result)
         self.notify(f"Task: {self.selected_task} is updated!")
 
     def action_task_add(self) -> None:
@@ -394,6 +389,7 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
         ("b", "backlog", "Backlog"),
         ("t", "tasks", "Tasks"),
         ("s", "sort", "Sort"),
+        ("S", "sync", "Sync"),
         ("o", "overview", "Overview"),
         ("T", "time", "Time"),
         ("q", "quit", "Quit"),
@@ -420,7 +416,13 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
 
 
     def action_refresh(self):
-        self.entity = self.get_entity()
+        ...
+
+    @work(thread=True)
+    def action_sync(self) -> None:
+        self.notify("syncing project...")
+        self.bus.handle(commands.SyncProject(self.project_id))
+        self.notify("project synced")
 
     def on_mount(self) -> None:
         self.title = f"Project: {self.entity.name}"
@@ -723,7 +725,7 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
             self.push_screen(ui_components.NewStory(), self.story_new_callback)
 
     def task_new_callback(self, result: list[commands.Command]):
-        object_id = self._process_chain_ofcommands(result,
+        object_id = self._process_commands_chain(result,
                                                     project=self.project_id)
         self.notify(f"New task created with id {object_id}!")
 
@@ -767,11 +769,7 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                 yield sprint_task.tasks
 
     def action_refresh(self):
-        self.entity = self.get_entity()
-        previous_tasks = list(self.tasks)
-        self.tasks = list(self.get_tasks())
-        new_tasks = list(self.tasks)
-        self.notify("Refreshing data...")
+        ...
 
     def on_mount(self) -> None:
         self.title = "Sprint"
@@ -980,30 +978,13 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
             self.push_screen(ui_components.NewTask(), self.task_new_callback)
 
     def task_new_callback(self, result: list[commands.Command]):
-        object_id = self._process_chain_ofcommands(result)
+        object_id = self._process_commands_chain(result)
         self.notify(f"New task created with id {object_id}!")
 
     @on(Button.Pressed)
     def open_new_element_window(self, event: Button.Pressed) -> None:
         if event.button.id == "new_task":
             self.push_screen(ui_components.NewTask(), self.task_new_callback)
-
-# TODO: implement
-# class TerkaProjectScreen(TerkaProject):
-#     ...
-
-# class TerkaSprintScreen(TerkaSprint):
-#     ...
-
-# class Terka(App):
-#     BINDINGS = [
-#         ("1", "switch_mode('sprint')", "Sprint"),
-#         ("2", "switch_mode('projects')", "Projects"),
-#     ]
-#     MODES = {"project": TerkaProjectScreen, "sprint": TerkaSprintScreen}
-
-#     def on_mount(self) -> None:
-#         self.switch_mode("project")
 
 
 def shorten_text(text: str | None, limit: int = 80) -> str | None:
