@@ -1,18 +1,52 @@
+from __future__ import annotations
 from typing import Dict, List, Optional
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from sqlalchemy import text
 
-from terka.domain.entities.task import Task
+from terka.domain import entities
 
 
 def n_days_ago(n: int) -> str:
     return (datetime.today() - timedelta(n)).strftime("%Y-%m-%d")
 
 
+def projects(uow):
+    with uow:
+        return [t.to_dict() for t in uow.tasks.list(entities.project.Project)]
+
+
+def project(uow, project_id: int):
+    with uow:
+        if not (project := uow.tasks.get_by_id(entities.project.Project,
+                                               project_id)):
+            return {}
+        tasks = [task.to_dict() for task in project.tasks]
+        result = project.to_dict()
+        result["tasks"] = tasks
+        return result
+
+
+def tasks(uow):
+    with uow:
+        return [t.to_dict() for t in uow.tasks.list(entities.task.Task)]
+
+
+def task(uow, task_id: int):
+    with uow:
+        if not (task := uow.tasks.get_by_id(entities.task.Task, task_id)):
+            return {}
+        result = task.to_dict()
+        if commentaries := task.commentaries:
+            result["commentaries"] = [
+                comment.to_dict() for comment in commentaries
+            ]
+        return result
+
+
 def time_spent(session,
-               tasks: Optional[List[Task]],
+               tasks: list[entities.task.Task] | None,
                start_date: str = n_days_ago(7),
                end_date: str = n_days_ago(-1),
                excluded_tasks_only: bool = False) -> List[Dict[str, str]]:

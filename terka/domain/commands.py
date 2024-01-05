@@ -36,8 +36,9 @@ class Command:
     @staticmethod
     def format_date(attributes: dict, date_attribute: str):
         if date_attribute_value := attributes.get(date_attribute):
-            attributes[date_attribute] = datetime.strptime(
-                date_attribute_value, "%Y-%m-%d")
+            if not isinstance(date_attribute_value, datetime):
+                attributes[date_attribute] = datetime.strptime(
+                    date_attribute_value, "%Y-%m-%d")
 
 
 # Base Commands
@@ -111,7 +112,7 @@ class Show(Command):
 
 @dataclass
 class Get(Command):
-    ...
+    id: int | None = None
 
 
 @dataclass
@@ -279,9 +280,18 @@ class ShowProject(Show):
 
 
 @dataclass
+class GetProject(Get):
+    ...
+
+
+@dataclass
 class ListProject(List):
     ...
 
+
+@dataclass
+class GetTask(Get):
+    ...
 
 @dataclass
 class ListTask(List):

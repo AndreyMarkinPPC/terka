@@ -3,6 +3,7 @@ from datetime import date, datetime
 from enum import Enum
 from statistics import median
 
+from .entity import Entity
 
 class ProjectStatus(Enum):
     DELETED = 0
@@ -11,7 +12,7 @@ class ProjectStatus(Enum):
     COMPLETED = 3
 
 
-class Project:
+class Project(Entity):
 
     _next_project_id = 1
 

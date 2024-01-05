@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta
 import pandas as pd
 
+from .entity import Entity
 
 class TaskStatus(Enum):
     DELETED = 0
@@ -32,7 +33,7 @@ class TaskInfo:
     due_date: datetime
 
 
-class Task:
+class Task(Entity):
 
     _next_task_id = 1
 
