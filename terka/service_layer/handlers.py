@@ -12,7 +12,7 @@ from terka import utils
 from terka.adapters import publisher, printer
 from terka.domain import commands, events, entities
 from terka.domain.external_connectors import asana
-from terka.service_layer import exceptions, messagebus, templates, unit_of_work, views
+from terka.service_layer import exceptions, templates, unit_of_work, views
 from terka.utils import create_command
 
 COMMAND_HANDLERS = {}
@@ -38,7 +38,7 @@ def register(cmd=None, event=None):
 
 class CommandHandler:
 
-    def __init__(self, bus: messagebus.MessageBus) -> None:
+    def __init__(self, bus: "messagebus.MessageBus") -> None:
         self.bus = bus
 
     def execute(self, command: str, entity: str,
@@ -60,7 +60,7 @@ class SprintCommandHandlers:
 
     @register(cmd=commands.CreateSprint)
     def create(cmd: commands.CreateSprint,
-               bus: messagebus.MessageBus,
+               bus: "messagebus.MessageBus",
                context: dict = {}) -> int:
         if not cmd:
             cmd, context = templates.create_command_from_editor(
@@ -76,7 +76,7 @@ class SprintCommandHandlers:
 
     @register(cmd=commands.StartSprint)
     def start(cmd: commands.StartSprint,
-              bus: messagebus.MessageBus,
+              bus: "messagebus.MessageBus",
               context: dict = {}) -> None:
         with bus.uow as uow:
             if not (existing_sprint := uow.tasks.get_by_id(
@@ -121,7 +121,7 @@ class SprintCommandHandlers:
 
     @register(cmd=commands.CompleteSprint)
     def complete(cmd: commands.CompleteSprint,
-                 bus: messagebus.MessageBus,
+                 bus: "messagebus.MessageBus",
                  context: dict = {}) -> None:
         with bus.uow as uow:
             if not (existing_sprint := uow.tasks.get_by_id(
@@ -147,7 +147,7 @@ class SprintCommandHandlers:
 
     @register(cmd=commands.ShowSprint)
     def show(cmd: commands.ShowSprint,
-             bus: messagebus.MessageBus,
+             bus: "messagebus.MessageBus",
              context: dict = {}) -> None:
         with bus.uow as uow:
             if not (existing_sprint := uow.tasks.get_by_id(
@@ -158,7 +158,7 @@ class SprintCommandHandlers:
 
     @register(cmd=commands.ListSprint)
     def list(cmd: commands.ListSprint,
-             bus: messagebus.MessageBus,
+             bus: "messagebus.MessageBus",
              context: dict = {}) -> None:
         with bus.uow as uow:
             if sprints := uow.tasks.list(entities.sprint.Sprint):
@@ -169,7 +169,7 @@ class SprintCommandHandlers:
 class SprintEventHandlers:
 
     def assign_story_points(event: events.SprintTaskStoryPointAssigned,
-                            bus: messagebus.MessageBus,
+                            bus: "messagebus.MessageBus",
                             context: dict = {}) -> None:
         with bus.uow as uow:
             uow.tasks.update(entities.sprint.SprintTask, event.id,
@@ -182,7 +182,7 @@ class TaskCommandHandlers:
 
     @register(cmd=commands.CreateTask)
     def create(cmd: commands.CreateTask,
-               bus: messagebus.MessageBus,
+               bus: "messagebus.MessageBus",
                context: dict = {}) -> int:
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
@@ -205,7 +205,7 @@ class TaskCommandHandlers:
 
     @register(cmd=commands.UpdateTask)
     def update(cmd: commands.UpdateTask,
-               bus: messagebus.MessageBus,
+               bus: "messagebus.MessageBus",
                context: dict = {}) -> None:
         with bus.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
@@ -242,7 +242,7 @@ class TaskCommandHandlers:
 
     @register(cmd=commands.CollaborateTask)
     def collaborate(cmd: commands.CollaborateTask,
-                    bus: messagebus.MessageBus,
+                    bus: "messagebus.MessageBus",
                     context: dict = {}) -> None:
         with bus.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
@@ -268,7 +268,7 @@ class TaskCommandHandlers:
 
     @register(cmd=commands.AddTask)
     def add(cmd: commands.AddTask,
-            bus: messagebus.MessageBus,
+            bus: "messagebus.MessageBus",
             context: dict = {}) -> None:
 
         if (sprint := cmd.sprint) and (story_points := cmd.story_points):
@@ -299,7 +299,7 @@ class TaskCommandHandlers:
                             commands.AddTask(cmd.id, story=field_value), bus,
                             updated_context)
 
-    def _add(cmd: commands.AddTask, bus: messagebus.MessageBus,
+    def _add(cmd: commands.AddTask, bus: "messagebus.MessageBus",
              context) -> None:
         entity_name, entity_id = context["entity_type"], context["entity_id"]
         entity_module = getattr(entities, entity_name)
@@ -354,13 +354,13 @@ class TaskCommandHandlers:
 
     @register(cmd=commands.AssignTask)
     def assign(cmd: commands.AssignTask,
-               bus: messagebus.MessageBus,
+               bus: "messagebus.MessageBus",
                context: dict = {}) -> None:
         ...
 
     @register(cmd=commands.CompleteTask)
     def complete(cmd: commands.CompleteTask,
-                 bus: messagebus.MessageBus,
+                 bus: "messagebus.MessageBus",
                  context: dict = {}) -> None:
         with bus.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
@@ -381,7 +381,7 @@ class TaskCommandHandlers:
 
     @register(cmd=commands.DeleteTask)
     def delete(cmd: commands.DeleteTask,
-               bus: messagebus.MessageBus,
+               bus: "messagebus.MessageBus",
                context: dict = {}) -> None:
 
         updated_context = {}
@@ -411,7 +411,7 @@ class TaskCommandHandlers:
             TaskCommandHandlers._delete(cmd, bus, context)
 
     def _delete(cmd: commands.DeleteTask,
-                bus: messagebus.MessageBus,
+                bus: "messagebus.MessageBus",
                 context: dict = {}) -> None:
         with bus.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
@@ -467,7 +467,7 @@ class TaskCommandHandlers:
 
     @register(cmd=commands.CommentTask)
     def comment(cmd: commands.CommentTask,
-                bus: messagebus.MessageBus,
+                bus: "messagebus.MessageBus",
                 context: dict = {}) -> None:
         with bus.uow as uow:
             if text := cmd.text.strip():
@@ -479,7 +479,7 @@ class TaskCommandHandlers:
 
     @register(cmd=commands.TrackTask)
     def track(cmd: commands.TrackTask,
-              bus: messagebus.MessageBus,
+              bus: "messagebus.MessageBus",
               context: dict = {}) -> None:
         with bus.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
@@ -493,7 +493,7 @@ class TaskCommandHandlers:
 
     @register(cmd=commands.TagTask)
     def tag(cmd: commands.TagTask,
-            bus: messagebus.MessageBus,
+            bus: "messagebus.MessageBus",
             context: dict = {}) -> None:
         with bus.uow as uow:
             if not (existing_task := uow.tasks.get_by_id(
@@ -543,7 +543,7 @@ class TaskCommandHandlers:
 
     @register(cmd=commands.ListTask)
     def list(cmd: commands.ListTask,
-             bus: messagebus.MessageBus,
+             bus: "messagebus.MessageBus",
              context: dict = {}) -> None:
         filter_options = utils.FilterOptions.from_kwargs(**context)
         with bus.uow as uow:
@@ -562,14 +562,14 @@ class TaskEventHandlers:
 
     @register(event=events.TaskCreated)
     def created(event: events.TaskCreated,
-                bus: messagebus.MessageBus,
+                bus: "messagebus.MessageBus",
                 context: dict = {}) -> None:
         # TODO: Decide what to do here
         ...
 
     @register(event=events.TaskCompleted)
     def completed(event: events.TaskCompleted,
-                  bus: messagebus.MessageBus,
+                  bus: "messagebus.MessageBus",
                   context: dict = {}) -> None:
         with bus.uow as uow:
             task_event = entities.event_history.TaskEvent(**asdict(event))
@@ -580,7 +580,7 @@ class TaskEventHandlers:
 
     @register(event=events.TaskUpdated)
     def updated(event: events.TaskUpdated,
-                bus: messagebus.MessageBus,
+                bus: "messagebus.MessageBus",
                 context: dict = {}) -> None:
         with bus.uow as uow:
             task_event = entities.event_history.TaskEvent(**asdict(event))
@@ -592,7 +592,7 @@ class TaskEventHandlers:
 
     @register(event=events.TaskDeleted)
     def deleted(event: events.TaskDeleted,
-                bus: messagebus.MessageBus,
+                bus: "messagebus.MessageBus",
                 context: dict = {}) -> None:
         with bus.uow as uow:
             task_event = entities.event_history.TaskEvent(task_id=event.id,
@@ -606,7 +606,7 @@ class TaskEventHandlers:
 
     @register(event=events.TaskCommentAdded)
     def comment_added(event: events.TaskCommentAdded,
-                      bus: messagebus.MessageBus,
+                      bus: "messagebus.MessageBus",
                       context: dict = {}) -> None:
         TaskCommandHandlers.comment(cmd=commands.CommentTask(**asdict(event)),
                                     bus=bus,
@@ -617,7 +617,7 @@ class TaskEventHandlers:
 
     @register(event=events.TaskCollaboratorAdded)
     def collaborator_added(event: events.TaskCollaboratorAdded,
-                           bus: messagebus.MessageBus,
+                           bus: "messagebus.MessageBus",
                            context: dict = {}) -> None:
         TaskCommandHandlers.collaborate(
             cmd=commands.CollaborateTask(**asdict(event)),
@@ -626,7 +626,7 @@ class TaskEventHandlers:
 
     @register(event=events.TaskHoursSubmitted)
     def hours_submitted(event: events.TaskHoursSubmitted,
-                        bus: messagebus.MessageBus,
+                        bus: "messagebus.MessageBus",
                         context: dict = {}) -> None:
         TaskCommandHandlers.track(cmd=commands.TrackTask(id=event.id,
                                                          hours=event.hours),
@@ -635,7 +635,7 @@ class TaskEventHandlers:
 
     @register(event=events.TaskAddedToEpic)
     def added_to_epic(event: events.TaskAddedToEpic,
-                      bus: messagebus.MessageBus,
+                      bus: "messagebus.MessageBus",
                       context: dict = {}) -> None:
         TaskCommandHandlers.add(cmd=commands.AddTask(id=event.id,
                                                      epic=event.epic_id),
@@ -644,7 +644,7 @@ class TaskEventHandlers:
 
     @register(event=events.TaskAddedToSprint)
     def added_to_sprint(event: events.TaskAddedToSprint,
-                        bus: messagebus.MessageBus,
+                        bus: "messagebus.MessageBus",
                         context: dict = {}) -> None:
         TaskCommandHandlers.add(cmd=commands.AddTask(id=event.id,
                                                      sprint=event.sprint_id),
@@ -653,7 +653,7 @@ class TaskEventHandlers:
 
     @register(event=events.TaskAddedToStory)
     def added_to_story(event: events.TaskAddedToStory,
-                       bus: messagebus.MessageBus,
+                       bus: "messagebus.MessageBus",
                        context: dict = {}) -> None:
         TaskCommandHandlers.add(cmd=commands.AddTask(id=event.id,
                                                      story=event.story_id),
@@ -662,7 +662,7 @@ class TaskEventHandlers:
 
     @register(event=events.TaskSynced)
     def synced(event: events.TaskSynced,
-               bus: messagebus.MessageBus,
+               bus: "messagebus.MessageBus",
                context: dict = {}) -> None:
         with bus.uow as uow:
             if synced_task := uow.tasks.get_by_conditions(
@@ -678,7 +678,7 @@ class ProjectCommandHandlers:
 
     @register(cmd=commands.CreateProject)
     def create(cmd: commands.CreateProject,
-               bus: messagebus.MessageBus,
+               bus: "messagebus.MessageBus",
                context: dict = {}) -> None:
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
@@ -704,7 +704,7 @@ class ProjectCommandHandlers:
 
     @register(cmd=commands.UpdateProject)
     def update(cmd: commands.UpdateProject,
-               bus: messagebus.MessageBus,
+               bus: "messagebus.MessageBus",
                context: dict = {}) -> None:
         with bus.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
@@ -730,7 +730,7 @@ class ProjectCommandHandlers:
 
     @register(cmd=commands.CompleteProject)
     def complete(cmd: commands.CompleteProject,
-                 bus: messagebus.MessageBus,
+                 bus: "messagebus.MessageBus",
                  context: dict = {}) -> None:
         with bus.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
@@ -743,7 +743,7 @@ class ProjectCommandHandlers:
 
     @register(cmd=commands.DeleteProject)
     def delete(cmd: commands.DeleteProject,
-               bus: messagebus.MessageBus,
+               bus: "messagebus.MessageBus",
                context: dict = {}) -> None:
         with bus.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
@@ -758,7 +758,7 @@ class ProjectCommandHandlers:
 
     @register(cmd=commands.CommentProject)
     def comment(cmd: commands.CommentProject,
-                bus: messagebus.MessageBus,
+                bus: "messagebus.MessageBus",
                 context: dict = {}) -> None:
         with bus.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
@@ -769,7 +769,7 @@ class ProjectCommandHandlers:
 
     @register(cmd=commands.TagProject)
     def tag(cmd: commands.TagProject,
-            bus: messagebus.MessageBus,
+            bus: "messagebus.MessageBus",
             context: dict = {}) -> None:
         with bus.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
@@ -789,9 +789,19 @@ class ProjectCommandHandlers:
                     entities.tag.ProjectTag(id=project.id, tag_id=tag_id))
                 uow.commit()
 
+    @register(cmd=commands.GetProject)
+    def get(cmd: commands.GetProject,
+             bus: "messagebus.MessageBus",
+             context: dict = {}) -> list[entities.project.Project]:
+        with bus.uow as uow:
+            if project_id := cmd.id:
+                return [ProjectCommandHandlers._validate_project(cmd.id, uow)]
+            else:
+                return uow.tasks.list(entities.project.Project)
+
     @register(cmd=commands.ShowProject)
     def show(cmd: commands.ShowProject,
-             bus: messagebus.MessageBus,
+             bus: "messagebus.MessageBus",
              context: dict = {}) -> None:
         with bus.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
@@ -799,7 +809,7 @@ class ProjectCommandHandlers:
 
     @register(cmd=commands.ListProject)
     def list(cmd: commands.ListProject,
-             bus: messagebus.MessageBus,
+             bus: "messagebus.MessageBus",
              context: dict = {}) -> None:
         with bus.uow as uow:
             filter_options = utils.FilterOptions.from_kwargs(**context)
@@ -815,7 +825,7 @@ class ProjectCommandHandlers:
 
     @register(cmd=commands.SyncProject)
     def sync(cmd: commands.SyncProject,
-             bus: messagebus.MessageBus,
+             bus: "messagebus.MessageBus",
              context: dict = {}) -> None:
         with bus.uow as uow:
             if cmd.id:
@@ -827,7 +837,7 @@ class ProjectCommandHandlers:
                     self._sync_project(uow, project)
 
     def _validate_project(id: str | int, uow) -> entities.project.Project:
-        if id.isnumeric():
+        if isinstance(id, int) or id.isnumeric():
             if not (existing_project := uow.tasks.get_by_id(
                     entities.project.Project, id)):
                 raise exceptions.EntityNotFound(
@@ -885,21 +895,21 @@ class ProjectEventHandlers:
 
     @register(event=events.ProjectCreated)
     def created(event: events.ProjectCreated,
-                bus: messagebus.MessageBus,
+                bus: "messagebus.MessageBus",
                 context: dict = {}) -> None:
         # TODO: Decide what to do here
         ...
 
     @register(event=events.ProjectCommented)
     def commented(event: events.ProjectCommented,
-                  bus: messagebus.MessageBus,
+                  bus: "messagebus.MessageBus",
                   context: dict = {}) -> None:
         ProjectCommandHandlers.comment(
             cmd=commands.CommentProject(**asdict(event)), bus=bus)
 
     @register(event=events.ProjectSynced)
     def synced(event: events.ProjectSynced,
-               bus: messagebus.MessageBus,
+               bus: "messagebus.MessageBus",
                context: dict = {}) -> None:
         with bus.uow as uow:
             if synced_project := uow.tasks.get_by_conditions(
@@ -916,7 +926,7 @@ class EpicCommandHandlers:
 
     @register(cmd=commands.CreateEpic)
     def create(cmd: commands.CreateEpic,
-               bus: messagebus.MessageBus,
+               bus: "messagebus.MessageBus",
                context: dict = {}):
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
@@ -932,7 +942,7 @@ class EpicCommandHandlers:
 
     @register(cmd=commands.CompleteEpic)
     def complete(cmd: commands.CompleteEpic,
-                 bus: messagebus.MessageBus,
+                 bus: "messagebus.MessageBus",
                  context: dict = {}) -> None:
         with bus.uow as uow:
             uow.tasks.update(entities.project.Epic, cmd.id,
@@ -946,7 +956,7 @@ class EpicCommandHandlers:
 
     @register(cmd=commands.DeleteEpic)
     def delete(cmd: commands.DeleteEpic,
-               bus: messagebus.MessageBus,
+               bus: "messagebus.MessageBus",
                context: dict = {}) -> None:
         with bus.uow as uow:
             uow.tasks.update(entities.epic.Epic, cmd.id, {"status": "DELETED"})
@@ -959,7 +969,7 @@ class EpicCommandHandlers:
 
     @register(cmd=commands.CommentEpic)
     def comment(cmd: commands.CommentEpic,
-                bus: messagebus.MessageBus,
+                bus: "messagebus.MessageBus",
                 context: dict = {}) -> None:
         with bus.uow as uow:
             uow.tasks.add(
@@ -968,7 +978,7 @@ class EpicCommandHandlers:
 
     @register(cmd=commands.AddEpic)
     def add(cmd: commands.AddEpic,
-            bus: messagebus.MessageBus,
+            bus: "messagebus.MessageBus",
             context: dict = {}) -> None:
         with bus.uow as uow:
             if not (existing_epic := uow.tasks.get_by_id(
@@ -985,7 +995,7 @@ class EpicCommandHandlers:
 
     @register(cmd=commands.ListEpic)
     def list(cmd: commands.ListEpic,
-             bus: messagebus.MessageBus,
+             bus: "messagebus.MessageBus",
              context: dict = {}) -> None:
         with bus.uow as uow:
             if epics := uow.tasks.list(entities.epic.Epic):
@@ -1002,7 +1012,7 @@ class StoryCommandHandlers:
 
     @register(cmd=commands.CreateStory)
     def create(cmd: commands.CreateStory,
-               bus: messagebus.MessageBus,
+               bus: "messagebus.MessageBus",
                context: dict = {}) -> int:
         if not cmd.name:
             cmd, context = templates.create_command_from_editor(
@@ -1018,7 +1028,7 @@ class StoryCommandHandlers:
 
     @register(cmd=commands.CompleteStory)
     def complete(cmd: commands.CompleteStory,
-                 bus: messagebus.MessageBus,
+                 bus: "messagebus.MessageBus",
                  context: dict = {}) -> None:
         with bus.uow as uow:
             uow.tasks.update(entities.project.Story, cmd.id,
@@ -1032,7 +1042,7 @@ class StoryCommandHandlers:
 
     @register(cmd=commands.DeleteStory)
     def delete(cmd: commands.DeleteStory,
-               bus: messagebus.MessageBus,
+               bus: "messagebus.MessageBus",
                context: dict = {}) -> None:
         with bus.uow as uow:
             uow.tasks.update(entities.story.Story, cmd.id,
@@ -1046,7 +1056,7 @@ class StoryCommandHandlers:
 
     @register(cmd=commands.CommentStory)
     def comment(cmd: commands.CommentStory,
-                bus: messagebus.MessageBus,
+                bus: "messagebus.MessageBus",
                 context: dict = {}) -> None:
         with bus.uow as uow:
             uow.tasks.add(
@@ -1055,7 +1065,7 @@ class StoryCommandHandlers:
 
     @register(cmd=commands.AddStory)
     def add(cmd: commands.AddStory,
-            bus: messagebus.MessageBus,
+            bus: "messagebus.MessageBus",
             context: dict = {}) -> None:
         with bus.uow as uow:
             if not (existing_story := uow.tasks.get_by_id(
@@ -1075,7 +1085,7 @@ class WorkspaceCommandHandlers:
 
     @register(cmd=commands.CreateWorkspace)
     def create(cmd: commands.CreateWorkspace,
-               bus: messagebus.MessageBus,
+               bus: "messagebus.MessageBus",
                context: dict = {}) -> None:
         if not cmd:
             cmd, context = templates.create_command_from_editor(
@@ -1094,7 +1104,7 @@ class TagCommandHandlers:
 
     @register(cmd=commands.ListTag)
     def list(cmd: commands.ListTag,
-             bus: messagebus.MessageBus,
+             bus: "messagebus.MessageBus",
              context: dict = {}) -> None:
         with bus.uow as uow:
             if tags := uow.tasks.list(entities.tag.BaseTag):
@@ -1105,7 +1115,7 @@ class UserCommandHandlers:
 
     @register(cmd=commands.CreateUser)
     def create(cmd: commands.CreateUser,
-               bus: messagebus.MessageBus,
+               bus: "messagebus.MessageBus",
                context: dict = {}) -> None:
         with bus.uow as uow:
             if not uow.tasks.get(entities.user.User, cmd.name):
@@ -1118,7 +1128,7 @@ class UserCommandHandlers:
 
     @register(cmd=commands.ListUser)
     def list(cmd: commands.ListUser,
-             bus: messagebus.MessageBus,
+             bus: "messagebus.MessageBus",
              context: dict = {}) -> None:
         with bus.uow as uow:
             if users := uow.tasks.list(entities.user.User):
@@ -1129,7 +1139,7 @@ class NoteCommandHandlers:
 
     @register(cmd=commands.ShowNote)
     def show(cmd: commands.ShowNote,
-             bus: messagebus.MessageBus,
+             bus: "messagebus.MessageBus",
              context: dict = {}) -> None:
         with bus.uow as uow:
             note_type = get_note_type(context)
@@ -1138,7 +1148,7 @@ class NoteCommandHandlers:
 
 
 def convert_project(cmd: commands.Command,
-                    bus: messagebus.MessageBus,
+                    bus: "messagebus.MessageBus",
                     context: dict = {}) -> Type[commands.Command]:
     if not (project_name := cmd.project):
         cmd.project = None
@@ -1168,7 +1178,7 @@ def convert_project(cmd: commands.Command,
 
 
 def convert_workspace(cmd: commands.Command,
-                      bus: messagebus.MessageBus,
+                      bus: "messagebus.MessageBus",
                       context: dict = {}) -> Type[commands.Command]:
     try:
         cmd.workspace = int(workspace)
@@ -1199,7 +1209,7 @@ def convert_workspace(cmd: commands.Command,
 
 
 def convert_user(cmd: commands.Command,
-                 bus: messagebus.MessageBus,
+                 bus: "messagebus.MessageBus",
                  context: dict = {}) -> Type[commands.Command]:
     if not (created_by := cmd.created_by):
         return cmd
