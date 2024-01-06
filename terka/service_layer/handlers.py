@@ -1181,7 +1181,7 @@ def convert_workspace(cmd: commands.Command,
                       bus: "messagebus.MessageBus",
                       context: dict = {}) -> Type[commands.Command]:
     try:
-        cmd.workspace = int(workspace)
+        cmd.workspace = int(cmd.workspace)
         return cmd
     except ValueError:
         ...
