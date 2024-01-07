@@ -1,9 +1,9 @@
 from datetime import datetime
 
-from .project import Project
+from .entity import Entity
 
 
-class User:
+class User(Entity):
 
     def __init__(self, name: str, **kwargs):
         self.name = name

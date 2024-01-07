@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, date
 from dataclasses import dataclass
 
+from .entity import Entity
 from .task import Task
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ class SprintStatus(Enum):
     COMPLETED = 3
 
 
-class Sprint:
+class Sprint(Entity):
 
     def __init__(self,
                  start_date: datetime = None,
