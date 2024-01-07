@@ -10,7 +10,7 @@ EXTRAS_REQUIRE['all'] = list(set(chain(*EXTRAS_REQUIRE.values())))
 
 setup(
     name="terka",
-    version="2.5.1",
+    version="2.6.0",
     description="CLI utility for creating and managing tasks in a terminal",
     long_description=README,
     long_description_content_type="text/markdown",
