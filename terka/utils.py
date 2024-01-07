@@ -187,7 +187,7 @@ def format_task_dict(config: dict, entity: str,
     return task_dict
 
 
-def convert_status(status: str):
+def convert_status(status: str) -> str:
     conversion_dict = {
         "b": "BACKLOG",
         "t": "TODO",
@@ -200,11 +200,12 @@ def convert_status(status: str):
         "c": "COMPLETED",
         "o": "ON_HOLD"
     }
-    statuses = [
-        conversion_dict.get(status[0].lower(), "BACKLOG")
-        for status in status.split(",")
-    ]
-
+    statuses = []
+    for status in status.split(","):
+        if status not in conversion_dict.values():
+            statuses.append(conversion_dict.get(status[0].lower(), "BACKLOG"))
+        else:
+            statuses.append(status)
     return ",".join(statuses)
 
 
@@ -290,7 +291,8 @@ def format_command(command: str) -> str:
     return command
 
 
-def create_command(command: str, entity: str, task_dict: dict) -> commands.Command:
+def create_command(command: str, entity: str,
+                   task_dict: dict) -> commands.Command:
     command = format_command(command)
     entity = format_entity(entity)
     _command = f"{command.capitalize()}{entity.capitalize()}"
@@ -332,7 +334,6 @@ def load_config(home_dir: str) -> dict:
     except FileNotFoundError:
         raise exceptions.TerkaInitError(
             "call `terka init` to initialize terka")
-
 
 
 @dataclass

@@ -71,6 +71,7 @@ def edit_sprint_template(sprint: entities.sprint.Sprint) -> str:
         # You are editing sprint {sprint.id}, enter below:
         ---
         goal: {sprint.goal}
+        status: {sprint.status.name}
         start_date: {sprint.start_date}
         end_date: {sprint.end_date}
         """
@@ -135,12 +136,13 @@ def generate_message_template(entity,
         if isinstance(
                 entity,
             (entities.task.Task, entities.story.Story, entities.epic.Epic)):
+            # TODO: convert project from int to name
             project = entity.project
         elif isinstance(entity, entities.project.Project):
             project = entity.name
             workspace = entity.workspace
         if isinstance(entity, entities.sprint.Sprint):
-            if not kwargs:
+            if not entity.id:
                 message_template = new_sprint_template()
             else:
                 message_template = edit_sprint_template(entity)

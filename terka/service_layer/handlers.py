@@ -119,6 +119,23 @@ class SprintCommandHandlers:
                         )
             logging.debug(f"Sprint started, context: {cmd}")
 
+    @register(cmd=commands.UpdateSprint)
+    def update(cmd: commands.UpdateSprint,
+               bus: "messagebus.MessageBus",
+               context: dict = {}) -> None:
+        with bus.uow as uow:
+            if not (existing_sprint := uow.tasks.get_by_id(
+                    entities.sprint.Sprint, cmd.id)):
+                raise exceptions.EntityNotFound(
+                    f"Sprint id {cmd.id} is not found")
+            if not cmd:
+                cmd, context = templates.create_command_from_editor(
+                    existing_sprint, commands.UpdateSprint)
+            cmd.inject(bus.config)
+            uow.tasks.update(entities.sprint.Sprint, cmd.id,
+                             cmd.get_only_set_attributes())
+            uow.commit()
+
     @register(cmd=commands.CompleteSprint)
     def complete(cmd: commands.CompleteSprint,
                  bus: "messagebus.MessageBus",
@@ -144,7 +161,6 @@ class SprintCommandHandlers:
             uow.commit()
             logging.debug(f"Sprint completed, context: {cmd}")
         bus.publisher.publish("Topic", events.SprintCompleted(cmd.id))
-
 
     @register(cmd=commands.DeleteSprint)
     def delete(cmd: commands.DeleteSprint,
@@ -723,10 +739,11 @@ class ProjectCommandHandlers:
                context: dict = {}) -> None:
         with bus.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
-            if not cmd.id:
+            if not cmd:
                 cmd, context = templates.create_command_from_editor(
                     project, commands.UpdateProject)
                 cmd.id = project.id
+            cmd.inject(bus.config)
             cmd = convert_workspace(cmd, bus)
             uow.tasks.update(entities.project.Project, project.id,
                              cmd.get_only_set_attributes())
