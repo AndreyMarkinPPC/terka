@@ -4,6 +4,7 @@ from datetime import datetime
 import logging
 from enum import Enum
 
+from .entity import Entity
 from .task import Task
 
 
@@ -13,7 +14,7 @@ class EpicStatus(Enum):
     DELETED = 3
 
 
-class Epic:
+class Epic(Entity):
 
     def __init__(self,
                  name: str,

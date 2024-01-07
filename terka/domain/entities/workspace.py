@@ -1,8 +1,10 @@
 from collections import defaultdict
 from datetime import date
 
+from .entity import Entity
 
-class Workspace:
+
+class Workspace(Entity):
 
     def __init__(self,
                  name: str,

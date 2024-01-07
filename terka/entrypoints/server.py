@@ -51,6 +51,14 @@ def project(project_id):
     return _build_response(views.project(bus.uow, project_id))
 
 
+@app.route("/api/v1/project", methods=["POST"])
+def new_project():
+    data = request.get_json(force=True)
+    cmd = commands.CreateProject.from_kwargs(**data)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
 @app.route("/api/v1/tasks", methods=["GET"])
 def tasks():
     return _build_response(views.tasks(bus.uow))
@@ -59,6 +67,68 @@ def tasks():
 @app.route("/api/v1/tasks/<task_id>", methods=["GET"])
 def task(task_id):
     return _build_response(views.task(bus.uow, task_id))
+
+
+@app.route("/api/v1/task", methods=["POST"])
+def new_task():
+    data = request.get_json(force=True)
+    cmd = commands.CreateTask.from_kwargs(**data)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
+@app.route("/api/v1/workspaces", methods=["GET"])
+def workspaces():
+    return _build_response(views.workspaces(bus.uow))
+
+
+@app.route("/api/v1/workspaces/<workspace_id>", methods=["GET"])
+def workspace(workspace_id):
+    return _build_response(views.workspace(bus.uow, workspace_id))
+
+
+@app.route("/api/v1/workspace", methods=["POST"])
+def new_workspace():
+    data = request.get_json(force=True)
+    cmd = commands.CreateWorkspace.from_kwargs(**data)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
+@app.route("/api/v1/epics", methods=["GET"])
+def epics():
+    return _build_response(views.epics(bus.uow))
+
+
+@app.route("/api/v1/epics/<epic_id>", methods=["GET"])
+def epic(epic_id):
+    return _build_response(views.epic(bus.uow, epic_id))
+
+
+@app.route("/api/v1/epic", methods=["POST"])
+def new_epic():
+    data = request.get_json(force=True)
+    cmd = commands.CreateEpic.from_kwargs(**data)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
+@app.route("/api/v1/stories", methods=["GET"])
+def stories():
+    return _build_response(views.stories(bus.uow))
+
+
+@app.route("/api/v1/stories/<story_id>", methods=["GET"])
+def story(story_id):
+    return _build_response(views.epic(bus.uow, story_id))
+
+
+@app.route("/api/v1/story", methods=["POST"])
+def new_story():
+    data = request.get_json(force=True)
+    cmd = commands.CreateStory.from_kwargs(**data)
+    result = bus.handle(cmd)
+    return _build_response(result)
 
 
 def _build_response(msg="", status=200, mimetype="application/json"):

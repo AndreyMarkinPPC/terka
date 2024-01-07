@@ -39,9 +39,59 @@ def task(uow, task_id: int):
             return {}
         result = task.to_dict()
         if commentaries := task.commentaries:
-            result["commentaries"] = [
-                comment.to_dict() for comment in commentaries
-            ]
+            commentaries = [comment.to_dict() for comment in commentaries]
+        result["commentaries"] = commentaries
+        return result
+
+
+def workspaces(uow):
+    with uow:
+        return [
+            t.to_dict() for t in uow.tasks.list(entities.workspace.Workspace)
+        ]
+
+
+def workspace(uow, workspace_id: int):
+    with uow:
+        if not (workspace := uow.tasks.get_by_id(entities.workspace.Workspace,
+                                                 workspace_id)):
+            return {}
+        if projects := workspace.projects:
+            projects = [project.to_dict() for project in workspace.projects]
+            result = workspace.to_dict()
+        result["projects"] = projects
+        return result
+
+
+def epics(uow):
+    with uow:
+        return [t.to_dict() for t in uow.tasks.list(entities.epic.Epic)]
+
+
+def epic(uow, epic_id: int):
+    with uow:
+        if not (epic := uow.tasks.get_by_id(entities.epic.Epic, epic_id)):
+            return {}
+        if tasks := epic.tasks:
+            tasks = [task.tasks.to_dict() for task in epic.tasks]
+            result = epic.to_dict()
+        result["tasks"] = tasks
+        return result
+
+
+def stories(uow):
+    with uow:
+        return [t.to_dict() for t in uow.tasks.list(entities.story.Story)]
+
+
+def story(uow, story_id: int):
+    with uow:
+        if not (story := uow.tasks.get_by_id(entities.story.Story, story_id)):
+            return {}
+        if tasks := story.tasks:
+            tasks = [task.tasks.to_dict() for task in story.tasks]
+            result = story.to_dict()
+        result["tasks"] = tasks
         return result
 
 

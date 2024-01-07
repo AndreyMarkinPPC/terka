@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
+from .entity import Entity
 from .task import Task
 
 
@@ -11,7 +12,7 @@ class StoryStatus(Enum):
     DELETED = 3
 
 
-class Story:
+class Story(Entity):
 
     def __init__(self,
                  name: str,
