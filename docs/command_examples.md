@@ -2,31 +2,30 @@
 
 ## terka entities
 
-* `tasks`
-* `projects`
-* `users`
-* `sprints`
-* `epics`
-* `stories`
+* `task`
+* `project`
+* `user`
+* `sprint`
+* `epic`
+* `story`
+* `workspace`
+* `note`
 
 ## terka commands
 * `create`
 * `show`
 * `list`
 * `update`
-* `comment`
-* `edit`
-* `done`
+* `complete`
 * `delete`
+* `comment`
 * `tag`
 * `collaborate`
 * `add`
-* `start`
-* `track`
-* `connect`
+* `start` (available only for `sprint`)
+* `track` (available only for `task`)
+* `sync` (available only for `project`)
 
-> When calling commands and entities you can use their first letters.
-> I.e. if you want to create new task you can call `terka cre ta` or even `terka c t`.
 To the typical command looks like this
 
 ```
@@ -40,13 +39,15 @@ terka <command> <entity> [options]
 1. Create new task with a name "New task"
 
 ```
-terka create tasks -n "New task"
+terka create task -n "New task"
 ```
+> When launched without arguments `terka create task` will launch Vim to enter
+> necessary task details
 
 2. Create new task with a name "New task" and assign it to a project "New project" with due date in 7 days
 
 ```
-terka create tasks -n "New task" -p "New project" -d +7
+terka create task -n "New task" -p "New project" -d +7
 ```
 
 3. Create new sprint with goal "Sample sprint" and plan it to start "2023-04-01" and end "2023-04-14"
@@ -58,19 +59,16 @@ terka create sprint --goal "Sample sprint" --start-date 2023-04-01 --end-date 20
 
 #### `show`
 
-1. Show task info for task with id 123
+`show` launches a terminal UI when you can interact with the task
+
+
+1. Show project info for project *my-project*
 
 ```
-terka show tasks 123
+terka show project my-project
 ```
 
-2. Show project info for a project 8 (include project tasks)
-
-```
-terka show projects 8
-```
-
-3. Show sprint info for a sprint 1 (including sprint tasks)
+2. Show sprint info for a sprint 1
 
 ```
 terka show sprint 1
@@ -83,8 +81,10 @@ terka show sprint 1
 ```
 terka list projects
 ```
+> Add `--all` flag to show all projects.
 
 2. List all tasks
+
 ```
 terka list tasks
 ```
@@ -92,17 +92,33 @@ terka list tasks
 
 `list` commands can be used with the multiple terka options (listed below).
 
-3. List all tasks from project "My project" with TODO status
+3. List all tasks with TODO status
 
 ```
-terka list tasks -p "My project" -s T
+terka list tasks -s T
 ```
 > Show all projects including deleted, completed on on hold with `--all` flag.
 
-`list` commands support negation, i.e. to list all tasks from project "My project that are not in BACKLOG status you can run
+`list` commands support negation, i.e. to list all tasks with status other than BACKLOG and URGENT priority you can run:
 
 ```
-terka list tasks -p "My project" -s NOT:BACKLOG
+terka list tasks -s NOT:BACKLOG --priority URGENT
+```
+
+##### Sorting with `list`
+
+`list` supports sorting by visible columns
+
+1. Sort projects by `open_tasks`:
+
+```
+terka list projects --sort open_tasks
+```
+
+1. Sort projects by `overdue` tasks:
+
+```
+terka list projects --sort overdue
 ```
 
 #### `update`
@@ -110,8 +126,17 @@ terka list tasks -p "My project" -s NOT:BACKLOG
 1. Update  status for a task 123 to "REVIEW" and set due day today
 
 ```
-terka update tasks 123 -s R -d today
+terka update task 123 -s R -d today
 ```
+> running `terka update task 123` will launch Vim where you can make updates in bulk
+
+2. Update goal for sprint 1 to "New Goal"
+
+```
+terka update sprint 1 --goal "New goal"
+```
+> running `terka update sprint 1` will launch Vim where you can make updates in bulk
+
 
 #### `comment`
 
@@ -126,23 +151,15 @@ terka comment task 123 -t "New commentary for a task"
 ```
 terka comment project 1 -t "New commentary for a project"
 ```
-#### `edit`
 
-`edit` command allows you to change either name (`--name` CLI flag) or description (`--description` CLI flag) of the task in an editor of your choice (Vim by default)
+#### `complete`
 
-1. Edit name of the task 123
-```
-terka edit tasks 123 --name
-```
-
-#### `done`
-
-`done` commands is simple - it's just updates the status of the task to done state in a convenient manner.
+`complete` commands is simple - it's just updates the status of the task to done state in a convenient manner.
 
 ```
-terka done tasks 123
+terka complete task 123
 # is equivalent to
-# terka update tasks 123 -s d
+# terka update task 123 -s D
 ```
 
 #### `delete`
@@ -150,7 +167,7 @@ terka done tasks 123
 `delete` updates the status of the task to `DELETED` state in a convenient manner.
 
 ```
-terka delete tasks 123
+terka delete task 123
 # is equivalent to
 # terka update tasks 123 -s DELETED
 ```
@@ -160,7 +177,7 @@ terka delete tasks 123
 `tag` assigns tag to a task or a project
 
 ```
-terka tag tasks 123 -t "My tag"
+terka tag task 123 -t "My tag"
 terka tag project 1 -t "My tag"
 ```
 
@@ -169,8 +186,8 @@ terka tag project 1 -t "My tag"
 `collaborate` assigns collaborator to a task or a project
 
 ```
-terka collaborate tasks 123 -n "user_name"
-terka collaborate projects 1 -n "user_name"
+terka collaborate task 123 -n "user_name"
+terka collaborate project 1 -n "user_name"
 ```
 
 #### `add`
@@ -180,13 +197,13 @@ terka collaborate projects 1 -n "user_name"
 1. Add tasks 1, 2, and 3 to sprint 1
 
 ```
-terka add tasks 1,2,3 --to-sprint 1
+terka add task 1,2,3 --to-sprint 1
 ```
 
 2. Add one story point to task 1
 
 ```
-terka add tasks 1 --story-points 1
+terka add task 1 --story-points 1
 ```
 
 #### `start`
@@ -228,13 +245,3 @@ Options depend on a particular entity but there are some common one
    * None (default value) - when we want to explicitly specify that task does not have due date.
 
  * `-p|--project` (applied to task only) - project name or project_id for a task
-
-
- ## Utility commands
-
- * `log` - show the last 10 executed commands
- * `calendar` - show all the tasks with due date (order by ascending due date)
- * `focus <entity> <entity_id>` - execute all commands using specified `entity_id`.
- * `unfocus` - remove focus (`terka` is returned to normal mode).
- * `count <entity> [options]` -  count number of entities that safisty condition(s) in `[options]`.
-
