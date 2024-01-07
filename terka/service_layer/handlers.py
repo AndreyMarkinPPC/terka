@@ -90,6 +90,7 @@ class SprintCommandHandlers:
                     "Cannot start completed sprint")
             uow.tasks.update(entities.sprint.Sprint, cmd.id,
                              {"status": "ACTIVE"})
+            uow.commit()
             for sprint_task in existing_sprint.tasks:
                 task = sprint_task.tasks
                 task_params = {}
@@ -108,15 +109,14 @@ class SprintCommandHandlers:
                         f"for task <{task.id}>: {task.name}: ")
                     try:
                         story_points = float(story_points)
-                        # TODO: Should call command (AddTask with arguments story_points)
                         uow.published_events.append(
-                            events.SprintTaskStoryPointAssigned(
-                                sprint_task.id, story_points))
+                            commands.AddTask(id=task.id,
+                                             sprint=existing_sprint.id,
+                                             story_points=story_points))
                     except ValueError:
                         print(
                             "[red]Provide number when specifying story points[/red]"
                         )
-            uow.commit()
             logging.debug(f"Sprint started, context: {cmd}")
 
     @register(cmd=commands.CompleteSprint)
@@ -144,6 +144,21 @@ class SprintCommandHandlers:
             uow.commit()
             logging.debug(f"Sprint completed, context: {cmd}")
         bus.publisher.publish("Topic", events.SprintCompleted(cmd.id))
+
+
+    @register(cmd=commands.DeleteSprint)
+    def delete(cmd: commands.DeleteSprint,
+               bus: "messagebus.MessageBus",
+               context: dict = {}) -> None:
+        with bus.uow as uow:
+            if not (existing_sprint := uow.tasks.get_by_id(
+                    entities.sprint.Sprint, cmd.id)):
+                raise exceptions.EntityNotFound(
+                    f"Sprint id {cmd.id} is not found")
+            uow.tasks.update(entities.sprint.Sprint, cmd.id,
+                             {"status": "DELETED"})
+            uow.commit()
+            bus.publisher.publish("Topic", events.SprintDeleted(cmd.id))
 
     @register(cmd=commands.ShowSprint)
     def show(cmd: commands.ShowSprint,
@@ -708,25 +723,16 @@ class ProjectCommandHandlers:
                context: dict = {}) -> None:
         with bus.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
-            if not cmd.name:
+            if not cmd.id:
                 cmd, context = templates.create_command_from_editor(
                     project, commands.UpdateProject)
                 cmd.id = project.id
+            cmd = convert_workspace(cmd, bus)
             uow.tasks.update(entities.project.Project, project.id,
                              cmd.get_only_set_attributes())
-            if tags := context.get("tags"):
-                for tag in tags.split(","):
-                    uow.published_events.append(
-                        events.ProjectTagAdded(id=project.id, tag=tag))
-            if collaborators := context.get("collaborators"):
-                for collaborator_name in collaborators.split(","):
-                    uow.published_events.append(
-                        events.ProjecCollaboratorAdded(
-                            id=project.id, collaborator=collaborator_name))
-            if comment := context.get("comment"):
-                uow.published_events.append(
-                    events.ProjectCommentAdded(id=project_id, text=comment))
             uow.commit()
+            ProjectCommandHandlers._process_extra_args(project.id, context,
+                                                       uow)
 
     @register(cmd=commands.CompleteProject)
     def complete(cmd: commands.CompleteProject,
@@ -736,9 +742,10 @@ class ProjectCommandHandlers:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
             uow.tasks.update(entities.project.Project, project.id,
                              {"status": "COMPLETED"})
-            uow.published_events.append(events.ProjectCompleted(project.id))
-            # TODO: implement _process_extra_args for projects
             uow.commit()
+            uow.published_events.append(events.ProjectCompleted(project.id))
+            ProjectCommandHandlers._process_extra_args(project.id, context,
+                                                       uow)
             bus.publisher.publish("Topic", events.ProjectCompleted(project.id))
 
     @register(cmd=commands.DeleteProject)
@@ -749,11 +756,10 @@ class ProjectCommandHandlers:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
             uow.tasks.update(entities.project.Project, project.id,
                              {"status": "DELETED"})
-            uow.published_events.append(events.ProjectDeleted(project.id))
-            if comment := cmd.comment:
-                uow.published_events.append(
-                    events.ProjectCommented(id=project.id, text=comment))
             uow.commit()
+            uow.published_events.append(events.ProjectDeleted(project.id))
+            ProjectCommandHandlers._process_extra_args(project.id, context,
+                                                       uow)
             bus.publisher.publish("Topic", events.ProjectDeleted(project.id))
 
     @register(cmd=commands.CommentProject)
@@ -773,6 +779,7 @@ class ProjectCommandHandlers:
             context: dict = {}) -> None:
         with bus.uow as uow:
             project = ProjectCommandHandlers._validate_project(cmd.id, uow)
+            # TODO: Extract into it's own method
             if not (existing_tag := uow.tasks.list(entities.tag.BaseTag,
                                                    {"text": cmd.tag})):
                 new_tag = entities.tag.BaseTag(text=cmd.tag)
@@ -789,10 +796,36 @@ class ProjectCommandHandlers:
                     entities.tag.ProjectTag(id=project.id, tag_id=tag_id))
                 uow.commit()
 
+    @register(cmd=commands.CollaborateProject)
+    def collaborate(cmd: commands.CollaborateProject,
+                    bus: "messagebus.MessageBus",
+                    context: dict = {}) -> None:
+        with bus.uow as uow:
+            if not (existing_project := uow.tasks.get_by_id(
+                    entities.project.Project, cmd.id)):
+                raise exceptions.EntityNotFound(
+                    f"Project id {cmd.id} is not found")
+            if not (existing_user := uow.tasks.list(
+                    entities.user.User, {"name": cmd.collaborator})):
+                new_user = entities.user.User(name=cmd.collaborator)
+                uow.tasks.add(new_user)
+                uow.flush()
+                user_id = new_user.id
+            else:
+                user_id = existing_user[0].id
+            if not uow.tasks.list(entities.collaborator.ProjectCollaborator, {
+                    "project": cmd.id,
+                    "collaborator": user_id
+            }):
+                uow.tasks.add(
+                    entities.collaborator.ProjectCollaborator(
+                        id=cmd.id, collaborator_id=user_id))
+                uow.commit()
+
     @register(cmd=commands.GetProject)
     def get(cmd: commands.GetProject,
-             bus: "messagebus.MessageBus",
-             context: dict = {}) -> list[entities.project.Project]:
+            bus: "messagebus.MessageBus",
+            context: dict = {}) -> list[entities.project.Project]:
         with bus.uow as uow:
             if project_id := cmd.id:
                 return [ProjectCommandHandlers._validate_project(cmd.id, uow)]
@@ -890,6 +923,20 @@ class ProjectCommandHandlers:
             events.ProjectSynced(project.id, asana_project_id,
                                  project_sync_date))
 
+    def _process_extra_args(id, context, uow):
+        if tags := context.get("tags"):
+            for tag in tags.split(","):
+                uow.published_events.append(commands.TagProject(id=id,
+                                                                tag=tag))
+        if collaborators := context.get("collaborators"):
+            for collaborator_name in collaborators.split(","):
+                uow.published_events.append(
+                    commands.CollaborateProject(
+                        id=id, collaborator=collaborator_name))
+        if comment := context.get("comment"):
+            uow.published_events.append(
+                commands.CommentProject(id=id, text=comment))
+
 
 class ProjectEventHandlers:
 
@@ -947,11 +994,9 @@ class EpicCommandHandlers:
         with bus.uow as uow:
             uow.tasks.update(entities.project.Epic, cmd.id,
                              {"status": "COMPLETED"})
-            uow.published_events.append(events.EpicCompleted(cmd.id))
-            if comment := cmd.comment:
-                uow.published_events.append(
-                    events.EpicCommented(id=cmd.id, text=comment))
             uow.commit()
+            uow.published_events.append(events.EpicCompleted(cmd.id))
+            EpicCommandHandlers._process_extra_args(cmd.id, context, uow)
         bus.publisher.publish("Topic", events.EpicCompleted(cmd.id))
 
     @register(cmd=commands.DeleteEpic)
@@ -960,11 +1005,9 @@ class EpicCommandHandlers:
                context: dict = {}) -> None:
         with bus.uow as uow:
             uow.tasks.update(entities.epic.Epic, cmd.id, {"status": "DELETED"})
-            uow.published_events.append(events.EpicDeleted(cmd.id))
-            if comment := cmd.comment:
-                uow.published_events.append(
-                    events.EpicCommented(id=cmd.id, text=comment))
             uow.commit()
+            uow.published_events.append(events.EpicDeleted(cmd.id))
+            EpicCommandHandlers._process_extra_args(cmd.id, context, uow)
         bus.publisher.publish("Topic", events.EpicDeleted(cmd.id))
 
     @register(cmd=commands.CommentEpic)
@@ -1003,6 +1046,11 @@ class EpicCommandHandlers:
                     epics, uow.tasks,
                     printer.PrintOptions.from_kwargs(**context), "epic")
 
+    def _process_extra_args(id, context, uow):
+        if comment := context.get("comment"):
+            uow.published_events.append(
+                commands.CommentEpic(id=id, text=comment))
+
 
 class EpicEventHandlers:
     ...
@@ -1033,11 +1081,9 @@ class StoryCommandHandlers:
         with bus.uow as uow:
             uow.tasks.update(entities.project.Story, cmd.id,
                              {"status": "COMPLETED"})
-            uow.published_events.append(events.StoryCompleted(cmd.id))
-            if comment := cmd.comment:
-                uow.published_events.append(
-                    events.StoryCommented(id=cmd.id, text=comment))
             uow.commit()
+            uow.published_events.append(events.StoryDeleted(cmd.id))
+            StoryCommandHandlers._process_extra_args(cmd.id, context, uow)
         bus.publisher.publish("Topic", events.StoryCompleted(cmd.id))
 
     @register(cmd=commands.DeleteStory)
@@ -1047,11 +1093,9 @@ class StoryCommandHandlers:
         with bus.uow as uow:
             uow.tasks.update(entities.story.Story, cmd.id,
                              {"status": "DELETED"})
-            uow.published_events.append(events.StoryDeleted(cmd.id))
-            if comment := cmd.comment:
-                uow.published_events.append(
-                    events.StoryCommented(id=cmd.id, text=comment))
             uow.commit()
+            uow.published_events.append(events.StoryDeleted(cmd.id))
+            StoryCommandHandlers._process_extra_args(cmd.id, context, uow)
         bus.publisher.publish("Topic", events.StoryDeleted(cmd.id))
 
     @register(cmd=commands.CommentStory)
@@ -1079,6 +1123,11 @@ class StoryCommandHandlers:
                 if task.status.name not in ("DONE", "DELETED"):
                     uow.published_events.append(
                         commands.AddTask(id=task.id, sprint=cmd.sprint))
+
+    def _process_extra_args(id, context, uow):
+        if comment := context.get("comment"):
+            uow.published_events.append(
+                commands.CommentStory(id=id, text=comment))
 
 
 class WorkspaceCommandHandlers:

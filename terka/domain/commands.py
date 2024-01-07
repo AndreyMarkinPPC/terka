@@ -275,6 +275,11 @@ class TagProject(Tag):
 
 
 @dataclass
+class CollaborateProject(Collaborate):
+    ...
+
+
+@dataclass
 class ShowProject(Show):
     ...
 
@@ -292,6 +297,7 @@ class ListProject(List):
 @dataclass
 class GetTask(Get):
     ...
+
 
 @dataclass
 class ListTask(List):
@@ -323,6 +329,11 @@ class StartSprint(Command):
 
 @dataclass
 class CompleteSprint(Complete):
+    ...
+
+
+@dataclass
+class DeleteSprint(Delete):
     ...
 
 

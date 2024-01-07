@@ -15,6 +15,7 @@ class SprintStatus(Enum):
     PLANNED = 1
     ACTIVE = 2
     COMPLETED = 3
+    DELETED = 4
 
 
 class Sprint(Entity):

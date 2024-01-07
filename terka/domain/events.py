@@ -24,7 +24,6 @@ class Completed(Event):
 @dataclass
 class Deleted(Event):
     id: int
-    comment: str | None = None
 
 
 @dataclass
@@ -230,4 +229,8 @@ class StoryCommented(Commented):
 # SPRINTS
 @dataclass
 class SprintCompleted(Completed):
+    ...
+
+@dataclass
+class SprintDeleted(Deleted):
     ...
