@@ -184,6 +184,13 @@ class UpdateTask(Command):
     status: str | None = None
     priority: str | None = None
 
+    def __bool__(self) -> bool:
+        cmd_dict = dict(self.__dict__)
+        _ = cmd_dict.pop("id")
+        if any(cmd_dict.values()):
+            return True
+        return False
+
 
 @dataclass
 class TagTask(Tag):
@@ -252,6 +259,13 @@ class UpdateProject(Command):
     description: str | None = None
     workspace: str | None = None
     status: str | None = None
+
+    def __bool__(self) -> bool:
+        cmd_dict = dict(self.__dict__)
+        _ = cmd_dict.pop("id")
+        if any(cmd_dict.values()):
+            return True
+        return False
 
 
 @dataclass
@@ -326,6 +340,20 @@ class CreateSprint(Command):
 class StartSprint(Command):
     id: int
 
+@dataclass
+class UpdateSprint(Command):
+    id: int
+    goal: str | None = None
+    status: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+
+    def __bool__(self) -> bool:
+        cmd_dict = dict(self.__dict__)
+        _ = cmd_dict.pop("id")
+        if any(cmd_dict.values()):
+            return True
+        return False
 
 @dataclass
 class CompleteSprint(Complete):
