@@ -17,6 +17,11 @@ def projects(uow):
         return [t.to_dict() for t in uow.tasks.list(entities.project.Project)]
 
 
+def projects_id_to_name_mapping(uow) -> dict[int, str]:
+    with uow:
+        return {t.id: t.name for t in uow.tasks.list(entities.project.Project)}
+
+
 def project(uow, project_id: int):
     with uow:
         if not (project := uow.tasks.get_by_id(entities.project.Project,
@@ -44,7 +49,7 @@ def task(uow, task_id: int):
         return result
 
 
-def task_commentaries(uow, task_id: int):
+def task_commentaries(uow, task_id: int) -> dict:
     with uow:
         if not (task := uow.tasks.get_by_id(entities.task.Task, task_id)):
             return {}
@@ -53,11 +58,19 @@ def task_commentaries(uow, task_id: int):
         return {}
 
 
-def workspaces(uow):
+def workspaces(uow) -> list[dict]:
     with uow:
         return [
             t.to_dict() for t in uow.tasks.list(entities.workspace.Workspace)
         ]
+
+
+def workspaces_id_to_name_mapping(uow) -> dict[int, str]:
+    with uow:
+        return {
+            t.id: t.name
+            for t in uow.tasks.list(entities.workspace.Workspace)
+        }
 
 
 def workspace(uow, workspace_id: int):
@@ -131,6 +144,7 @@ def story_tasks(uow, story_id: int):
             return [task.tasks.to_dict() for task in story.tasks]
         return {}
 
+
 def sprints(uow):
     with uow:
         return [t.to_dict() for t in uow.tasks.list(entities.sprint.Sprint)]
@@ -138,7 +152,8 @@ def sprints(uow):
 
 def sprint(uow, sprint_id: int):
     with uow:
-        if not (sprint := uow.tasks.get_by_id(entities.sprint.Sprint, sprint_id)):
+        if not (sprint := uow.tasks.get_by_id(entities.sprint.Sprint,
+                                              sprint_id)):
             return {}
         if tasks := sprint.tasks:
             tasks = [task.tasks.to_dict() for task in sprint.tasks]
@@ -149,22 +164,30 @@ def sprint(uow, sprint_id: int):
 
 def sprint_tasks(uow, sprint_id: int):
     with uow:
-        if not (sprint := uow.tasks.get_by_id(entities.sprint.Sprint, sprint_id)):
+        if not (sprint := uow.tasks.get_by_id(entities.sprint.Sprint,
+                                              sprint_id)):
             return {}
         if tasks := sprint.tasks:
             return [task.tasks.to_dict() for task in sprint.tasks]
         return {}
+
 
 def users(uow):
     with uow:
         return [t.to_dict() for t in uow.tasks.list(entities.user.User)]
 
 
+def users_id_to_name_mapping(uow) -> dict:
+    with uow:
+        return {t.id: t.name for t in uow.tasks.list(entities.user.User)}
+
+
 def user(uow, user_id: int):
     with uow:
         if not (user := uow.tasks.get_by_id(entities.user.User, user_id)):
             return {}
-        return user.to_dict() 
+        return user.to_dict()
+
 
 def time_spent(session,
                tasks: list[entities.task.Task] | None,

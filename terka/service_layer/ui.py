@@ -15,7 +15,7 @@ from textual.widgets import (Button, Input, Header, Footer, Label, Tabs,
                              Markdown, MarkdownViewer, Pretty, Rule, Select)
 
 from terka.domain import commands, events, entities
-from terka.service_layer import services, exceptions, ui_components
+from terka.service_layer import services, exceptions, ui_components, views
 from terka.service_layer.formatter import Formatter
 
 
@@ -731,13 +731,13 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
 
     def epic_new_callback(self, result: commands.CreateEpic):
         result.project = self.entity.name
-        self.bus.handle(result)
-        self.notify(f"New epic created!")
+        epic = self.bus.handle(result)
+        self.notify(f"New epic created: {epic}!")
 
     def story_new_callback(self, result: commands.CreateStory):
         result.project = self.entity.name
-        self.bus.handle(result)
-        self.notify(f"New story created!")
+        story = self.bus.handle(result)
+        self.notify(f"New story created: {story}!")
 
 
 class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
@@ -760,6 +760,8 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
         self.tasks = self.get_tasks()
         self.selected_task = None
         self.selected_column = None
+        self.project_mapping = views.projects_id_to_name_mapping(bus.uow)
+        self.workspace_mapping = views.workspaces_id_to_name_mapping(bus.uow)
 
     def get_tasks(self, all: bool = False):
         for sprint_task in self.entity.tasks:
@@ -827,9 +829,7 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                         task_id = f"[yellow]{task.id}[/yellow]"
                     else:
                         task_id = str(task.id)
-                    with self.bus.uow as uow:
-                        project = services.lookup_project_name(
-                            task.project, uow.repo)
+                    project = self.project_mapping.get(task.project)
                     if len(commentaries := task.commentaries) > 0:
                         task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
                     else:
@@ -874,9 +874,7 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                         collaborator_string = ",".join(collaborators_texts)
                     else:
                         collaborator_string = ""
-                    with self.bus.uow as uow:
-                        project = services.lookup_project_name(
-                            task.project, uow.repo)
+                    project = self.project_mapping.get(task.project)
                     if len(commentaries := task.commentaries) > 0:
                         task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
                     else:
@@ -930,9 +928,7 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
             with TabPane("Overview", id="overview"):
                 project_split = defaultdict(int)
                 for task in self.get_tasks(all=True):
-                    with self.bus.uow as uow:
-                        project = services.lookup_project_name(
-                            task.project, uow.repo)
+                    project = self.project_mapping.get(task.project)
                     project_split[project] += task.total_time_spent
                 collaborators = self.entity.collaborators
                 sorted_collaborators = ""

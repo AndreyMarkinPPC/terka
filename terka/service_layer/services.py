@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from __future__ import annotations
 import logging
 from pathlib import Path
 import rich
@@ -10,10 +10,9 @@ import yaml
 
 from terka.adapters.repository import AbsRepository
 from terka.domain import entities
-# import terka.domain._commands as commands
 
 
-def update_config(update_pair: Dict[str, Any]):
+def update_config(update_pair: dict):
     config = get_config()
     config.update(update_pair)
     with open(f"{home_dir}/.terka/config.yaml", "w") as f:
@@ -27,114 +26,10 @@ def get_config():
     return config
 
 
-def lookup_project_id(project_name: str, repo: AbsRepository) -> int:
-    projects = project_name.split(",")
-    if project_name.startswith("NOT"):
-        projects = [
-            f"NOT:{project}"
-            for project in project_name.replace("NOT:", "").split(",")
-        ]
-        negate = True
-    else:
-        projects = project_name.split(",")
-        negate = False
-    returned_projects = []
-    returned_projects_set = set()
-    for project_name in projects:
-        if not (project := repo.list(entities.project.Project, project_name)):
-            print(
-                f"Creating new project: {project_name}. Do you want to continue (Y/n)?"
-            )
-            answer = input()
-            while answer.lower() != "y":
-                print("Provide a project name: ")
-                project_name = input()
-                print(
-                    f"Creating new project: {project_name}. Do you want to continue (Y/n)?"
-                )
-                answer = input()
-            project = entities.project.Project(project_name)
-            repo.add(project)
-            repo.session.commit()
-        if isinstance(project, list):
-            project_ids = [project.id for project in project]
-            if negate:
-                if returned_projects_set:
-                    returned_projects_set = returned_projects_set.intersection(
-                        set(project_ids))
-                else:
-                    returned_projects_set = returned_projects_set.union(
-                        set(project_ids))
-
-            else:
-                returned_projects.extend(project_ids)
-        else:
-            returned_projects.append(project.id)
-    if returned_projects_set:
-        return list(returned_projects_set)
-    if len(returned_projects) == 1:
-        return returned_projects[0]
-    return returned_projects
-
-
-def lookup_user_id(user_name: str, repo: AbsRepository) -> int | None:
-    if user := repo.get(entities.user.User, user_name):
-        return user.id
-    return None
-
-
-def lookup_user_name(user_id: str, repo: AbsRepository) -> str | None:
-    if user := repo.get_by_id(entities.user.User, user_id):
-        return user.name
-    return None
-
-
-def lookup_project_name(project_id: int, repo: AbsRepository) -> str | None:
-    if project := repo.get_by_id(entities.project.Project, project_id):
-        return project.name
-    return None
-
-
-def lookup_workspace_id(workspace_name: str,
-                        repo: AbsRepository) -> int | None:
-    if workspace := repo.get(entities.workspace.Workspace, workspace_name):
-        return workspace.id
-    return None
-
-
 def get_workplace_by_name(
         workspace_name: str,
         repo: AbsRepository) -> entities.workspace.Workspace | None:
     return repo.get(entities.workspace.Workspace, workspace_name)
-
-
-def get_workplace_by_id(
-        workspace_id: int,
-        repo: AbsRepository) -> entities.workspace.Workspace | None:
-    return repo.get_by_id(entities.workspace.Workspace, workspace_id)
-
-
-def get_project_by_name(project_name: str,
-                        repo: AbsRepository) -> entities.project.Project | None:
-    return repo.get(entities.project.Project, project_name)
-
-
-def get_project_by_id(project_id: int,
-                      repo: AbsRepository) -> entities.project.Project | None:
-    return repo.get_by_id(entities.project.Project, project_id)
-
-
-# class CommandHander:
-
-#     def __init__(self, home_dir, config, console=Console()):
-#         self.home_dir = home_dir
-#         self.config = config
-#         self.console =  console
-
-#     def execute(self, command: commands.Command, entity, task_dict):
-#         # TODO: create registry of commands
-#         handler = commands_registry[command]
-#         handler.handle(entity, task_dict)
 
 
 class ServiceCommandHander:

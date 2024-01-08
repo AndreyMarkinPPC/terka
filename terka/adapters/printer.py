@@ -9,7 +9,7 @@ from rich.table import Table
 from textual.app import App, ComposeResult
 from textual import widgets
 
-from terka.service_layer import formatter, ui
+from terka.service_layer import formatter, ui, views
 
 
 @dataclass
@@ -33,15 +33,15 @@ class PrintOptions:
 
 class Printer:
 
-    def __init__(self):
-        self.console = ConsolePrinter()
-        self.tui = TextualPrinter()
+    def __init__(self, uow):
+        self.console = ConsolePrinter(uow)
+        self.tui = TextualPrinter(uow)
 
 
 class TextualPrinter:
 
-    def __init__(self) -> None:
-        ...
+    def __init__(self, uow) -> None:
+        self.uow = uow
 
     def show_note(self, note):
 
@@ -64,16 +64,25 @@ class TextualPrinter:
         app = ui.TerkaSprint(sprint, bus)
         app.run()
 
+
 class ConsolePrinter:
 
-    def __init__(self, box=rich.box.SIMPLE, config=None) -> None:
-        self.console = Console()
+    def __init__(self, uow, box=rich.box.SIMPLE, config=None) -> None:
+        self.uow = uow
         self.box = box
         self.config = config
+        self.console = Console()
 
-    def print_new_object(self, obj, project=None):
+    def print_new_object(self, obj, mappings: dict | None = None):
         table = Table(box=self.box)
-        attributes = self._get_attributes(obj)
+        if not mappings:
+            mappings = {
+                "project_mapping": views.projects_id_to_name_mapping(self.uow),
+                "user_mapping": views.users_id_to_name_mapping(self.uow),
+                "workspace_mapping": views.workspaces_id_to_name_mapping(self.uow)
+
+            }
+        attributes = self._get_attributes(obj, mappings)
         for column, value in attributes:
             if value:
                 table.add_column(column)
@@ -109,12 +118,16 @@ class ConsolePrinter:
         if table.row_count:
             self.console.print(table)
 
-    def print_composite(self,
-                        entities,
-                        repo,
-                        print_options,
-                        composite_type,
-                        kwargs=None):
+    def print_composite(
+            self,
+            entities,
+            print_options,
+            composite_type,
+            kwargs=None):
+        if not entities:
+            self.console.print(f"[red]No {composite_type} found[/red]")
+            exit()
+        project_mapping = views.projects_id_to_name_mapping(self.uow)
         table = Table(box=self.box,
                       title=composite_type.upper(),
                       expand=print_options.expand_table)
@@ -132,15 +145,13 @@ class ConsolePrinter:
         for column in printable_columns:
             non_active_entities.add_column(column, style="bold")
         for i, entity in enumerate(entities):
-            # TODO: Get project name
-            # project = services.lookup_project_name(
-            #     entity.project, repo)
+            project = project_mapping.get(entity.project)
             printable_row = {
                 "id": f"{entity.id}",
                 "name": str(entity.name),
                 "description": entity.description,
                 "status": entity.status.name,
-                "project": f"{entity.project}",
+                "project": project,
                 "tasks": str(len(entity.open_tasks))
             }
             printable_elements = [
@@ -162,6 +173,9 @@ class ConsolePrinter:
                 self._print_time_utilization(time_entries)
 
     def print_project(self, entities, print_options, kwargs=None):
+        if not entities:
+            self.console.print("[red]No projects found[/red]")
+            exit()
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD,
                       expand=print_options.expand_table)
         non_active_projects = Table(box=rich.box.SQUARE_DOUBLE_HEAD,
@@ -324,6 +338,9 @@ class ConsolePrinter:
         self.console.print(table)
 
     def print_sprint(self, entities, print_options, kwargs=None):
+        if not entities:
+            self.console.print("[red]No sprints found[/red]")
+            exit()
         table = Table(box=rich.box.SQUARE_DOUBLE_HEAD,
                       expand=print_options.expand_table)
         all_sprints = Table(box=rich.box.SQUARE_DOUBLE_HEAD,
@@ -379,20 +396,24 @@ class ConsolePrinter:
         elif table.row_count:
             self.console.print(table)
 
-    def _get_attributes(self, obj) -> list[tuple[str, str]]:
-        import inspect
+    def _get_attributes(
+            self, obj, mappings: dict[dict[int,
+                                           str]]) -> list[tuple[str, str]]:
         attributes = []
         for name, value in inspect.getmembers(obj):
             if not name.startswith("_") and not inspect.ismethod(value):
                 if not value:
                     continue
                 elif name in ("created_by", "assignee"):
-                    attributes.append(
-                        # (name, services.lookup_user_name(value, self.repo)))
-                        (name, str(value)))
+                    user = mappings.get("user_mapping").get(value)
+                    attributes.append((name, user))
                 elif name == "project":
-                    # project = services.lookup_project_name(value, self.repo)
-                    attributes.append((name, str(value)))
+                    project = mappings.get("project_mapping").get(value)
+                    attributes.append((name, project))
+                elif name == "workspace":
+                    workspace = mappings.get("workspace_mapping",
+                                             {}).get(value)
+                    attributes.append((name, workspace))
                 elif hasattr(value, "name"):
                     attributes.append((name, value.name))
                 elif isinstance(value, datetime):

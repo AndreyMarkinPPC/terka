@@ -340,6 +340,7 @@ class CreateSprint(Command):
 class StartSprint(Command):
     id: int
 
+
 @dataclass
 class UpdateSprint(Command):
     id: int
@@ -354,6 +355,7 @@ class UpdateSprint(Command):
         if any(cmd_dict.values()):
             return True
         return False
+
 
 @dataclass
 class CompleteSprint(Complete):
@@ -452,6 +454,11 @@ class CommentStory(Comment):
 class AddStory(Command):
     id: int
     sprint: int
+
+
+@dataclass
+class ListStory(List):
+    ...
 
 
 # WORKSPACES

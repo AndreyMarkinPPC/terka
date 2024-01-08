@@ -16,14 +16,14 @@ class MessageBus:
                  command_handlers: Type[handlers.Handler],
                  config: dict | None = None,
                  publisher: publisher.BasePublisher | None = None,
-                 printer = printer.Printer()) -> None:
+                 ) -> None:
         self.uow = uow
         self.publisher = publisher
-        self.printer = printer
         self.event_handlers = event_handlers
         self.command_handlers = command_handlers
         self.config = config
         self.return_value = None
+        self.printer = printer.Printer(uow)
 
     def handle(self, message: Message, context: dict = {}):
         self.queue = [message]

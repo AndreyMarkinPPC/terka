@@ -219,6 +219,12 @@ class TaskCommandHandlers:
             cmd, context = templates.create_command_from_editor(
                 entities.task.Task, commands.CreateTask)
         with bus.uow as uow:
+            mappings = {
+                "project_mapping": views.projects_id_to_name_mapping(uow),
+                "user_mapping": views.users_id_to_name_mapping(uow),
+                "workspace_mapping": views.workspaces_id_to_name_mapping(uow)
+            }
+        with bus.uow as uow:
             cmd.inject(bus.config)
             cmd = convert_project(cmd, bus)
             cmd = convert_user(cmd, bus)
@@ -231,7 +237,7 @@ class TaskCommandHandlers:
             uow.commit()
             TaskCommandHandlers._process_extra_args(new_task.id, context, uow)
             bus.publisher.publish("Topic", task_created_event)
-            bus.printer.console.print_new_object(new_task)
+            bus.printer.console.print_new_object(new_task, mappings)
             return new_task_id
 
     @register(cmd=commands.UpdateTask)
@@ -716,6 +722,12 @@ class ProjectCommandHandlers:
                 entities.project.Project, commands.CreateProject)
         project_id = None
         with bus.uow as uow:
+            mappings = {
+                "project_mapping": views.projects_id_to_name_mapping(uow),
+                "user_mapping": views.users_id_to_name_mapping(uow),
+                "workspace_mapping": views.workspaces_id_to_name_mapping(uow)
+            }
+        with bus.uow as uow:
             if not (existing_project := uow.tasks.get(entities.project.Project,
                                                       cmd.name)):
                 cmd = convert_workspace(cmd, bus)
@@ -726,7 +738,7 @@ class ProjectCommandHandlers:
                 new_event = events.ProjectCreated(project_id)
                 uow.published_events.append(new_event)
                 uow.commit()
-                bus.printer.console.print_new_object(new_project)
+                bus.printer.console.print_new_object(new_project, mappings)
                 bus.publisher.publish("Topic", new_event)
             else:
                 logging.warning(f"Project {cmd.name} already exists")
@@ -884,7 +896,7 @@ class ProjectCommandHandlers:
             else:
                 projects = uow.tasks.list(entities.project.Project)
                 for project in projects:
-                    self._sync_project(uow, project)
+                    ProjectCommandHandlers._sync_project(uow, project)
 
     def _validate_project(id: str | int, uow) -> entities.project.Project:
         if isinstance(id, int) or id.isnumeric():
@@ -996,12 +1008,18 @@ class EpicCommandHandlers:
             cmd, context = templates.create_command_from_editor(
                 entities.epic.Epic, type(cmd))
         with bus.uow as uow:
+            mappings = {
+                "project_mapping": views.projects_id_to_name_mapping(uow),
+                "user_mapping": views.users_id_to_name_mapping(uow),
+                "workspace_mapping": views.workspaces_id_to_name_mapping(uow)
+            }
+        with bus.uow as uow:
             cmd = convert_project(cmd, bus)
             new_epic = entities.epic.Epic(**asdict(cmd))
             uow.tasks.add(new_epic)
             uow.commit()
             new_epic_id = new_epic.id
-            bus.printer.console.print_new_object(new_epic)
+            bus.printer.console.print_new_object(new_epic, mappings)
             return new_epic_id
 
     @register(cmd=commands.CompleteEpic)
@@ -1060,8 +1078,7 @@ class EpicCommandHandlers:
         with bus.uow as uow:
             if epics := uow.tasks.list(entities.epic.Epic):
                 bus.printer.console.print_composite(
-                    epics, uow.tasks,
-                    printer.PrintOptions.from_kwargs(**context), "epic")
+                    epics, printer.PrintOptions.from_kwargs(**context), "epic")
 
     def _process_extra_args(id, context, uow):
         if comment := context.get("comment"):
@@ -1083,12 +1100,18 @@ class StoryCommandHandlers:
             cmd, context = templates.create_command_from_editor(
                 entities.story.Story, type(cmd))
         with bus.uow as uow:
+            mappings = {
+                "project_mapping": views.projects_id_to_name_mapping(uow),
+                "user_mapping": views.users_id_to_name_mapping(uow),
+                "workspace_mapping": views.workspaces_id_to_name_mapping(uow)
+            }
+        with bus.uow as uow:
             cmd = convert_project(cmd, bus)
             new_story = entities.story.Story(**asdict(cmd))
             uow.tasks.add(new_story)
             uow.commit()
             new_story_id = new_story.id
-            bus.printer.console.print_new_object(new_story)
+            bus.printer.console.print_new_object(new_story, mappings)
             return new_story_id
 
     @register(cmd=commands.CompleteStory)
@@ -1140,6 +1163,14 @@ class StoryCommandHandlers:
                 if task.status.name not in ("DONE", "DELETED"):
                     uow.published_events.append(
                         commands.AddTask(id=task.id, sprint=cmd.sprint))
+    @register(cmd=commands.ListStory)
+    def list(cmd: commands.ListStory,
+             bus: "messagebus.MessageBus",
+             context: dict = {}) -> None:
+        with bus.uow as uow:
+            if storys := uow.tasks.list(entities.story.Story):
+                bus.printer.console.print_composite(
+                    storys, printer.PrintOptions.from_kwargs(**context), "story")
 
     def _process_extra_args(id, context, uow):
         if comment := context.get("comment"):
@@ -1157,11 +1188,17 @@ class WorkspaceCommandHandlers:
             cmd, context = templates.create_command_from_editor(
                 entities.sprint.Sprint, type(cmd))
         with bus.uow as uow:
+            mappings = {
+                "project_mapping": views.projects_id_to_name_mapping(uow),
+                "user_mapping": views.users_id_to_name_mapping(uow),
+                "workspace_mapping": views.workspaces_id_to_name_mapping(uow)
+            }
+        with bus.uow as uow:
             if not uow.tasks.get(entities.workspace.Workspace, cmd.name):
                 new_workspace = entities.workspace.Workspace(**asdict(cmd))
                 uow.tasks.add(new_workspace)
                 uow.commit()
-                bus.printer.console.print_new_object(new_workspace)
+                bus.printer.console.print_new_object(new_workspace, mappings)
             else:
                 logging.warning(f"Workspace {cmd.name} already exists")
 
@@ -1184,11 +1221,17 @@ class UserCommandHandlers:
                bus: "messagebus.MessageBus",
                context: dict = {}) -> None:
         with bus.uow as uow:
+            mappings = {
+                "project_mapping": views.projects_id_to_name_mapping(uow),
+                "user_mapping": views.users_id_to_name_mapping(uow),
+                "workspace_mapping": views.workspaces_id_to_name_mapping(uow)
+            }
+        with bus.uow as uow:
             if not uow.tasks.get(entities.user.User, cmd.name):
                 new_user = entities.user.User(**asdict(cmd))
                 uow.tasks.add(new_user)
                 uow.commit()
-                bus.printer.console.print_new_object(new_user)
+                bus.printer.console.print_new_object(new_user, mappings)
             else:
                 logging.warning(f"User {cmd.name} already exists")
 
