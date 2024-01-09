@@ -94,8 +94,7 @@ class NewTask(TerkaModalScreen):
             Input(placeholder="Description",
                   id="description",
                   classes="description-input"),
-            Input(placeholder="Project",
-                  id="project",
+            Input(placeholder="Project", id="project",
                   classes="project-input"),
             Input(placeholder="Assignee",
                   id="assignee",
@@ -140,19 +139,18 @@ class NewTask(TerkaModalScreen):
             tags = self.query_one("#tags", Input)
             collaborators = self.query_one("#collaborators", Input)
             returned_commands = []
-            create_command = commands.CreateTask(
-                name=name.value,
-                description=description.value,
-                project=project.value,
-                due_date=due_date,
-                status=status.value,
-                priority=priority.value)
+            create_command = commands.CreateTask(name=name.value,
+                                                 description=description.value,
+                                                 project=project.value,
+                                                 due_date=due_date,
+                                                 status=status.value,
+                                                 priority=priority.value)
             returned_commands.append(create_command)
             if sprint.value or story.value or epic.value:
                 add_command = commands.AddTask(id=None,
-                                                sprint=sprint.value,
-                                                epic=epic.value,
-                                                story=story.value)
+                                               sprint=sprint.value,
+                                               epic=epic.value,
+                                               story=story.value)
                 returned_commands.append(add_command)
             if tags.value:
                 tag_command = commands.TagTask(id=None, tag=tags.value)
@@ -186,7 +184,7 @@ class NewEpic(TerkaModalScreen):
             description = self.query_one("#description", Input)
             self.dismiss(
                 commands.CreateEpic(name=name.value,
-                                     description=description.value))
+                                    description=description.value))
         else:
             self.app.pop_screen()
 
@@ -211,7 +209,7 @@ class NewStory(TerkaModalScreen):
             description = self.query_one("#description", Input)
             self.dismiss(
                 commands.CreateStory(name=name.value,
-                                      description=description.value))
+                                     description=description.value))
         else:
             self.app.pop_screen()
 
@@ -240,10 +238,10 @@ class TaskAdd(TerkaModalScreen):
             story_points = self.query_one("#story-points", Input)
             self.dismiss(
                 commands.AddTask(id=None,
-                                  sprint=sprint.value,
-                                  epic=epic.value,
-                                  story=story.value,
-                                  story_points=story_points.value))
+                                 sprint=sprint.value,
+                                 epic=epic.value,
+                                 story=story.value,
+                                 story_points=story_points.value))
         else:
             self.app.pop_screen()
 
@@ -301,17 +299,23 @@ class TaskEdit(TerkaModalScreen):
             hours = self.query_one("#hours", Input)
             if due_date := due_date.value:
                 due_date = datetime.strptime(due_date, "%Y-%m-%d")
-            self.dismiss((
-                commands.UpdateTask(
-                    id=None,
-                    name=name.value,
-                    description=description.value,
-                    # FIXME: Bring back
-                    # due_date=due_date,
-                    status=status.value,
-                    priority=priority.value),
-                commands.CommentTask(id=None, text=comment.value),
-                commands.TrackTask(id=None, hours=hours.value)))
+            commands_chain = []
+            update_cmd = commands.UpdateTask(
+                id=None,
+                name=name.value,
+                description=description.value,
+                # FIXME: Bring back
+                # due_date=due_date,
+                status=status.value,
+                priority=priority.value)
+            if update_cmd:
+                commands_chain.append(update_cmd)
+            commands_chain.append(
+                commands.CommentTask(id=None, text=comment.value))
+            commands_chain.append(
+                commands.TrackTask(id=None, hours=hours.value))
+
+            self.dismiss(tuple(commands_chain))
         else:
             self.app.pop_screen()
 
@@ -489,5 +493,22 @@ class TaskCollaboratorEdit(TerkaModalScreen):
         if event.button.id == "yes":
             collaborators = self.query_one("#collaborators", Input)
             self.dismiss(collaborators.value)
+        else:
+            self.app.pop_screen()
+
+
+class TaskDeleteDueDate(TerkaModalScreen):
+
+    def compose(self) -> ComposeResult:
+        yield Grid(
+            Label(f"Remove due date", id="question"),
+            Button("Yes", id="yes"),
+            Button("No", id="no"),
+            id="dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "yes":
+            self.dismiss(True)
         else:
             self.app.pop_screen()

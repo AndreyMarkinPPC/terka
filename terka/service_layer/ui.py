@@ -80,8 +80,8 @@ class PopupsMixin:
         ...
 
     def _process_commands_chain(self,
-                                   result: tuple[commands.Command, ...],
-                                   project: str | None = None) -> int | None:
+                                result: tuple[commands.Command, ...],
+                                project: str | None = None) -> int | None:
         main_command, *rest = result
         main_command.id = self.selected_task
         if project:
@@ -160,7 +160,12 @@ class PopupsMixin:
                 self.notify(f"Story {story} not found!", severity="error")
 
     def action_task_delete(self) -> None:
-        self.push_screen(ui_components.TaskDelete(), self.task_delete_callback)
+        if self.selected_column == "due_date":
+            self.push_screen(ui_components.TaskDeleteDueDate(),
+                             self.task_delete_due_date_callback)
+        else:
+            self.push_screen(ui_components.TaskDelete(),
+                             self.task_delete_callback)
 
     def task_delete_callback(self, result: tuple[commands.CompleteTask,
                                                  commands.CommentTask,
@@ -208,39 +213,56 @@ class PopupsMixin:
                              self.task_update_collaborator_callback)
 
     def task_update_status_callback(self, result: str):
-        self.bus.handle(
-            commands.UpdateTask(id=self.selected_task, status=result))
-        self.notify(f"Task: {self.selected_task} status updated to {result}!")
+        if result:
+            self.bus.handle(
+                commands.UpdateTask(id=self.selected_task, status=result))
+            self.notify(
+                f"Task: {self.selected_task} status updated to {result}!")
 
     def task_update_priority_callback(self, result: str):
-        self.bus.handle(
-            commands.UpdateTask(id=self.selected_task, priority=result))
-        self.notify(
-            f"Task: {self.selected_task} priority updated to {result}!")
+        if result:
+            self.bus.handle(
+                commands.UpdateTask(id=self.selected_task, priority=result))
+            self.notify(
+                f"Task: {self.selected_task} priority updated to {result}!")
 
     def task_update_story_points_callback(self, result: str):
-        self.bus.handle(
-            commands.AddTask(id=self.selected_task,
-                              sprint=self.sprint_id,
-                              story_points=result))
-        self.notify(
-            f"Task: {self.selected_task} story points updated to {result}!")
+        if result:
+            self.bus.handle(
+                commands.AddTask(id=self.selected_task,
+                                 sprint=self.sprint_id,
+                                 story_points=result))
+            self.notify(
+                f"Task: {self.selected_task} story points updated to {result}!"
+            )
 
     def task_update_hours_callback(self, result: str):
-        self.bus.handle(
-            commands.TrackTask(id=self.selected_task, hours=result))
-        self.notify(f"Tracked {result} minutes for task {self.selected_task}!")
+        if result:
+            self.bus.handle(
+                commands.TrackTask(id=self.selected_task, hours=result))
+            self.notify(
+                f"Tracked {result} minutes for task {self.selected_task}!")
 
     def task_update_tag_callback(self, result: str):
-        self.bus.handle(commands.TagTask(id=self.selected_task, tag=result))
-        self.notify(f"Tagged task {self.selected_task} with tag(s): {result}!")
+        if result:
+            self.bus.handle(commands.TagTask(id=self.selected_task,
+                                             tag=result))
+            self.notify(
+                f"Tagged task {self.selected_task} with tag(s): {result}!")
 
     def task_update_collaborator_callback(self, result: str):
-        self.bus.handle(
-            commands.CollaborateTask(id=self.selected_task,
-                                      collaborator=result))
-        self.notify(
-            f"Added collaborator {result} for task {self.selected_task}!")
+        if result:
+            self.bus.handle(
+                commands.CollaborateTask(id=self.selected_task,
+                                         collaborator=result))
+            self.notify(
+                f"Added collaborator {result} for task {self.selected_task}!")
+
+    def task_delete_due_date_callback(self, result: bool):
+        if result:
+            self.bus.handle(
+                commands.UpdateTask(id=self.selected_task, due_date="Remove"))
+            self.notify(f"Removed due date for task {self.selected_task}")
 
     def action_show_info(self) -> None:
         if "task" in self.selected_data_table:
@@ -413,7 +435,6 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
         self.selected_task = None
         self.selected_column = None
         self.project_id = entity.id
-
 
     def action_refresh(self):
         ...
@@ -726,7 +747,7 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
 
     def task_new_callback(self, result: list[commands.Command]):
         object_id = self._process_commands_chain(result,
-                                                    project=self.project_id)
+                                                 project=self.project_id)
         self.notify(f"New task created with id {object_id}!")
 
     def epic_new_callback(self, result: commands.CreateEpic):

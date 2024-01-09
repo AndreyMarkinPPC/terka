@@ -10,7 +10,7 @@ class Command:
         set_attributes = {}
         for key, value in asdict(self).items():
             if key == "due_date" or value:
-                set_attributes[key] = value
+                set_attributes[key] = value if value != "Remove" else None
         return set_attributes
 
     @classmethod
@@ -37,8 +37,11 @@ class Command:
     def format_date(attributes: dict, date_attribute: str):
         if date_attribute_value := attributes.get(date_attribute):
             if not isinstance(date_attribute_value, datetime):
-                attributes[date_attribute] = datetime.strptime(
-                    date_attribute_value, "%Y-%m-%d")
+                if date_attribute_value == "Remove":
+                    attributes[date_attribute] = "Remove"
+                else:
+                    attributes[date_attribute] = datetime.strptime(
+                        date_attribute_value, "%Y-%m-%d")
 
 
 # Base Commands
