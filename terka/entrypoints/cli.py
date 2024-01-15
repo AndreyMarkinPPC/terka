@@ -21,11 +21,7 @@ from terka.adapters.repository import SqlAlchemyRepository
 
 from terka import bootstrap
 from terka.domain import commands
-from terka.utils import (
-    format_task_dict,
-    process_command,
-    load_config
-)
+from terka.utils import (format_task_dict, process_command, load_config)
 from terka.service_layer import exceptions, handlers, services, unit_of_work
 
 HOME_DIR = os.path.expanduser("~")
@@ -92,7 +88,18 @@ def main():
     bus = bootstrap.bootstrap(start_orm=True,
                               uow=unit_of_work.SqlAlchemyUnitOfWork(DB_URL),
                               config=config)
-    handlers.CommandHandler(bus).execute(command, entity, task_dict)
+    queue = []
+    queue.append({
+        "command": command,
+        "entity": entity,
+        "task_dict": task_dict
+    })
+    while queue:
+        cmd_dict = queue.pop()
+        try:
+            handlers.CommandHandler(bus).execute(**cmd_dict)
+        except exceptions.TerkaRefreshException:
+            queue.append(cmd_dict)
 
 
 if __name__ == "__main__":

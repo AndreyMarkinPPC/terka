@@ -435,9 +435,13 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
         self.selected_task = None
         self.selected_column = None
         self.project_id = entity.id
+        if _last_synced := self.entity.last_synced:
+            self.last_synced = _last_synced[0].sync_date.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            self.last_synced = None
 
     def action_refresh(self):
-        ...
+        self.exit(return_code=4)
 
     @work(thread=True)
     def action_sync(self) -> None:
@@ -447,7 +451,7 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
 
     def on_mount(self) -> None:
         self.title = f"Project: {self.entity.name}"
-        self.sub_title = f'Workspace: {self.bus.config.get("workspace")}'
+        self.sub_title = f'Workspace: {self.bus.config.get("workspace")}, last synced: {self.last_synced}'
 
     def compose(self) -> ComposeResult:
         yield ui_components.Sidebar(classes="-hidden")
@@ -792,7 +796,7 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                 yield sprint_task.tasks
 
     def action_refresh(self):
-        ...
+        self.exit(return_code=4)
 
     def on_mount(self) -> None:
         self.title = "Sprint"

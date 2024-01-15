@@ -9,7 +9,7 @@ from rich.table import Table
 from textual.app import App, ComposeResult
 from textual import widgets
 
-from terka.service_layer import formatter, ui, views
+from terka.service_layer import exceptions, formatter, ui, views
 
 
 @dataclass
@@ -59,11 +59,15 @@ class TextualPrinter:
     def print_project(self, project, bus):
         app = ui.TerkaProject(project, bus)
         app.run()
+        if app.return_code == 4:
+            raise exceptions.TerkaRefreshException
+
 
     def print_sprint(self, sprint, bus):
         app = ui.TerkaSprint(sprint, bus)
         app.run()
-
+        if app.return_code == 4:
+            raise exceptions.TerkaRefreshException
 
 class ConsolePrinter:
 
