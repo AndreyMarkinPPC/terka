@@ -1,4 +1,5 @@
 from __future__ import annotations
+from copy import copy
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -17,7 +18,7 @@ def projects(uow):
 
 
 def projects_id_to_name_mapping(uow) -> dict[int, str]:
-    with uow:
+    with copy(uow) as uow:
         return {t.id: t.name for t in uow.tasks.list(entities.project.Project)}
 
 
@@ -65,7 +66,7 @@ def workspaces(uow) -> list[dict]:
 
 
 def workspaces_id_to_name_mapping(uow) -> dict[int, str]:
-    with uow:
+    with copy(uow) as uow:
         return {
             t.id: t.name
             for t in uow.tasks.list(entities.workspace.Workspace)
@@ -177,7 +178,7 @@ def users(uow):
 
 
 def users_id_to_name_mapping(uow) -> dict:
-    with uow:
+    with copy(uow) as uow:
         return {t.id: t.name for t in uow.tasks.list(entities.user.User)}
 
 
