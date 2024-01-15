@@ -227,7 +227,9 @@ class TaskCommandHandlers:
         with bus.uow as uow:
             cmd.inject(bus.config)
             cmd = convert_project(cmd, bus)
-            cmd = convert_user(cmd, bus)
+            # TODO: make one call
+            cmd = convert_user(cmd, bus, "created_by")
+            cmd = convert_user(cmd, bus, "assignee")
             new_task = entities.task.Task(**asdict(cmd))
             uow.tasks.add(new_task)
             uow.flush()
@@ -378,10 +380,10 @@ class TaskCommandHandlers:
                         if existing_task.status.name == "BACKLOG":
                             task_params.update({"status": "TODO"})
                         if (not existing_task.due_date
-                                or existing_task.due_date
-                                > existing_entity.end_date
-                                or existing_task.due_date
-                                < existing_entity.start_date):
+                                or existing_task.due_date >
+                                existing_entity.end_date
+                                or existing_task.due_date <
+                                existing_entity.start_date):
                             task_params.update(
                                 {"due_date": existing_entity.end_date})
                         if task_params:
@@ -898,6 +900,21 @@ class ProjectCommandHandlers:
                 for project in projects:
                     ProjectCommandHandlers._sync_project(uow, project)
 
+    @register(cmd=commands.ConnectProject)
+    def connect(cmd: commands.ConnectProject,
+                bus: "messagebus.MessageBus",
+                context: dict = {}) -> None:
+        with bus.uow as uow:
+            project = ProjectCommandHandlers._validate_project(cmd.id, uow)
+            if not (asana_project := uow.tasks.get_by_id(
+                    asana.AsanaProject, project.id)):
+                asana_project = asana.AsanaProject(
+                    id=project.id,
+                    asana_project_id=cmd.external_project,
+                    sync_date=None)
+                uow.tasks.add(asana_project)
+                uow.commit()
+
     def _validate_project(id: str | int, uow) -> entities.project.Project:
         if isinstance(id, int) or id.isnumeric():
             if not (existing_project := uow.tasks.get_by_id(
@@ -931,6 +948,8 @@ class ProjectCommandHandlers:
         project_sync_date = datetime.now()
         synced_tasks = views.external_connectors_asana_tasks(
             uow.repo.session, project.id)
+        mapped_external_users = views.external_connectors_asana_users(
+            uow.repo.session)
         # TODO: Store default assign user and token in config
         configuration = asn.Configuration()
         configuration.access_token = os.getenv("ASANA_PERSONAL_ACCESS_TOKEN")
@@ -942,7 +961,7 @@ class ProjectCommandHandlers:
                 continue
             sync_info = synced_tasks.get(task.id)
             if asana_task_id := asana_migrator.migrate_task(
-                    asana_project_id, task, sync_info):
+                    asana_project_id, task, sync_info, mapped_external_users):
                 uow.published_events.append(
                     events.TaskSynced(id=task.id,
                                       project=project.id,
@@ -1163,6 +1182,7 @@ class StoryCommandHandlers:
                 if task.status.name not in ("DONE", "DELETED"):
                     uow.published_events.append(
                         commands.AddTask(id=task.id, sprint=cmd.sprint))
+
     @register(cmd=commands.ListStory)
     def list(cmd: commands.ListStory,
              bus: "messagebus.MessageBus",
@@ -1170,7 +1190,8 @@ class StoryCommandHandlers:
         with bus.uow as uow:
             if storys := uow.tasks.list(entities.story.Story):
                 bus.printer.console.print_composite(
-                    storys, printer.PrintOptions.from_kwargs(**context), "story")
+                    storys, printer.PrintOptions.from_kwargs(**context),
+                    "story")
 
     def _process_extra_args(id, context, uow):
         if comment := context.get("comment"):
@@ -1243,6 +1264,33 @@ class UserCommandHandlers:
             if users := uow.tasks.list(entities.user.User):
                 bus.printer.console.print_user(users)
 
+    @register(cmd=commands.ConnectUser)
+    def connect(cmd: commands.ConnectUser,
+                bus: "messagebus.MessageBus",
+                context: dict = {}) -> None:
+        with bus.uow as uow:
+            user = UserCommandHandlers._validate_user(cmd.id, uow)
+            if not (asana_user := uow.tasks.get_by_id(
+                    asana.AsanaUser, user.id)):
+                asana_user = asana.AsanaUser(
+                    id=user.id,
+                    asana_user_id=cmd.external_user)
+                uow.tasks.add(asana_user)
+                uow.commit()
+
+    def _validate_user(id: str | int, uow) -> entities.user.User:
+        if isinstance(id, int) or id.isnumeric():
+            if not (existing_user := uow.tasks.get_by_id(
+                    entities.user.User, id)):
+                raise exceptions.EntityNotFound(
+                    f"User {id} is not found")
+        else:
+            if not (existing_user := uow.tasks.get(entities.user.User,
+                                                      id)):
+
+                raise exceptions.EntityNotFound(
+                    f"User {id} is not found")
+        return existing_user
 
 class NoteCommandHandlers:
 
@@ -1319,21 +1367,22 @@ def convert_workspace(cmd: commands.Command,
 
 def convert_user(cmd: commands.Command,
                  bus: "messagebus.MessageBus",
+                 user_type: str = "created_by",
                  context: dict = {}) -> Type[commands.Command]:
-    if not (created_by := cmd.created_by):
+    if not (user_value := getattr(cmd, user_type)):
         return cmd
     try:
-        cmd.created_by = int(created_by)
+        setattr(cmd, user_type, int(user_value))
         return cmd
     except ValueError:
         ...
     if not (existing_user := bus.uow.tasks.get(entities.user.User,
-                                               created_by)):
+                                               user_value)):
         user_id = UserCommandHandlers.create(
-            cmd=commands.CreateUser(name=created_by), bus=bus, context=context)
-        cmd.created_by = user_id
+            cmd=commands.CreateUser(name=user_value), bus=bus, context=context)
+        setattr(cmd, user_type, user_id)
     else:
-        cmd.created_by = int(existing_user.id)
+        setattr(cmd, user_type, int(existing_user.id))
     return cmd
 
 

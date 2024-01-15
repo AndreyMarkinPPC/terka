@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Dict, List, Optional
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -193,7 +192,7 @@ def time_spent(session,
                tasks: list[entities.task.Task] | None,
                start_date: str = n_days_ago(7),
                end_date: str = n_days_ago(-1),
-               excluded_tasks_only: bool = False) -> List[Dict[str, str]]:
+               excluded_tasks_only: bool = False) -> list[dict[str, str]]:
     tasks = ",".join([str(task.id) for task in tasks])
     query = f"""
     SELECT
@@ -214,7 +213,7 @@ def time_spent(session,
 
 
 def sprint_task_ids(session,
-                    sprint_id: Optional[int] = None) -> List[Dict[int, int]]:
+                    sprint_id: int | None = None) -> list[dict[int, int]]:
     results = session.execute(
         """
     SELECT
@@ -226,7 +225,7 @@ def sprint_task_ids(session,
     return [dict(r) for r in results]
 
 
-def external_connectors_asana_projects(session) -> List[Dict[int, str]]:
+def external_connectors_asana_projects(session) -> list[dict[int, str]]:
     results = session.execute("""
     SELECT
         id, asana_project_id, sync_date
@@ -234,10 +233,17 @@ def external_connectors_asana_projects(session) -> List[Dict[int, str]]:
     """)
     return [dict(r) for r in results]
 
+def external_connectors_asana_users(session) -> dict[int, str]:
+    results = session.execute("""
+    SELECT
+        id, asana_user_id
+    FROM 'external_connectors.asana.users'
+    """)
+    return {r.id: r.asana_user_id for r in results}
 
 def external_connectors_asana_tasks(
         session,
-        project_id: str) -> Dict[int, Dict[str, str | datetime | None]]:
+        project_id: str) -> dict[int, dict[str, str | datetime | None]]:
     results = session.execute(
         """
     SELECT

@@ -30,6 +30,12 @@ class AsanaProject:
     sync_date: datetime
 
 
+@dataclass
+class AsanaUser:
+    id: int
+    asana_user_id: str
+
+
 class AsanaMigrator:
 
     status_mapping = {
@@ -60,29 +66,35 @@ class AsanaMigrator:
         self.sections = asana.SectionsApi(client)
         self.stories = asana.StoriesApi(client)
 
-    def migrate_task(self, asana_project_id: str, task: Task,
-                     sync_info: dict[str, str] | None) -> str | None:
+    def migrate_task(
+            self,
+            asana_project_id: str,
+            task: Task,
+            sync_info: dict[str, str] | None = None,
+            mapped_external_users: dict[int, str] | None = None) -> str | None:
         try:
             if sync_info:
                 asana_task_id = self.update_existing_asana_task(
-                    asana_project_id, task, sync_info)
+                    asana_project_id, task, sync_info, mapped_external_users)
             else:
                 asana_task_id = self.create_new_asana_task(
-                    asana_project_id, task)
+                    asana_project_id, task, sync_info, mapped_external_users)
             return asana_task_id
         except Exception as e:
             logging.error(
                 f"Failed to migrate task {task.id} to Asana, context: {e}")
             return None
 
-    def update_existing_asana_task(self, asana_project_id: str, task: Task,
-                                   sync_info: dict[str, str]) -> str:
+    def update_existing_asana_task(
+            self, asana_project_id: str, task: Task, sync_info: dict[str, str],
+            mapped_external_users: dict[int, str]) -> str:
         if not (asana_task_id := sync_info.get("asana_task_id")):
             raise exceptions.TerkaException(
                 f"Task {task.id} is not sync with Asana")
-        opts = {"opt_fields": "name,notes,due_on"}
+        opts = {"opt_fields": "name,notes,due_on,assignee"}
         asana_task = self.tasks.get_task(task_gid=asana_task_id, opts=opts)
-        update_dict = self._find_task_element_changes(asana_task, task)
+        update_dict = self._find_task_element_changes(asana_task, task,
+                                                      mapped_external_users)
         self.tasks.update_task(task_gid=asana_task_id,
                                body={"data": update_dict},
                                opts=opts)
@@ -93,13 +105,18 @@ class AsanaMigrator:
         logging.info(f"Task {task.id} is updated in Asana")
         return asana_task_id
 
-    def create_new_asana_task(self, asana_project_id: str, task: Task) -> str:
+    def create_new_asana_task(self, asana_project_id: str, task: Task,
+                              sync_info: dict,
+                              mapped_external_users: dict) -> str:
         asana_task_dict = {
             "name": task.name,
             "notes": task.description or "",
             "projects": [asana_project_id]
         }
-        if self.assignee:
+        if assignee := task.assignee:
+            asana_task_dict["assignee"] = mapped_external_users.get(
+                assignee) or self.assignee
+        elif self.assignee:
             asana_task_dict["assignee"] = self.assignee
         if due_date := task.due_date:
             asana_task_dict["due_on"] = due_date.strftime("%Y-%m-%d")
@@ -147,13 +164,20 @@ class AsanaMigrator:
                     }},
                     opts=opts)
 
-    def _find_task_element_changes(self, asana_task: dict,
-                                   task: Task) -> dict[str, str]:
+    def _find_task_element_changes(
+            self, asana_task: dict, task: Task,
+            mapped_external_users: dict) -> dict[str, str]:
         update_dict: dict[str, str] = {}
         if task.name != asana_task.get("name"):
             update_dict["name"] = task.name
         if task.description != asana_task.get("notes", None):
             update_dict["notes"] = task.description or ""
+        if asana_assignee := mapped_external_users.get(task.assignee):
+            if asana_assignee != asana_task.get("assignee"):
+                update_dict["assignee"] = {
+                    "gid": asana_assignee,
+                    "resource_type": "user"
+                }
         if not task.due_date:
             update_dict["due_on"] = None
         else:

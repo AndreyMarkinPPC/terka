@@ -84,8 +84,9 @@ def edited_task_template(task: entities.task.Task,
         ---
         status: {task.status.name}
         name: {task.name}
-        description: {task.description if task.description else ""}
+        description: {task.description or ""}
         project: {project or ""}
+        assignee: {task.assignee or ""}
         sprints: {task.sprints[-1].sprint if task.sprints else ""}
         epics: {task.epics[-1].epic if task.epics else ""}
         stories: {task.stories[-1].story if task.stories else ""}

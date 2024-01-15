@@ -15,11 +15,11 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import mapper, registry, relationship, validates, declarative_base, backref
 
-from terka.domain.entities import (collaborator, commentary, epic, event_history,
-                                 note, project, sprint, story, tag, task,
-                                 time_tracker, user, workspace)
+from terka.domain.entities import (collaborator, commentary, epic,
+                                   event_history, note, project, sprint, story,
+                                   tag, task, time_tracker, user, workspace)
 
-from terka.domain.external_connectors.asana import AsanaTask, AsanaProject
+from terka.domain.external_connectors import asana
 
 Base = declarative_base()
 metadata = MetaData()
@@ -289,17 +289,21 @@ asana_tasks = Table(
     Column("sync_date", DateTime, nullable=True))
 
 asana_projects = Table(
-    "external_connectors.asana.projects",
-    metadata,
-    # Column("id", Integer, primary_key=True, autoincrement=True),
+    "external_connectors.asana.projects", metadata,
     Column("id", ForeignKey("projects.id"), nullable=False, primary_key=True),
     Column("asana_project_id", String(20)),
     Column("sync_date", DateTime, nullable=True))
 
+asana_users = Table(
+    "external_connectors.asana.users", metadata,
+    Column("id", ForeignKey("users.id"), nullable=False, primary_key=True),
+    Column("asana_user_id", String(20)))
+
 
 def start_mappers(engine=None):
-    asana_task_mapper = mapper(AsanaTask, asana_tasks)
-    asana_project_mapper = mapper(AsanaProject, asana_projects)
+    asana_task_mapper = mapper(asana.AsanaTask, asana_tasks)
+    asana_project_mapper = mapper(asana.AsanaProject, asana_projects)
+    asana_user_mapper = mapper(asana.AsanaUser, asana_users)
 
     task_commentary_mapper = mapper(commentary.TaskCommentary,
                                     task_commentaries)

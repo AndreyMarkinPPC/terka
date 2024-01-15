@@ -130,6 +130,8 @@ def format_task_dict(config: dict, entity: str,
             new_dict.get("external-project"),
             "external_task":
             new_dict.get("external-task"),
+            "external_user":
+            new_dict.get("external-user"),
             "show_viz":
             new_dict.get("show-viz"),
             "file":

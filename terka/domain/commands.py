@@ -136,7 +136,7 @@ class Add(Command):
 
 @dataclass
 class Connect(Command):
-    ...
+    id: int
 
 
 @dataclass
@@ -326,6 +326,11 @@ class SyncProject(Sync):
     ...
 
 
+@dataclass
+class ConnectProject(Connect):
+    external_project: str
+
+
 # SPRINT
 @dataclass
 class CreateSprint(Command):
@@ -501,6 +506,11 @@ class ShowUser(Show):
 @dataclass
 class ListUser(List):
     ...
+
+
+@dataclass
+class ConnectUser(Connect):
+    external_user: str
 
 
 # Notes
