@@ -459,6 +459,10 @@ def start_mappers(engine=None):
                          cascade="all, delete-orphan"),
             "history":
             relationship(project_event_mapper, collection_class=list),
+            "last_synced":
+            relationship(asana_project_mapper,
+                         collection_class=list,
+                         cascade="all, delete-orphan"),
             # "workspace_":
             # relationship(Workspace,
             #              back_populates="workspaces"
