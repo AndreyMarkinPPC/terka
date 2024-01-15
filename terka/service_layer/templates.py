@@ -77,6 +77,28 @@ def edit_sprint_template(sprint: entities.sprint.Sprint) -> str:
         """
 
 
+def edit_epic_template(epic: entities.epic.Epic, project) -> str:
+    return f"""
+        # You are editing epic {epic.id}, enter below:
+        ---
+        name: {epic.name}
+        description: {epic.description}
+        status: {epic.status.name}
+        project: {project}
+        """
+
+
+def edit_story_template(story: entities.story.Story, project) -> str:
+    return f"""
+        # You are editing story {story.id}, enter below:
+        ---
+        name: {story.name}
+        description: {story.description}
+        status: {story.status.name}
+        project: {project}
+        """
+
+
 def edited_task_template(task: entities.task.Task,
                          project: str | None = None) -> str:
     return f"""
@@ -151,6 +173,10 @@ def generate_message_template(entity,
             message_template = edited_project_template(entity, workspace)
         elif isinstance(entity, entities.task.Task):
             message_template = edited_task_template(entity, project)
+        elif isinstance(entity, entities.epic.Epic):
+            message_template = edit_epic_template(entity, project)
+        elif isinstance(entity, entities.story.Story):
+            message_template = edit_story_template(entity, project)
     else:
         if not kwargs:
             if entity == entities.task.Task:
@@ -179,8 +205,8 @@ def flush_message(entity):
     return new_entry
 
 
-def create_command_from_editor(
-        entity, command) -> tuple[Type[commands.Command], dict]:
+def create_command_from_editor(entity,
+                               command) -> tuple[Type[commands.Command], dict]:
     new_entry = flush_message(entity)
     new_entry = new_entry.decode("utf-8").rstrip()
     command_arguments: dict = {}

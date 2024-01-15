@@ -1041,6 +1041,24 @@ class EpicCommandHandlers:
             bus.printer.console.print_new_object(new_epic, mappings)
             return new_epic_id
 
+    @register(cmd=commands.UpdateEpic)
+    def update(cmd: commands.UpdateEpic,
+               bus: "messagebus.MessageBus",
+               context: dict = {}) -> None:
+        with bus.uow as uow:
+            if not (existing_epic := uow.tasks.get_by_id(
+                    entities.epic.Epic, cmd.id)):
+                raise exceptions.EntityNotFound(
+                    f"Epic id {cmd.id} is not found")
+            if not cmd:
+                cmd, context = templates.create_command_from_editor(
+                    existing_epic, commands.UpdateEpic)
+            cmd.inject(bus.config)
+            breakpoint()
+            uow.tasks.update(entities.epic.Epic, cmd.id,
+                             cmd.get_only_set_attributes())
+            uow.commit()
+
     @register(cmd=commands.CompleteEpic)
     def complete(cmd: commands.CompleteEpic,
                  bus: "messagebus.MessageBus",
@@ -1132,6 +1150,24 @@ class StoryCommandHandlers:
             new_story_id = new_story.id
             bus.printer.console.print_new_object(new_story, mappings)
             return new_story_id
+
+    @register(cmd=commands.UpdateStory)
+    def update(cmd: commands.UpdateStory,
+               bus: "messagebus.MessageBus",
+               context: dict = {}) -> None:
+        with bus.uow as uow:
+            if not (existing_story := uow.tasks.get_by_id(
+                    entities.story.Story, cmd.id)):
+                raise exceptions.EntityNotFound(
+                    f"Story id {cmd.id} is not found")
+            if not cmd:
+                cmd, context = templates.create_command_from_editor(
+                    existing_story, commands.UpdateStory)
+            cmd.inject(bus.config)
+            breakpoint()
+            uow.tasks.update(entities.story.Story, cmd.id,
+                             cmd.get_only_set_attributes())
+            uow.commit()
 
     @register(cmd=commands.CompleteStory)
     def complete(cmd: commands.CompleteStory,
@@ -1270,11 +1306,10 @@ class UserCommandHandlers:
                 context: dict = {}) -> None:
         with bus.uow as uow:
             user = UserCommandHandlers._validate_user(cmd.id, uow)
-            if not (asana_user := uow.tasks.get_by_id(
-                    asana.AsanaUser, user.id)):
-                asana_user = asana.AsanaUser(
-                    id=user.id,
-                    asana_user_id=cmd.external_user)
+            if not (asana_user := uow.tasks.get_by_id(asana.AsanaUser,
+                                                      user.id)):
+                asana_user = asana.AsanaUser(id=user.id,
+                                             asana_user_id=cmd.external_user)
                 uow.tasks.add(asana_user)
                 uow.commit()
 
@@ -1282,15 +1317,13 @@ class UserCommandHandlers:
         if isinstance(id, int) or id.isnumeric():
             if not (existing_user := uow.tasks.get_by_id(
                     entities.user.User, id)):
-                raise exceptions.EntityNotFound(
-                    f"User {id} is not found")
+                raise exceptions.EntityNotFound(f"User {id} is not found")
         else:
-            if not (existing_user := uow.tasks.get(entities.user.User,
-                                                      id)):
+            if not (existing_user := uow.tasks.get(entities.user.User, id)):
 
-                raise exceptions.EntityNotFound(
-                    f"User {id} is not found")
+                raise exceptions.EntityNotFound(f"User {id} is not found")
         return existing_user
+
 
 class NoteCommandHandlers:
 

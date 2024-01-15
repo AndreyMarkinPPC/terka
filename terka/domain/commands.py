@@ -90,7 +90,13 @@ class Create(Command):
 
 @dataclass
 class Update(Command):
-    ...
+
+    def __bool__(self) -> bool:
+        cmd_dict = dict(self.__dict__)
+        _ = cmd_dict.pop("id")
+        if any(cmd_dict.values()):
+            return True
+        return False
 
 
 @dataclass
@@ -404,10 +410,11 @@ class DeleteEpic(Delete):
 
 
 @dataclass
-class UpdateEpic(Command):
+class UpdateEpic(Update):
     id: int
     name: str | None = None
     description: str | None = None
+    status: str | None = None
     project: str | None = None
 
 
@@ -446,10 +453,11 @@ class DeleteStory(Delete):
 
 
 @dataclass
-class UpdateStory(Command):
+class UpdateStory(Update):
     id: int
     name: str | None = None
     description: str | None = None
+    status: str | None = None
     project: str | None = None
 
 
