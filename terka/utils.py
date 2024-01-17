@@ -156,6 +156,10 @@ def format_task_dict(config: dict, entity: str,
             task_dict = {"stale": 7}
         elif "all" in kwargs[0]:
             task_dict = {"all": "all"}
+        elif kwargs[0] == "--expand":
+            task_dict = {"expand": "True"}
+        elif kwargs[0] == "--no-expand":
+            task_dict = {"no-expand": "True"}
         elif "tasks" in kwargs[0]:
             task_dict = {"tasks": True}
         else:
