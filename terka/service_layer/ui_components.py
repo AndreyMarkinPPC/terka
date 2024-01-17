@@ -133,6 +133,7 @@ class NewTask(TerkaModalScreen):
                 due_date = datetime.strptime(due_date, "%Y-%m-%d")
             else:
                 due_date = None
+            assignee = self.query_one("#assignee", Input)
             sprint = self.query_one("#sprint", Input)
             epic = self.query_one("#epic", Input)
             story = self.query_one("#story", Input)
@@ -144,7 +145,8 @@ class NewTask(TerkaModalScreen):
                                                  project=project.value,
                                                  due_date=due_date,
                                                  status=status.value,
-                                                 priority=priority.value)
+                                                 priority=priority.value,
+                                                 assignee=assignee.value)
             returned_commands.append(create_command)
             if sprint.value or story.value or epic.value:
                 add_command = commands.AddTask(id=None,
@@ -279,6 +281,7 @@ class TaskEdit(TerkaModalScreen):
                 prompt="priority",
                 id="priority"),
             Input(placeholder="Add due date", id="due_date"),
+            Input(placeholder="Add assignee", id="assignee"),
             Input(placeholder="Add time spent",
                   validators=[Number()],
                   id="hours"),
@@ -299,6 +302,7 @@ class TaskEdit(TerkaModalScreen):
             hours = self.query_one("#hours", Input)
             if due_date := due_date.value:
                 due_date = datetime.strptime(due_date, "%Y-%m-%d")
+            assignee = self.query_one("#assignee", Input)
             commands_chain = []
             update_cmd = commands.UpdateTask(
                 id=None,
@@ -307,7 +311,8 @@ class TaskEdit(TerkaModalScreen):
                 # FIXME: Bring back
                 # due_date=due_date,
                 status=status.value,
-                priority=priority.value)
+                priority=priority.value,
+                assignee=assignee.value)
             if update_cmd:
                 commands_chain.append(update_cmd)
             commands_chain.append(
@@ -510,5 +515,23 @@ class TaskDeleteDueDate(TerkaModalScreen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "yes":
             self.dismiss(True)
+        else:
+            self.app.pop_screen()
+
+
+class TaskComment(TerkaModalScreen):
+
+    def compose(self) -> ComposeResult:
+        yield Grid(
+            Input(placeholder="Add comment", id="comment", classes="huge-comment"),
+            Button("Save", id="yes"),
+            Button("Abort", id="no"),
+            id="dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "yes":
+            comment = self.query_one("#comment", Input)
+            self.dismiss(commands.CommentTask(id=None, text=comment.value))
         else:
             self.app.pop_screen()

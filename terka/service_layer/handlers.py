@@ -256,6 +256,7 @@ class TaskCommandHandlers:
                     existing_task, commands.UpdateTask)
                 cmd.id = existing_task.id
             cmd = convert_project(cmd, bus)
+            cmd = convert_user(cmd, bus, user_type="assignee")
             for f in cmd.__dataclass_fields__:
                 if f == "id":
                     continue

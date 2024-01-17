@@ -40,8 +40,8 @@ TerkaModalScreen {
 		grid-gutter: 1 2;
 		grid-rows: 1fr 3;
 		padding: 0 1;
-		width: 60;
-		height: 40;
+		width: 80;
+		height: 60;
 		border: thick $background 80%;
 		background: $surface;
 }
@@ -52,6 +52,10 @@ TerkaModalScreen {
 .description-input {
 	column-span: 2;
 	height: 20;
+}
+.huge-comment {
+	column-span: 2;
+	height: 40;
 }
 .small-select {
 	column-span: 2;

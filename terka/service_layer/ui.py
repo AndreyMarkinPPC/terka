@@ -104,6 +104,15 @@ class PopupsMixin:
         self._process_commands_chain(result)
         self.notify(f"Task: {self.selected_task} is completed!")
 
+    def action_task_comment(self) -> None:
+        self.push_screen(ui_components.TaskComment(),
+                         self.task_comment_callback)
+
+    def task_comment_callback(self, result: commands.CommentTask):
+        result.id = self.selected_task
+        self.bus.handle(result)
+        self.notify(f"Task: {self.selected_task} is commented!")
+
     def action_task_edit(self) -> None:
         self.push_screen(ui_components.TaskEdit(), self.task_edit_callback)
 
@@ -420,6 +429,7 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
         ("i", "show_info", "Info"),
         ("a", "task_add", "Add"),
         ("d", "task_complete", "Done"),
+        ("C", "task_comment", "Comment"),
         ("U", "task_update_context", "Update"),
         ("X", "task_delete", "Delete"),
         ("Enter", "task_show", "Show"),
@@ -436,7 +446,8 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
         self.selected_column = None
         self.project_id = entity.id
         if _last_synced := self.entity.last_synced:
-            self.last_synced = _last_synced[0].sync_date.strftime("%Y-%m-%d %H:%M:%S")
+            self.last_synced = _last_synced[0].sync_date.strftime(
+                "%Y-%m-%d %H:%M:%S")
         else:
             self.last_synced = None
 
@@ -465,8 +476,8 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
                              classes="new_entity")
                 table = DataTable(id="project_tasks_backlog_table")
                 for column in ("id", "name", "priority", "due_date",
-                               "created_at", "tags", "collaborators",
-                               "time_spent"):
+                               "created_at", "assignee", "tags",
+                               "collaborators", "time_spent"):
                     table.add_column(column, key=column)
                 for task in sorted(self.entity.tasks,
                                    key=lambda x: x.id,
@@ -501,6 +512,8 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
                                       task.priority.name,
                                       task.due_date,
                                       task.creation_date.strftime("%Y-%m-%d"),
+                                      str(task.assigned_to.name)
+                                      if task.assigned_to else "",
                                       tags_text,
                                       collaborator_string,
                                       Formatter.format_time_spent(
@@ -510,7 +523,8 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
             with TabPane("Open Tasks", id="tasks"):
                 table = DataTable(id="project_open_tasks")
                 for column in ("id", "name", "status", "priority", "due_date",
-                               "tags", "collaborators", "time_spent"):
+                               "assignee", "tags", "collaborators",
+                               "time_spent"):
                     table.add_column(column, key=column)
                 for task in sorted(self.entity.tasks,
                                    key=lambda x: x.status.name,
@@ -545,6 +559,8 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
                                       task.status.name,
                                       task.priority.name,
                                       task.due_date,
+                                      str(task.assigned_to.name)
+                                      if task.assigned_to else "",
                                       tags_text,
                                       collaborator_string,
                                       Formatter.format_time_spent(
@@ -554,8 +570,8 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
             with TabPane("Completed Tasks", id="completed_tasks"):
                 table = DataTable(id="project_completed_tasks_table")
                 for column in ("id", "name", "status", "priority",
-                               "completion_date", "tags", "collaborators",
-                               "time_spent"):
+                               "completion_date", "assignee", "tags",
+                               "collaborators", "time_spent"):
                     table.add_column(column, key=column)
                 completed_tasks = [
                     e for e in self.entity.tasks if e.completion_date
@@ -581,16 +597,17 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
                         task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
                     else:
                         task_name = task.name
-                    table.add_row(str(task.id),
-                                  task_name,
-                                  task.status.name,
-                                  task.priority.name,
-                                  task.completion_date.strftime("%Y-%m-%d"),
-                                  tags_text,
-                                  collaborator_string,
-                                  Formatter.format_time_spent(
-                                      task.total_time_spent),
-                                  key=task.id)
+                    table.add_row(
+                        str(task.id),
+                        task_name,
+                        task.status.name,
+                        task.priority.name,
+                        task.completion_date.strftime("%Y-%m-%d"),
+                        str(task.assigned_to.name) if task.assigned_to else "",
+                        tags_text,
+                        collaborator_string,
+                        Formatter.format_time_spent(task.total_time_spent),
+                        key=task.id)
                 yield table
             with TabPane("Epics", id="epics"):
                 yield Button("+Epic",
@@ -775,6 +792,7 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                 ("s", "sort", "Sort"), ("E", "task_edit", "Edit"),
                 ("r", "refresh", "Refresh"), ("d", "task_complete", "Done"),
                 ("X", "task_delete", "Delete"), ("a", "task_add", "Add"),
+                ("C", "task_comment", "Comment"),
                 ("U", "task_update_context", "Update"), ("T", "time", "Time")]
 
     def __init__(self, entity, bus) -> None:
@@ -785,8 +803,6 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
         self.tasks = self.get_tasks()
         self.selected_task = None
         self.selected_column = None
-        self.project_mapping = views.projects_id_to_name_mapping(bus.uow)
-        self.workspace_mapping = views.workspaces_id_to_name_mapping(bus.uow)
 
     def get_tasks(self, all: bool = False):
         for sprint_task in self.entity.tasks:
@@ -825,8 +841,9 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                                  classes="new_entity")
                 table = DataTable(id="sprint_open_tasks_table")
                 for column in ("id", "name", "status", "priority",
-                               "story_points", "project", "due_date", "tags",
-                               "collaborators", "time_spent"):
+                               "story_points", "project", "due_date",
+                               "assignee", "tags", "collaborators",
+                               "time_spent"):
                     table.add_column(column, key=column)
                 for sprint_task in sorted(self.entity.tasks,
                                           key=lambda x: x.tasks.status.value,
@@ -854,7 +871,6 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                         task_id = f"[yellow]{task.id}[/yellow]"
                     else:
                         task_id = str(task.id)
-                    project = self.project_mapping.get(task.project)
                     if len(commentaries := task.commentaries) > 0:
                         task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
                     else:
@@ -865,8 +881,10 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                                       task.status.name,
                                       task.priority.name,
                                       str(sprint_task.story_points),
-                                      project,
+                                      task.project_.name,
                                       task.due_date,
+                                      str(task.assigned_to.name)
+                                      if task.assigned_to else "",
                                       tags_text,
                                       collaborator_string,
                                       Formatter.format_time_spent(
@@ -876,8 +894,8 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
             with TabPane("Completed Tasks", id="completed_tasks"):
                 table = DataTable(id="sprint_completed_tasks_table")
                 for column in ("id", "name", "project", "completion_date",
-                               "tags", "collaborators", "story_points",
-                               "time_spent"):
+                               "assignee", "tags", "collaborators",
+                               "story_points", "time_spent"):
                     table.add_column(column, key=column)
                 for sprint_task in sorted(self.entity.tasks,
                                           key=lambda x: x.id,
@@ -899,7 +917,6 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                         collaborator_string = ",".join(collaborators_texts)
                     else:
                         collaborator_string = ""
-                    project = self.project_mapping.get(task.project)
                     if len(commentaries := task.commentaries) > 0:
                         task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
                     else:
@@ -908,9 +925,11 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                         table.add_row(
                             str(task.id),
                             task_name,
-                            project,
+                            task.project_.name,
                             task.completion_date.strftime("%Y-%m-%d")
                             if task.completion_date else "",
+                            str(task.assigned_to.name)
+                            if task.assigned_to else "",
                             tags_text,
                             collaborator_string,
                             Formatter.format_time_spent(
@@ -953,7 +972,7 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
             with TabPane("Overview", id="overview"):
                 project_split = defaultdict(int)
                 for task in self.get_tasks(all=True):
-                    project = self.project_mapping.get(task.project)
+                    project = task.project_.name
                     project_split[project] += task.total_time_spent
                 collaborators = self.entity.collaborators
                 sorted_collaborators = ""
