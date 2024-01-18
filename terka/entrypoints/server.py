@@ -43,17 +43,29 @@ def catch_all(path):
 
 # projects
 @app.route("/api/v1/projects", methods=["GET"])
-def projects():
+def list_projects():
     return _build_response(views.projects(bus.uow))
 
 
 @app.route("/api/v1/projects/<project_id>", methods=["GET"])
-def project(project_id):
+def get_project(project_id):
     return _build_response(views.project(bus.uow, project_id))
 
 
-@app.route("/api/v1/project", methods=["POST"])
-def new_project():
+@app.route("/api/v1/projects/<project_id>:complete", methods=["POST"])
+def complete_project(project_id):
+    cmd = commands.CompleteProject(project_id)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
+@app.route("/api/v1/projects/<project_id>/tasks", methods=["GET"])
+def list_project_tasks(project_id):
+    return _build_response(views.project_tasks(bus.uow, project_id))
+
+
+@app.route("/api/v1/projects", methods=["POST"])
+def create_project():
     data = request.get_json(force=True)
     cmd = commands.CreateProject.from_kwargs(**data)
     result = bus.handle(cmd)
@@ -69,22 +81,29 @@ def delete_project(project_id):
 
 # tasks
 @app.route("/api/v1/tasks", methods=["GET"])
-def tasks():
+def list_tasks():
     return _build_response(views.tasks(bus.uow))
 
 
 @app.route("/api/v1/tasks/<task_id>", methods=["GET"])
-def task(task_id):
+def get_task(task_id):
     return _build_response(views.task(bus.uow, task_id))
 
 
+@app.route("/api/v1/tasks/<task_id>:complete", methods=["POST"])
+def complete_task(task_id):
+    cmd = commands.CompleteTask(task_id)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
 @app.route("/api/v1/tasks/<task_id>/commentaries", methods=["GET"])
-def task_commentaries(task_id):
+def list_task_commentaries(task_id):
     return _build_response(views.task_commentaries(bus.uow, task_id))
 
 
-@app.route("/api/v1/task", methods=["POST"])
-def new_task():
+@app.route("/api/v1/tasks", methods=["POST"])
+def create_task():
     data = request.get_json(force=True)
     cmd = commands.CreateTask.from_kwargs(**data)
     result = bus.handle(cmd)
@@ -98,7 +117,7 @@ def delete_task(task_id):
     return _build_response(result)
 
 
-@app.route("/api/v1/tasks/<task_id>/comment", methods=["POST"])
+@app.route("/api/v1/tasks/<task_id>:comment", methods=["POST"])
 def comment_task(task_id):
     data = request.get_json(force=True)
     data.update({"id": task_id})
@@ -109,22 +128,22 @@ def comment_task(task_id):
 
 # workspaces
 @app.route("/api/v1/workspaces", methods=["GET"])
-def workspaces():
+def list_workspaces():
     return _build_response(views.workspaces(bus.uow))
 
 
 @app.route("/api/v1/workspaces/<workspace_id>", methods=["GET"])
-def workspace(workspace_id):
+def get_workspace(workspace_id):
     return _build_response(views.workspace(bus.uow, workspace_id))
 
 
 @app.route("/api/v1/workspaces/<workspace_id>/projects", methods=["GET"])
-def workspace_projects(workspace_id):
+def list_workspace_projects(workspace_id):
     return _build_response(views.workspace_projects(bus.uow, workspace_id))
 
 
-@app.route("/api/v1/workspace", methods=["POST"])
-def new_workspace():
+@app.route("/api/v1/workspaces", methods=["POST"])
+def create_workspace():
     data = request.get_json(force=True)
     cmd = commands.CreateWorkspace.from_kwargs(**data)
     result = bus.handle(cmd)
@@ -140,22 +159,29 @@ def delete_workspace(workspace_id):
 
 # epics
 @app.route("/api/v1/epics", methods=["GET"])
-def epics():
+def list_epics():
     return _build_response(views.epics(bus.uow))
 
 
 @app.route("/api/v1/epics/<epic_id>", methods=["GET"])
-def epic(epic_id):
+def get_epic(epic_id):
     return _build_response(views.epic(bus.uow, epic_id))
 
 
+@app.route("/api/v1/epics/<epic_id>:complete", methods=["POST"])
+def complete_epic(epic_id):
+    cmd = commands.CompleteEpic(epic_id)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
 @app.route("/api/v1/epics/<epic_id>/tasks", methods=["GET"])
-def epic_tasks(epic_id):
+def list_epic_tasks(epic_id):
     return _build_response(views.epic_tasks(bus.uow, epic_id))
 
 
-@app.route("/api/v1/epic", methods=["POST"])
-def new_epic():
+@app.route("/api/v1/epics", methods=["POST"])
+def create_epic():
     data = request.get_json(force=True)
     cmd = commands.CreateEpic.from_kwargs(**data)
     result = bus.handle(cmd)
@@ -171,22 +197,29 @@ def delete_epic(epic_id):
 
 #stories
 @app.route("/api/v1/stories", methods=["GET"])
-def stories():
+def list_stories():
     return _build_response(views.stories(bus.uow))
 
 
 @app.route("/api/v1/stories/<story_id>", methods=["GET"])
-def story(story_id):
+def get_story(story_id):
     return _build_response(views.story(bus.uow, story_id))
 
 
+@app.route("/api/v1/stories/<story_id>:complete", methods=["POST"])
+def complete_story(story_id):
+    cmd = commands.CompleteStory(story_id)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
 @app.route("/api/v1/stories/<story_id>/tasks", methods=["GET"])
-def story_tasks(story_id):
+def list_story_tasks(story_id):
     return _build_response(views.story_tasks(bus.uow, story_id))
 
 
-@app.route("/api/v1/story", methods=["POST"])
-def new_story():
+@app.route("/api/v1/stories", methods=["POST"])
+def create_story():
     data = request.get_json(force=True)
     cmd = commands.CreateStory.from_kwargs(**data)
     result = bus.handle(cmd)
@@ -202,22 +235,36 @@ def delete_story(story_id):
 
 # sprints
 @app.route("/api/v1/sprints", methods=["GET"])
-def sprints():
+def list_sprints():
     return _build_response(views.sprints(bus.uow))
 
 
 @app.route("/api/v1/sprints/<sprint_id>", methods=["GET"])
-def sprint(sprint_id):
+def get_sprint(sprint_id):
     return _build_response(views.sprint(bus.uow, sprint_id))
 
 
+@app.route("/api/v1/sprints/<sprint_id>:start", methods=["POST"])
+def start_sprint(sprint_id):
+    cmd = commands.StartSprint(sprint_id)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
+@app.route("/api/v1/sprints/<sprint_id>:complete", methods=["POST"])
+def complete_sprint(sprint_id):
+    cmd = commands.CompleteSprint(sprint_id)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
 @app.route("/api/v1/sprints/<sprint_id>/tasks", methods=["GET"])
-def sprint_tasks(sprint_id):
+def list_sprint_tasks(sprint_id):
     return _build_response(views.sprint_tasks(bus.uow, sprint_id))
 
 
-@app.route("/api/v1/sprint", methods=["POST"])
-def new_sprint():
+@app.route("/api/v1/sprints", methods=["POST"])
+def create_sprint():
     data = request.get_json(force=True)
     cmd = commands.CreateSprint.from_kwargs(**data)
     result = bus.handle(cmd)
@@ -233,17 +280,17 @@ def delete_sprint(sprint_id):
 
 # users
 @app.route("/api/v1/users", methods=["GET"])
-def users():
+def list_users():
     return _build_response(views.users(bus.uow))
 
 
 @app.route("/api/v1/users/<user_id>", methods=["GET"])
-def user(user_id):
+def get_user(user_id):
     return _build_response(views.user(bus.uow, user_id))
 
 
-@app.route("/api/v1/user", methods=["POST"])
-def new_user():
+@app.route("/api/v1/users", methods=["POST"])
+def create_user():
     data = request.get_json(force=True)
     cmd = commands.CreateUser.from_kwargs(**data)
     result = bus.handle(cmd)
