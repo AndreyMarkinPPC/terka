@@ -27,10 +27,22 @@ def project(uow, project_id: int):
         if not (project := uow.tasks.get_by_id(entities.project.Project,
                                                project_id)):
             return {}
-        tasks = [task.to_dict() for task in project.tasks]
         result = project.to_dict()
-        result["tasks"] = tasks
+        for column in ("open_tasks", "backlog", "overdue_tasks", "review",
+                       "in_progress", "done"):
+            result[column] = len(getattr(project, column))
+        result["workspace"] = project.workspace_.name
         return result
+
+
+def project_tasks(uow, project_id: int):
+    with uow:
+        if not (project := uow.tasks.get_by_id(entities.project.Project,
+                                               project_id)):
+            return {}
+        if tasks := project.tasks:
+            return [task.to_dict() for task in project.tasks]
+        return {}
 
 
 def tasks(uow):
@@ -234,6 +246,7 @@ def external_connectors_asana_projects(session) -> list[dict[int, str]]:
     """)
     return [dict(r) for r in results]
 
+
 def external_connectors_asana_users(session) -> dict[int, str]:
     results = session.execute("""
     SELECT
@@ -241,6 +254,7 @@ def external_connectors_asana_users(session) -> dict[int, str]:
     FROM 'external_connectors.asana.users'
     """)
     return {r.id: r.asana_user_id for r in results}
+
 
 def external_connectors_asana_tasks(
         session,
