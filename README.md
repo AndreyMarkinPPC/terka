@@ -1,6 +1,8 @@
 # Terka - Ter[minal] Ka[nban]
 [![PyPI](https://img.shields.io/pypi/v/terka?logo=pypi&logoColor=white&style=flat-square)](https://pypi.org/project/terka)
 [![Downloads](https://static.pepy.tech/badge/terka)](https://pypi.org/project/terka)
+[![GitHub Workflow CI](https://img.shields.io/github/actions/workflow/status/AndreyMarkinPPC/terka/pytest.yaml?branch=main&label=pytest&logo=python&logoColor=white&style=flat-square)](https://github.com/AndreyMarkinPPC/terka/actions/workflows/pytest.yaml?branch=main)
+
 
 `terka` (pronounced *tyorka* or *Тёрка*) is a CLI tool that helps you manage your tasks
 in the terminal. Create task, assign it to a project, update it status, write
