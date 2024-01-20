@@ -499,6 +499,13 @@ class ShowTag(Show):
 class ListTag(List):
     ...
 
+@dataclass
+class CreateTag(Command):
+    text: str
+
+@dataclass
+class DeleteTag(Command):
+    text: str
 
 # USERS
 @dataclass

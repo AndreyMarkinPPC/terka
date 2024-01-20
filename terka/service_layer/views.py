@@ -201,6 +201,18 @@ def user(uow, user_id: int):
         return user.to_dict()
 
 
+def tags(uow):
+    with uow:
+        return [t.to_dict() for t in uow.tasks.list(entities.tag.BaseTag)]
+
+
+def tag(uow, tag_id: int):
+    with uow:
+        if not (tag := uow.tasks.get_by_id(entities.tag.BaseTag, tag_id)):
+            return {}
+        return tag.to_dict()
+
+
 def time_spent(session,
                tasks: list[entities.task.Task] | None,
                start_date: str = n_days_ago(7),

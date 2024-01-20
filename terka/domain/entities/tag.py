@@ -1,4 +1,7 @@
-class BaseTag:
+from .entity import Entity
+
+
+class BaseTag(Entity):
 
     def __init__(self, text: str, **kwargs: str) -> None:
         self.text = text

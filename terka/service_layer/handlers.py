@@ -1055,7 +1055,6 @@ class EpicCommandHandlers:
                 cmd, context = templates.create_command_from_editor(
                     existing_epic, commands.UpdateEpic)
             cmd.inject(bus.config)
-            breakpoint()
             uow.tasks.update(entities.epic.Epic, cmd.id,
                              cmd.get_only_set_attributes())
             uow.commit()
@@ -1165,7 +1164,6 @@ class StoryCommandHandlers:
                 cmd, context = templates.create_command_from_editor(
                     existing_story, commands.UpdateStory)
             cmd.inject(bus.config)
-            breakpoint()
             uow.tasks.update(entities.story.Story, cmd.id,
                              cmd.get_only_set_attributes())
             uow.commit()
@@ -1262,6 +1260,34 @@ class WorkspaceCommandHandlers:
 
 
 class TagCommandHandlers:
+
+    @register(cmd=commands.CreateTag)
+    def create(cmd: commands.CreateTag,
+               bus: "messagebus.MessageBus",
+               context: dict = {}) -> None:
+        with bus.uow as uow:
+            if not uow.tasks.get_by_conditions(entities.tag.BaseTag, {"text": cmd.text}):
+                new_tag = entities.tag.BaseTag(**asdict(cmd))
+                uow.tasks.add(new_tag)
+                uow.commit()
+                bus.printer.console.print_new_object(new_tag, {})
+                return cmd.text
+            else:
+                logging.warning(f"Tag {cmd.text} already exists")
+
+    @register(cmd=commands.DeleteTag)
+    def delete(cmd: commands.DeleteTag,
+               bus: "messagebus.MessageBus",
+               context: dict = {}) -> None:
+        with bus.uow as uow:
+            if tags := uow.tasks.get_by_conditions(entities.tag.BaseTag, {"text": cmd.text}):
+                uow.tasks.delete(entities.tag.BaseTag, tags[0].id)
+                uow.commit()
+                return cmd.text
+            else:
+                logging.warning(f"Tag {cmd.text} does not exists")
+
+
 
     @register(cmd=commands.ListTag)
     def list(cmd: commands.ListTag,
