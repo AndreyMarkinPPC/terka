@@ -52,6 +52,15 @@ def get_project(project_id):
     return _build_response(views.project(bus.uow, project_id))
 
 
+@app.route("/api/v1/projects/<project_id>", methods=["PATCH"])
+def update_project(project_id):
+    data = dict(request.values.items())
+    data.update({"id": project_id})
+    cmd = commands.UpdateProject.from_kwargs(**data)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
 @app.route("/api/v1/projects/<project_id>:complete", methods=["POST"])
 def complete_project(project_id):
     cmd = commands.CompleteProject(project_id)
@@ -79,6 +88,22 @@ def delete_project(project_id):
     return _build_response(result)
 
 
+@app.route("/api/v1/projects/<project_id>:tag", methods=["POST"])
+def tag_project(project_id):
+    data = request.get_json(force=True)
+    data.update({"id": project_id})
+    cmd = commands.TagProject.from_kwargs(**data)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
+@app.route("/api/v1/projects/<project_id>:sync", methods=["POST"])
+def sync_project(project_id):
+    cmd = commands.SyncProject(project_id)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
 # tasks
 @app.route("/api/v1/tasks", methods=["GET"])
 def list_tasks():
@@ -88,6 +113,15 @@ def list_tasks():
 @app.route("/api/v1/tasks/<task_id>", methods=["GET"])
 def get_task(task_id):
     return _build_response(views.task(bus.uow, task_id))
+
+
+@app.route("/api/v1/tasks/<task_id>", methods=["PATCH"])
+def update_task(task_id):
+    data = dict(request.values.items())
+    data.update({"id": task_id})
+    cmd = commands.UpdateTask.from_kwargs(**data)
+    result = bus.handle(cmd)
+    return _build_response(result)
 
 
 @app.route("/api/v1/tasks/<task_id>:complete", methods=["POST"])
@@ -122,6 +156,51 @@ def comment_task(task_id):
     data = request.get_json(force=True)
     data.update({"id": task_id})
     cmd = commands.CommentTask.from_kwargs(**data)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
+@app.route("/api/v1/tasks/<task_id>:tag", methods=["POST"])
+def tag_task(task_id):
+    data = request.get_json(force=True)
+    data.update({"id": task_id})
+    cmd = commands.TagTask.from_kwargs(**data)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
+@app.route("/api/v1/tasks/<task_id>:collaborate", methods=["POST"])
+def collaborate_task(task_id):
+    data = request.get_json(force=True)
+    data.update({"id": task_id})
+    cmd = commands.CollaborateTask.from_kwargs(**data)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
+@app.route("/api/v1/tasks/<task_id>:track", methods=["POST"])
+def track_task(task_id):
+    data = request.get_json(force=True)
+    data.update({"id": task_id})
+    cmd = commands.TrackTask.from_kwargs(**data)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
+@app.route("/api/v1/tasks/<task_id>:add", methods=["POST"])
+def add_task(task_id):
+    data = request.get_json(force=True)
+    data.update({"id": task_id})
+    cmd = commands.AddTask.from_kwargs(**data)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
+@app.route("/api/v1/tasks/<task_id>:remove", methods=["POST"])
+def remove_task(task_id):
+    data = request.get_json(force=True)
+    data.update({"id": task_id})
+    cmd = commands.DeleteTask.from_kwargs(**data)
     result = bus.handle(cmd)
     return _build_response(result)
 
@@ -168,6 +247,15 @@ def get_epic(epic_id):
     return _build_response(views.epic(bus.uow, epic_id))
 
 
+@app.route("/api/v1/epics/<epic_id>", methods=["PATCH"])
+def update_epic(epic_id):
+    data = dict(request.values.items())
+    data.update({"id": epic_id})
+    cmd = commands.UpdateEpic.from_kwargs(**data)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
 @app.route("/api/v1/epics/<epic_id>:complete", methods=["POST"])
 def complete_epic(epic_id):
     cmd = commands.CompleteEpic(epic_id)
@@ -206,6 +294,13 @@ def get_story(story_id):
     return _build_response(views.story(bus.uow, story_id))
 
 
+@app.route("/api/v1/stories/<story_id>", methods=["PATCH"])
+def update_story(story_id):
+    data = dict(request.values.items())
+    data.update({"id": story_id})
+    cmd = commands.UpdateStory.from_kwargs(**data)
+
+
 @app.route("/api/v1/stories/<story_id>:complete", methods=["POST"])
 def complete_story(story_id):
     cmd = commands.CompleteStory(story_id)
@@ -242,6 +337,15 @@ def list_sprints():
 @app.route("/api/v1/sprints/<sprint_id>", methods=["GET"])
 def get_sprint(sprint_id):
     return _build_response(views.sprint(bus.uow, sprint_id))
+
+
+@app.route("/api/v1/sprints/<sprint_id>", methods=["PATCH"])
+def update_sprint(sprint_id):
+    data = dict(request.values.items())
+    data.update({"id": sprint_id})
+    cmd = commands.UpdateSprint.from_kwargs(**data)
+    result = bus.handle(cmd)
+    return _build_response(result)
 
 
 @app.route("/api/v1/sprints/<sprint_id>:start", methods=["POST"])
@@ -303,6 +407,31 @@ def delete_user(user_id):
     result = bus.handle(cmd)
     return _build_response(result)
 
+
+# tags 
+@app.route("/api/v1/tags", methods=["GET"])
+def list_tags():
+    return _build_response(views.tags(bus.uow))
+
+@app.route("/api/v1/tags/<tag_id>", methods=["GET"])
+def get_tag(tag_id):
+    return _build_response(views.tag(bus.uow, tag_id))
+
+
+@app.route("/api/v1/tags", methods=["POST"])
+def create_tag():
+    data = request.get_json(force=True)
+    cmd = commands.CreateTag.from_kwargs(**data)
+    result = bus.handle(cmd)
+    return _build_response(result)
+
+
+@app.route("/api/v1/tags", methods=["DELETE"])
+def delete_tag():
+    data = request.get_json(force=True)
+    cmd = commands.DeleteTag.from_kwargs(**data)
+    result = bus.handle(cmd)
+    return _build_response(result)
 
 def _build_response(msg="", status=200, mimetype="application/json"):
     """Helper method to build the response."""
