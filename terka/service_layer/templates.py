@@ -18,6 +18,7 @@ def new_task_template() -> str:
         project: 
         due_date: 
         priority: NORMAL
+        assignee: 
         sprint: 
         epic: 
         story: 
@@ -99,16 +100,15 @@ def edit_story_template(story: entities.story.Story, project) -> str:
         """
 
 
-def edited_task_template(task: entities.task.Task,
-                         project: str | None = None) -> str:
+def edited_task_template(task: entities.task.Task) -> str:
     return f"""
         # You are editing task {task.id}, enter below:
         ---
         status: {task.status.name}
         name: {task.name}
         description: {task.description or ""}
-        project: {project or ""}
-        assignee: {task.assignee or ""}
+        project: {task.project_.name if task.project else ""}
+        assignee: {task.assigned_to.name if task.project else ""}
         sprints: {task.sprints[-1].sprint if task.sprints else ""}
         epics: {task.epics[-1].epic if task.epics else ""}
         stories: {task.stories[-1].story if task.stories else ""}
@@ -172,7 +172,7 @@ def generate_message_template(entity,
         elif isinstance(entity, entities.project.Project):
             message_template = edited_project_template(entity, workspace)
         elif isinstance(entity, entities.task.Task):
-            message_template = edited_task_template(entity, project)
+            message_template = edited_task_template(entity)
         elif isinstance(entity, entities.epic.Epic):
             message_template = edit_epic_template(entity, project)
         elif isinstance(entity, entities.story.Story):
@@ -190,7 +190,7 @@ def generate_message_template(entity,
         elif kwargs and kwargs.get("status"):
             message_template = completed_task_template(entity, project)
         else:
-            message_template = edited_task_template(entity, project)
+            message_template = edited_task_template(entity)
     return re.sub("\n +", "\n", message_template.lstrip())
 
 

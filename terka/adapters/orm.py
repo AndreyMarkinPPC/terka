@@ -356,6 +356,9 @@ def start_mappers(engine=None):
     task_mapper = mapper(task.Task,
                          tasks,
                          properties={
+                             "created_by_":
+                             relationship(user.User,
+                                          foreign_keys=[tasks.c.created_by]),
                              "assigned_to":
                              relationship(user.User,
                                           foreign_keys=[tasks.c.assignee]),
@@ -411,7 +414,12 @@ def start_mappers(engine=None):
                              "tasks":
                              relationship(epic_tasks_mapper,
                                           backref=backref("epics"),
-                                          collection_class=list)
+                                          collection_class=list),
+                             "project_":
+                             relationship(
+                                 project.Project,
+                                 back_populates="epics",
+                             )
                          })
     story_tasks_mapper = mapper(story.StoryTask,
                                 story_tasks,
@@ -434,7 +442,12 @@ def start_mappers(engine=None):
                                            cascade="all, delete-orphan"),
                               "tasks":
                               relationship(story_tasks_mapper,
-                                           collection_class=list)
+                                           collection_class=list),
+                             "project_":
+                             relationship(
+                                 project.Project,
+                                 back_populates="epics",
+                             )
                           })
     project_mapper = mapper(project.Project,
                             projects,

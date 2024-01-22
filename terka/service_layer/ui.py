@@ -56,7 +56,7 @@ class SelectionMixin:
                     ui_components.Status).value = task_obj.status.name
                 self.query_one(
                     ui_components.Priority).value = task_obj.priority.name
-                self.query_one(ui_components.Project).value = task_obj.project
+                self.query_one(ui_components.Project).value = task_obj.project_.name
                 self.query_one(ui_components.Commentaries).values = [
                     (t.date.strftime("%Y-%m-%d %H:%M"), t.text)
                     for t in task_obj.commentaries

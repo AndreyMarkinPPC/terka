@@ -62,12 +62,12 @@ class TextualPrinter:
         if app.return_code == 4:
             raise exceptions.TerkaRefreshException
 
-
     def print_sprint(self, sprint, bus):
         app = ui.TerkaSprint(sprint, bus)
         app.run()
         if app.return_code == 4:
             raise exceptions.TerkaRefreshException
+
 
 class ConsolePrinter:
 
@@ -77,16 +77,9 @@ class ConsolePrinter:
         self.config = config
         self.console = Console()
 
-    def print_new_object(self, obj, mappings: dict | None = None):
+    def print_new_object(self, obj):
         table = Table(box=self.box)
-        if not mappings:
-            mappings = {
-                "project_mapping": views.projects_id_to_name_mapping(self.uow),
-                "user_mapping": views.users_id_to_name_mapping(self.uow),
-                "workspace_mapping": views.workspaces_id_to_name_mapping(self.uow)
-
-            }
-        attributes = self._get_attributes(obj, mappings)
+        attributes = self._get_attributes(obj)
         for column, value in attributes:
             if value:
                 table.add_column(column)
@@ -122,16 +115,14 @@ class ConsolePrinter:
         if table.row_count:
             self.console.print(table)
 
-    def print_composite(
-            self,
-            entities,
-            print_options,
-            composite_type,
-            kwargs=None):
+    def print_composite(self,
+                        entities,
+                        print_options,
+                        composite_type,
+                        kwargs=None):
         if not entities:
             self.console.print(f"[red]No {composite_type} found[/red]")
             exit()
-        project_mapping = views.projects_id_to_name_mapping(self.uow)
         table = Table(box=self.box,
                       title=composite_type.upper(),
                       expand=print_options.expand_table)
@@ -149,7 +140,7 @@ class ConsolePrinter:
         for column in printable_columns:
             non_active_entities.add_column(column, style="bold")
         for i, entity in enumerate(entities):
-            project = project_mapping.get(entity.project)
+            project = str(entity.project_.name) if entity.project_ else ""
             printable_row = {
                 "id": f"{entity.id}",
                 "name": str(entity.name),
@@ -312,6 +303,7 @@ class ConsolePrinter:
                 task_id = f"[yellow]{task.id}[/yellow]"
             else:
                 task_id = str(task.id)
+            project = str(task.project_.name) if task.project_ else ""
             printable_row = {
                 "id":
                 task_id,
@@ -324,7 +316,7 @@ class ConsolePrinter:
                 "priority":
                 task.priority.name,
                 "project":
-                str(task.project),
+                project,
                 "due_date":
                 str(task.due_date),
                 "tags":
@@ -400,23 +392,24 @@ class ConsolePrinter:
         elif table.row_count:
             self.console.print(table)
 
-    def _get_attributes(
-            self, obj, mappings: dict[dict[int,
-                                           str]]) -> list[tuple[str, str]]:
+    def _get_attributes(self, obj) -> list[tuple[str, str]]:
         attributes = []
         for name, value in inspect.getmembers(obj):
-            if not name.startswith("_") and not inspect.ismethod(value):
+            if (not name.startswith("_") and not inspect.ismethod(value)
+                    and not name.endswith("_")):
                 if not value:
                     continue
-                elif name in ("created_by", "assignee"):
-                    user = mappings.get("user_mapping").get(value)
+                elif name == "created_by":
+                    user = obj.created_by_.name if obj.created_by_ else ""
+                    attributes.append((name, user))
+                elif name == "assignee":
+                    user = obj.assigned_to.name if obj.assigned_to else ""
                     attributes.append((name, user))
                 elif name == "project":
-                    project = mappings.get("project_mapping").get(value)
+                    project = obj.project_.name if obj.project else ""
                     attributes.append((name, project))
                 elif name == "workspace":
-                    workspace = mappings.get("workspace_mapping",
-                                             {}).get(value)
+                    workspace = obj.workspace._name if obj.workspace_ else ""
                     attributes.append((name, workspace))
                 elif hasattr(value, "name"):
                     attributes.append((name, value.name))

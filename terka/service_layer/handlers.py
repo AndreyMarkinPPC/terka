@@ -152,7 +152,8 @@ class SprintCommandHandlers:
                 task_params = {}
                 if task.status.name == "TODO":
                     task_params.update({"status": "BACKLOG"})
-                if task.due_date:
+                if task.status.name not in ("DONE",
+                                            "DELETED") and task.due_date:
                     task_params.update({"due_date": None})
                 if task_params:
                     task_params["id"] = task.id
@@ -1236,7 +1237,8 @@ class TagCommandHandlers:
                bus: "messagebus.MessageBus",
                context: dict = {}) -> None:
         with bus.uow as uow:
-            if not uow.tasks.get_by_conditions(entities.tag.BaseTag, {"text": cmd.text}):
+            if not uow.tasks.get_by_conditions(entities.tag.BaseTag,
+                                               {"text": cmd.text}):
                 new_tag = entities.tag.BaseTag(**asdict(cmd))
                 uow.tasks.add(new_tag)
                 uow.commit()
@@ -1250,14 +1252,13 @@ class TagCommandHandlers:
                bus: "messagebus.MessageBus",
                context: dict = {}) -> None:
         with bus.uow as uow:
-            if tags := uow.tasks.get_by_conditions(entities.tag.BaseTag, {"text": cmd.text}):
+            if tags := uow.tasks.get_by_conditions(entities.tag.BaseTag,
+                                                   {"text": cmd.text}):
                 uow.tasks.delete(entities.tag.BaseTag, tags[0].id)
                 uow.commit()
                 return cmd.text
             else:
                 logging.warning(f"Tag {cmd.text} does not exists")
-
-
 
     @register(cmd=commands.ListTag)
     def list(cmd: commands.ListTag,
