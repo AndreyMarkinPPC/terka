@@ -3,12 +3,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from terka.adapters import repository
-from terka.domain import events
+from terka.domain import commands, events
 
 
 class AbstractUnitOfWork(abc.ABC):
     tasks: repository.AbsRepository
-    published_events: list[events.Event] = []
+    published_messages: list[events.Event | commands.Command] = []
 
     def __enter__(self):
         return self
@@ -23,8 +23,8 @@ class AbstractUnitOfWork(abc.ABC):
         self._flush()
 
     def collect_new_events(self):
-        while self.published_events:
-            yield self.published_events.pop(0)
+        while self.published_messages:
+            yield self.published_messages.pop(0)
 
     @abc.abstractmethod
     def _commit(self):
@@ -44,7 +44,7 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
     def __init__(self, session_factory) -> None:
         self.engine = create_engine(session_factory)
         self.session_factory = sessionmaker(self.engine)
-        self.published_events: list[events.Event] = []
+        self.published_messages: list[events.Event | commands.Command] = []
 
     @property
     def repo(self):

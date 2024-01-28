@@ -100,7 +100,7 @@ class SprintCommandHandlers:
                     task_params.update({"due_date": existing_sprint.end_date})
                 if task_params:
                     task_params["id"] = task.id
-                    uow.published_events.append(
+                    uow.published_messages.append(
                         commands.UpdateTask(**task_params))
                 # FIXME: ask-input should be provided via CLI
                 if sprint_task.story_points == 0 and context.get("ask-input"):
@@ -109,7 +109,7 @@ class SprintCommandHandlers:
                         f"for task <{task.id}>: {task.name}: ")
                     try:
                         story_points = float(story_points)
-                        uow.published_events.append(
+                        uow.published_messages.append(
                             commands.AddTask(id=task.id,
                                              sprint=existing_sprint.id,
                                              story_points=story_points))
@@ -157,7 +157,7 @@ class SprintCommandHandlers:
                     task_params.update({"due_date": None})
                 if task_params:
                     task_params["id"] = task.id
-                    uow.published_events.append(
+                    uow.published_messages.append(
                         commands.UpdateTask(**task_params))
             uow.commit()
             logging.debug(f"Sprint completed, context: {cmd}")
@@ -230,7 +230,7 @@ class TaskCommandHandlers:
             uow.flush()
             new_task_id = new_task.id
             task_created_event = events.TaskCreated(new_task.id)
-            uow.published_events.append(task_created_event)
+            uow.published_messages.append(task_created_event)
             uow.commit()
             TaskCommandHandlers._process_extra_args(new_task.id, context, uow)
             bus.publisher.publish("Topic", task_created_event)
@@ -261,7 +261,7 @@ class TaskCommandHandlers:
                     old_value = old_value.name
                 if (f == "due_date" and new_value != old_value) or (
                         new_value and new_value != old_value):
-                    uow.published_events.append(
+                    uow.published_messages.append(
                         events.TaskUpdated(cmd.id,
                                            type=f.upper(),
                                            old_value=old_value,
@@ -384,7 +384,7 @@ class TaskCommandHandlers:
                                 {"due_date": existing_entity.end_date})
                         if task_params:
                             task_params["id"] = existing_task.id
-                            uow.published_events.append(
+                            uow.published_messages.append(
                                 commands.UpdateTask(**task_params))
 
     @register(cmd=commands.AssignTask)
@@ -407,7 +407,7 @@ class TaskCommandHandlers:
                 type="STATUS",
                 old_value=existing_task.status.name,
                 new_value="DONE")
-            uow.published_events.append(task_completed_event)
+            uow.published_messages.append(task_completed_event)
             uow.tasks.update(entities.task.Task, cmd.id,
                              {"status": entities.task.TaskStatus.DONE})
             TaskCommandHandlers._process_extra_args(cmd.id, context, uow)
@@ -484,7 +484,7 @@ class TaskCommandHandlers:
                             if task_params:
                                 # FIXME: Duplication
                                 task_params["id"] = existing_task.id
-                                uow.published_events.append(
+                                uow.published_messages.append(
                                     commands.UpdateTask(**task_params))
             else:
                 task_deleted_event = events.TaskUpdated(
@@ -492,10 +492,10 @@ class TaskCommandHandlers:
                     type="STATUS",
                     old_value=existing_task.status.name,
                     new_value="DELETED")
-                uow.published_events.append(task_deleted_event)
+                uow.published_messages.append(task_deleted_event)
                 uow.tasks.update(entities.task.Task, cmd.id,
                                  {"status": entities.task.TaskStatus.DELETED})
-                uow.published_events.append(task_deleted_event)
+                uow.published_messages.append(task_deleted_event)
             TaskCommandHandlers._process_extra_args(cmd.id, context, uow)
             uow.commit()
         bus.publisher.publish("Topic", events.TaskCompleted(cmd.id))
@@ -553,28 +553,28 @@ class TaskCommandHandlers:
     def _process_extra_args(id, context, uow):
         if tags := context.get("tags"):
             for tag in tags.split(","):
-                uow.published_events.append(commands.TagTask(id=id, tag=tag))
+                uow.published_messages.append(commands.TagTask(id=id, tag=tag))
         if collaborators := context.get("collaborators"):
             for collaborator_name in collaborators.split(","):
-                uow.published_events.append(
+                uow.published_messages.append(
                     commands.CollaborateTask(id=id,
                                              collaborator=collaborator_name))
         if sprints := context.get("sprint"):
             for sprint in sprints.split(","):
-                uow.published_events.append(
+                uow.published_messages.append(
                     commands.AddTask(id=id, sprint=sprint))
         if epics := context.get("epic"):
             for epic in epics.split(","):
-                uow.published_events.append(commands.AddTask(id=id, epic=epic))
+                uow.published_messages.append(commands.AddTask(id=id, epic=epic))
         if stories := context.get("story"):
             for story in stories.split(","):
-                uow.published_events.append(
+                uow.published_messages.append(
                     commands.AddTask(id=id, story=story))
         if comment := context.get("comment"):
-            uow.published_events.append(
+            uow.published_messages.append(
                 commands.CommentTask(id=id, text=comment))
         if hours := context.get("time_spent"):
-            uow.published_events.append(commands.TrackTask(id=id, hours=hours))
+            uow.published_messages.append(commands.TrackTask(id=id, hours=hours))
 
     @register(cmd=commands.ListTask)
     def list(cmd: commands.ListTask,
@@ -728,7 +728,7 @@ class ProjectCommandHandlers:
                 uow.flush()
                 project_id = int(new_project.id)
                 new_event = events.ProjectCreated(project_id)
-                uow.published_events.append(new_event)
+                uow.published_messages.append(new_event)
                 uow.commit()
                 bus.printer.console.print_new_object(new_project)
                 bus.publisher.publish("Topic", new_event)
@@ -764,7 +764,7 @@ class ProjectCommandHandlers:
             uow.tasks.update(entities.project.Project, project.id,
                              {"status": "COMPLETED"})
             uow.commit()
-            uow.published_events.append(events.ProjectCompleted(project.id))
+            uow.published_messages.append(events.ProjectCompleted(project.id))
             ProjectCommandHandlers._process_extra_args(project.id, context,
                                                        uow)
             bus.publisher.publish("Topic", events.ProjectCompleted(project.id))
@@ -778,7 +778,7 @@ class ProjectCommandHandlers:
             uow.tasks.update(entities.project.Project, project.id,
                              {"status": "DELETED"})
             uow.commit()
-            uow.published_events.append(events.ProjectDeleted(project.id))
+            uow.published_messages.append(events.ProjectDeleted(project.id))
             ProjectCommandHandlers._process_extra_args(project.id, context,
                                                        uow)
             bus.publisher.publish("Topic", events.ProjectDeleted(project.id))
@@ -952,27 +952,27 @@ class ProjectCommandHandlers:
             sync_info = synced_tasks.get(task.id)
             if asana_task_id := asana_migrator.migrate_task(
                     asana_project_id, task, sync_info, mapped_external_users):
-                uow.published_events.append(
+                uow.published_messages.append(
                     events.TaskSynced(id=task.id,
                                       project=project.id,
                                       asana_task_id=asana_task_id,
                                       sync_date=datetime.now()))
-        uow.published_events.append(
+        uow.published_messages.append(
             events.ProjectSynced(project.id, asana_project_id,
                                  project_sync_date))
 
     def _process_extra_args(id, context, uow):
         if tags := context.get("tags"):
             for tag in tags.split(","):
-                uow.published_events.append(commands.TagProject(id=id,
+                uow.published_messages.append(commands.TagProject(id=id,
                                                                 tag=tag))
         if collaborators := context.get("collaborators"):
             for collaborator_name in collaborators.split(","):
-                uow.published_events.append(
+                uow.published_messages.append(
                     commands.CollaborateProject(
                         id=id, collaborator=collaborator_name))
         if comment := context.get("comment"):
-            uow.published_events.append(
+            uow.published_messages.append(
                 commands.CommentProject(id=id, text=comment))
 
 
@@ -1050,7 +1050,7 @@ class EpicCommandHandlers:
             uow.tasks.update(entities.project.Epic, cmd.id,
                              {"status": "COMPLETED"})
             uow.commit()
-            uow.published_events.append(events.EpicCompleted(cmd.id))
+            uow.published_messages.append(events.EpicCompleted(cmd.id))
             EpicCommandHandlers._process_extra_args(cmd.id, context, uow)
         bus.publisher.publish("Topic", events.EpicCompleted(cmd.id))
 
@@ -1061,7 +1061,7 @@ class EpicCommandHandlers:
         with bus.uow as uow:
             uow.tasks.update(entities.epic.Epic, cmd.id, {"status": "DELETED"})
             uow.commit()
-            uow.published_events.append(events.EpicDeleted(cmd.id))
+            uow.published_messages.append(events.EpicDeleted(cmd.id))
             EpicCommandHandlers._process_extra_args(cmd.id, context, uow)
         bus.publisher.publish("Topic", events.EpicDeleted(cmd.id))
 
@@ -1088,7 +1088,7 @@ class EpicCommandHandlers:
             for epic_task in existing_epic.tasks:
                 task = epic_task.tasks
                 if task.status.name not in ("DONE", "DELETED"):
-                    uow.published_events.append(
+                    uow.published_messages.append(
                         commands.AddTask(id=task.id, sprint=cmd.sprint))
 
     @register(cmd=commands.ListEpic)
@@ -1102,7 +1102,7 @@ class EpicCommandHandlers:
 
     def _process_extra_args(id, context, uow):
         if comment := context.get("comment"):
-            uow.published_events.append(
+            uow.published_messages.append(
                 commands.CommentEpic(id=id, text=comment))
 
 
@@ -1153,7 +1153,7 @@ class StoryCommandHandlers:
             uow.tasks.update(entities.project.Story, cmd.id,
                              {"status": "COMPLETED"})
             uow.commit()
-            uow.published_events.append(events.StoryDeleted(cmd.id))
+            uow.published_messages.append(events.StoryDeleted(cmd.id))
             StoryCommandHandlers._process_extra_args(cmd.id, context, uow)
         bus.publisher.publish("Topic", events.StoryCompleted(cmd.id))
 
@@ -1165,7 +1165,7 @@ class StoryCommandHandlers:
             uow.tasks.update(entities.story.Story, cmd.id,
                              {"status": "DELETED"})
             uow.commit()
-            uow.published_events.append(events.StoryDeleted(cmd.id))
+            uow.published_messages.append(events.StoryDeleted(cmd.id))
             StoryCommandHandlers._process_extra_args(cmd.id, context, uow)
         bus.publisher.publish("Topic", events.StoryDeleted(cmd.id))
 
@@ -1192,7 +1192,7 @@ class StoryCommandHandlers:
             for story_task in existing_story.tasks:
                 task = story_task.tasks
                 if task.status.name not in ("DONE", "DELETED"):
-                    uow.published_events.append(
+                    uow.published_messages.append(
                         commands.AddTask(id=task.id, sprint=cmd.sprint))
 
     @register(cmd=commands.ListStory)
@@ -1207,7 +1207,7 @@ class StoryCommandHandlers:
 
     def _process_extra_args(id, context, uow):
         if comment := context.get("comment"):
-            uow.published_events.append(
+            uow.published_messages.append(
                 commands.CommentStory(id=id, text=comment))
 
 
