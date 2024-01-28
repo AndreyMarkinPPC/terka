@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime, timedelta
 import terka
-from terka import bootstrap
+from terka import bootstrap, exceptions
 from terka.domain import commands, entities, events
 
 
@@ -145,7 +145,7 @@ class TestSprint:
 
     def test_referencing_non_existing_sprints_raises_entity_not_found_exception(
             self, bus):
-        with pytest.raises(terka.service_layer.exceptions.EntityNotFound):
+        with pytest.raises(exceptions.EntityNotFound):
             bus.handle(commands.StartSprint(9999))
 
     def test_cannot_create_sprint_with_end_date_in_past(self, bus):
@@ -183,7 +183,7 @@ class TestSprint:
         cmd = commands.StartSprint(new_sprint)
         bus.handle(cmd)
         cmd = commands.StartSprint(new_sprint)
-        with pytest.raises(terka.service_layer.exceptions.TerkaSprintActive):
+        with pytest.raises(exceptions.TerkaSprintActive):
             bus.handle(cmd)
 
     def test_cannot_start_completed_sprint(self, bus, new_sprint):
@@ -193,7 +193,7 @@ class TestSprint:
         bus.handle(cmd)
         cmd = commands.StartSprint(new_sprint)
         with pytest.raises(
-                terka.service_layer.exceptions.TerkaSprintCompleted):
+                exceptions.TerkaSprintCompleted):
             bus.handle(cmd)
 
     def test_completing_sprint_changes_status_due_date(self, bus, new_sprint,
@@ -235,7 +235,7 @@ class TestSprint:
         task_3 = bus.handle(create_task_3)
         cmd = commands.AddTask(id=task_3, sprint=new_sprint)
         with pytest.raises(
-                terka.service_layer.exceptions.TerkaSprintCompleted):
+                exceptions.TerkaSprintCompleted):
             bus.handle(cmd)
 
     def test_deleting_task_from_sprint(self, bus, new_sprint,

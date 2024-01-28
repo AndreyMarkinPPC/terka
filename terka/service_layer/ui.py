@@ -14,8 +14,9 @@ from textual.widgets import (Button, Input, Header, Footer, Label, Tabs,
                              DataTable, TabbedContent, TabPane, Static,
                              Markdown, MarkdownViewer, Pretty, Rule, Select)
 
+from terka import exceptions
 from terka.domain import commands, events, entities
-from terka.service_layer import services, exceptions, ui_components, views
+from terka.service_layer import services, ui_components, views
 from terka.service_layer.formatter import Formatter
 
 
@@ -298,7 +299,7 @@ class Comment(Widget):
 
 class TerkaTask(App):
     BINDINGS = [("q", "quit", "Quit")]
-    CSS_PATH = "vertical_layout.css"
+    CSS_PATH = "css/vertical_layout.css"
 
     def __init__(self,
                  entity,
@@ -413,7 +414,7 @@ class TerkaTask(App):
 
 class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
 
-    CSS_PATH = "entities.css"
+    CSS_PATH = "css/entities.css"
 
     BINDINGS = [
         ("n", "new_task", "New Task"),
@@ -784,7 +785,7 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
 
 class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
 
-    CSS_PATH = "entities.css"
+    CSS_PATH = "css/entities.css"
 
     BINDINGS = [("n", "new_task", "New Task"), ("t", "tasks", "Tasks"),
                 ("N", "notes", "Notes"), ("i", "show_info", "Info"),

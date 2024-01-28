@@ -19,10 +19,10 @@ from sqlalchemy.orm import sessionmaker, clear_mappers
 from terka.adapters.orm import metadata, start_mappers
 from terka.adapters.repository import SqlAlchemyRepository
 
-from terka import bootstrap
+from terka import bootstrap, exceptions
 from terka.domain import commands
 from terka.utils import (format_task_dict, process_command, load_config)
-from terka.service_layer import exceptions, handlers, services, unit_of_work
+from terka.service_layer import handlers, services, unit_of_work
 
 HOME_DIR = os.path.expanduser("~")
 DB_URL = f"sqlite:////{HOME_DIR}/.terka/tasks.db"

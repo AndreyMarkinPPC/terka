@@ -6,9 +6,10 @@ import re
 import yaml
 
 from terka.domain import commands
-from terka.service_layer import exceptions, services
+from terka.service_layer import services
 from terka.adapters.repository import AbsRepository
 
+from . import exceptions
 
 def create_task_dict(kwargs: list[str]) -> dict[str, str]:
     new_dict = {}
