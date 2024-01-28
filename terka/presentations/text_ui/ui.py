@@ -16,8 +16,10 @@ from textual.widgets import (Button, Input, Header, Footer, Label, Tabs,
 
 from terka import exceptions
 from terka.domain import commands, events, entities
-from terka.service_layer import services, ui_components, views
+from terka.service_layer import services
 from terka.service_layer.formatter import Formatter
+
+from terka.presentations.text_ui import components
 
 
 class SortingMixin:
@@ -50,29 +52,29 @@ class SelectionMixin:
         with self.bus.uow as uow:
             if "task" in self.selected_data_table:
                 task_obj = uow.tasks.get_by_id(entities.task.Task, selected_id)
-                self.query_one(ui_components.Title).text = task_obj.name
+                self.query_one(components.Title).text = task_obj.name
                 self.query_one(
-                    ui_components.Description).text = task_obj.description
+                    components.Description).text = task_obj.description
                 self.query_one(
-                    ui_components.Status).value = task_obj.status.name
+                    components.Status).value = task_obj.status.name
                 self.query_one(
-                    ui_components.Priority).value = task_obj.priority.name
-                self.query_one(ui_components.Project).value = task_obj.project_.name
-                self.query_one(ui_components.Commentaries).values = [
+                    components.Priority).value = task_obj.priority.name
+                self.query_one(components.Project).value = task_obj.project_.name
+                self.query_one(components.Commentaries).values = [
                     (t.date.strftime("%Y-%m-%d %H:%M"), t.text)
                     for t in task_obj.commentaries
                 ]
             if "epic" in self.selected_data_table:
                 epic_obj = uow.tasks.get_by_id(entities.epic.Epic, selected_id)
-                self.query_one(ui_components.Title).text = epic_obj.name
+                self.query_one(components.Title).text = epic_obj.name
                 self.query_one(
-                    ui_components.Description).text = epic_obj.description
+                    components.Description).text = epic_obj.description
             if "story" in self.selected_data_table:
                 story_obj = uow.tasks.get_by_id(entities.story.Story,
                                                 selected_id)
-                self.query_one(ui_components.Title).text = story_obj.name
+                self.query_one(components.Title).text = story_obj.name
                 self.query_one(
-                    ui_components.Description).text = story_obj.description
+                    components.Description).text = story_obj.description
 
 
 class PopupsMixin:
@@ -96,7 +98,7 @@ class PopupsMixin:
         return object_id
 
     def action_task_complete(self) -> None:
-        self.push_screen(ui_components.TaskComplete(),
+        self.push_screen(components.TaskComplete(),
                          self.task_complete_callback)
 
     def task_complete_callback(self, result: tuple[commands.CompleteTask,
@@ -106,7 +108,7 @@ class PopupsMixin:
         self.notify(f"Task: {self.selected_task} is completed!")
 
     def action_task_comment(self) -> None:
-        self.push_screen(ui_components.TaskComment(),
+        self.push_screen(components.TaskComment(),
                          self.task_comment_callback)
 
     def task_comment_callback(self, result: commands.CommentTask):
@@ -115,7 +117,7 @@ class PopupsMixin:
         self.notify(f"Task: {self.selected_task} is commented!")
 
     def action_task_edit(self) -> None:
-        self.push_screen(ui_components.TaskEdit(), self.task_edit_callback)
+        self.push_screen(components.TaskEdit(), self.task_edit_callback)
 
     def task_edit_callback(self, result: tuple[commands.UpdateTask,
                                                commands.CommentTask]):
@@ -123,7 +125,7 @@ class PopupsMixin:
         self.notify(f"Task: {self.selected_task} is updated!")
 
     def action_task_add(self) -> None:
-        self.push_screen(ui_components.TaskAdd(), self.task_add_callback)
+        self.push_screen(components.TaskAdd(), self.task_add_callback)
 
     def task_add_callback(self, result: commands.AddTask):
         if epic := result.epic:
@@ -171,10 +173,10 @@ class PopupsMixin:
 
     def action_task_delete(self) -> None:
         if self.selected_column == "due_date":
-            self.push_screen(ui_components.TaskDeleteDueDate(),
+            self.push_screen(components.TaskDeleteDueDate(),
                              self.task_delete_due_date_callback)
         else:
-            self.push_screen(ui_components.TaskDelete(),
+            self.push_screen(components.TaskDelete(),
                              self.task_delete_callback)
 
     def task_delete_callback(self, result: tuple[commands.CompleteTask,
@@ -204,22 +206,22 @@ class PopupsMixin:
 
     def action_task_update_context(self) -> None:
         if self.selected_column == "status":
-            self.push_screen(ui_components.TaskStatusEdit(),
+            self.push_screen(components.TaskStatusEdit(),
                              self.task_update_status_callback)
         if self.selected_column == "priority":
-            self.push_screen(ui_components.TaskPriorityEdit(),
+            self.push_screen(components.TaskPriorityEdit(),
                              self.task_update_priority_callback)
         if self.selected_column == "story_points":
-            self.push_screen(ui_components.TaskStoryPointsEdit(),
+            self.push_screen(components.TaskStoryPointsEdit(),
                              self.task_update_story_points_callback)
         if self.selected_column == "time_spent":
-            self.push_screen(ui_components.TaskHoursSubmitted(),
+            self.push_screen(components.TaskHoursSubmitted(),
                              self.task_update_hours_callback)
         if self.selected_column == "tags":
-            self.push_screen(ui_components.TaskTagEdit(),
+            self.push_screen(components.TaskTagEdit(),
                              self.task_update_tag_callback)
         if self.selected_column == "collaborators":
-            self.push_screen(ui_components.TaskCollaboratorEdit(),
+            self.push_screen(components.TaskCollaboratorEdit(),
                              self.task_update_collaborator_callback)
 
     def task_update_status_callback(self, result: str):
@@ -276,11 +278,11 @@ class PopupsMixin:
 
     def action_show_info(self) -> None:
         if "task" in self.selected_data_table:
-            sidebar = self.query_one(ui_components.Sidebar)
+            sidebar = self.query_one(components.Sidebar)
             # elif "epic" in self.selected_data_table:
-            #     sidebar = self.query_one(ui_components.EpicSidebar)
+            #     sidebar = self.query_one(components.EpicSidebar)
             # elif "story" in self.selected_data_table:
-            #     sidebar = self.query_one(ui_components.Sidebar)
+            #     sidebar = self.query_one(components.Sidebar)
             self.set_focus(None)
             if sidebar.has_class("-hidden"):
                 sidebar.remove_class("-hidden")
@@ -466,7 +468,7 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
         self.sub_title = f'Workspace: {self.bus.config.get("workspace")}, last synced: {self.last_synced}'
 
     def compose(self) -> ComposeResult:
-        yield ui_components.Sidebar(classes="-hidden")
+        yield components.Sidebar(classes="-hidden")
         yield Header()
         yield Static(f"{self.entity.name}", classes="header")
         with TabbedContent(initial="tasks"):
@@ -753,19 +755,19 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
         self.selected_task = event.cell_key.row_key.value
 
     def action_new_task(self):
-        self.push_screen(ui_components.NewTask(), self.task_new_callback)
+        self.push_screen(components.NewTask(), self.task_new_callback)
 
     def action_task_show(self):
-        self.push_screen(ui_components.ShowTask())
+        self.push_screen(components.ShowTask())
 
     @on(Button.Pressed)
     def open_new_element_window(self, event: Button.Pressed) -> None:
         if event.button.id == "new_task":
-            self.push_screen(ui_components.NewTask(), self.task_new_callback)
+            self.push_screen(components.NewTask(), self.task_new_callback)
         elif event.button.id == "new_epic":
-            self.push_screen(ui_components.NewEpic(), self.epic_new_callback)
+            self.push_screen(components.NewEpic(), self.epic_new_callback)
         elif event.button.id == "new_story":
-            self.push_screen(ui_components.NewStory(), self.story_new_callback)
+            self.push_screen(components.NewStory(), self.story_new_callback)
 
     def task_new_callback(self, result: list[commands.Command]):
         object_id = self._process_commands_chain(result,
@@ -823,7 +825,7 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
         )
 
     def compose(self) -> ComposeResult:
-        yield ui_components.Sidebar(classes="-hidden")
+        yield components.Sidebar(classes="-hidden")
         if self.entity.status.name == "COMPLETED":
             yield Header(classes="completed_sprint")
         elif self.entity.status.name == "ACTIVE":
@@ -1016,7 +1018,7 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
 
     def action_new_task(self):
         if self.entity.status.name != "COMPLETED":
-            self.push_screen(ui_components.NewTask(), self.task_new_callback)
+            self.push_screen(components.NewTask(), self.task_new_callback)
 
     def task_new_callback(self, result: list[commands.Command]):
         object_id = self._process_commands_chain(result)
@@ -1025,7 +1027,7 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
     @on(Button.Pressed)
     def open_new_element_window(self, event: Button.Pressed) -> None:
         if event.button.id == "new_task":
-            self.push_screen(ui_components.NewTask(), self.task_new_callback)
+            self.push_screen(components.NewTask(), self.task_new_callback)
 
 
 def shorten_text(text: str | None, limit: int = 80) -> str | None:

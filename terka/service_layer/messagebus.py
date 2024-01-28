@@ -1,9 +1,10 @@
 from __future__ import annotations
 from typing import Type
 
-from terka.adapters import publisher, printer
+from terka.adapters import publisher
 from terka.domain import commands, events
 from terka.service_layer import unit_of_work, handlers
+from terka.presentations.console import printer
 
 Message = commands.Command | events.Event
 

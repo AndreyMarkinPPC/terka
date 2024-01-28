@@ -9,8 +9,9 @@ from rich.table import Table
 from textual.app import App, ComposeResult
 from textual import widgets
 
-from terka.service_layer import formatter, ui, views
 from terka import exceptions
+from terka.service_layer import formatter, views
+from terka.presentations.text_ui import ui
 
 
 @dataclass
