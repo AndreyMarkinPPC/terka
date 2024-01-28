@@ -1,14 +1,10 @@
-from typing import Dict, Optional
+from __future__ import annotations
 
 import abc
 from collections.abc import MutableSequence
 from datetime import datetime, timedelta
-from sqlalchemy import and_, or_, not_
 
-from terka.domain.entities.element import Element
-from terka.domain.entities.task import Task
-from terka.domain.entities.project import Project
-from terka.domain.entities.user import User
+from terka.domain.entities.entity import Entity
 from terka.domain.entities.event_history import TaskEvent
 from . import orm
 
@@ -18,37 +14,35 @@ class AbsRepository(abc.ABC):
     def __init__(self):
         pass
 
-    def add(self, element: Element) -> None:
-        self._add(element)
+    def add(self, entity: Entity) -> None:
+        self._add(entity)
 
-    def get(self, element: Element, element_name: str) -> Element:
-        element = self._get(element, element_name)
-        return element
+    def get(self, entity: Entity, entity_name: str) -> Entity:
+        return self._get(entity, entity_name)
 
-    def get_by_id(self, element: Element, element_id: int) -> Element:
-        element = self._get_by_element_id(element, element_id)
-        return element
+    def get_by_id(self, entity: Entity, entity_id: int) -> Entity:
+        return self._get_by_entity_id(entity, entity_id)
 
-    def get_by_conditions(self, element: Element,
-                          conditions: dict) -> list[Element]:
-        return self._get_by_conditions(element, conditions)
+    def get_by_conditions(self, entity: Entity,
+                          conditions: dict) -> list[Entity]:
+        return self._get_by_conditions(entity, conditions)
 
     @abc.abstractmethod
-    def _add(self, element: Element) -> None:
+    def _add(self, entity: Entity) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def _get(self, element: Element, element_name: str) -> Element:
+    def _get(self, entity: Entity, entity_name: str) -> Entity:
         ...
 
     @abc.abstractmethod
-    def _get_by_element_id(self, element_type: str,
-                           element_id: int) -> Element:
+    def _get_by_entity_id(self, entity_type: str,
+                           entity_id: int) -> Entity:
         ...
 
     @abc.abstractmethod
-    def _get_by_conditions(self, element: Element,
-                           conditions: dict) -> list[Element]:
+    def _get_by_conditions(self, entity: Entity,
+                           conditions: dict) -> list[Entity]:
         ...
 
 
@@ -58,18 +52,18 @@ class SqlAlchemyRepository(AbsRepository):
         super().__init__()
         self.session = session
 
-    def delete(self, element: Element, element_id: str):
-        return self.session.query(element).filter_by(id=element_id).delete()
+    def delete(self, entity: Entity, entity_id: str):
+        return self.session.query(entity).filter_by(id=entity_id).delete()
 
-    def update(self, element: Element, element_id: str,
-               update_dict: Dict[str, str]):
-        return self.session.query(element).filter_by(
-            id=element_id).update(update_dict)
+    def update(self, entity: Entity, entity_id: str,
+               update_dict: dict[str, str]):
+        return self.session.query(entity).filter_by(
+            id=entity_id).update(update_dict)
 
     def list(self,
-             element: Element,
-             filter_dict: Optional[Dict[str, str]] = {}):
-        query_object = self.session.query(element)
+             entity: Entity,
+             filter_dict: dict[str, str] = {}):
+        query_object = self.session.query(entity)
         overdue_check = False
         stale_check = False
         if "overdue" in filter_dict:
@@ -104,75 +98,75 @@ class SqlAlchemyRepository(AbsRepository):
                             value.replace("NOT:", "") for value in values
                         ]
                         query_object = query_object.filter(
-                            ~getattr(element, key).in_(values))
+                            ~getattr(entity, key).in_(values))
                     else:
                         query_object = query_object.filter(
-                            getattr(element, key).in_(values))
+                            getattr(entity, key).in_(values))
             if query_dict:
                 for key, value in query_dict.items():
                     if isinstance(value, str) and value.startswith("NOT"):
                         query_object = query_object.filter(
-                            getattr(element, key) != value.replace("NOT:", ""))
+                            getattr(entity, key) != value.replace("NOT:", ""))
                     if isinstance(value, datetime):
                         query_object = query_object.filter(
-                            getattr(element, key) <= value)
+                            getattr(entity, key) <= value)
                     else:
                         query_object = query_object.filter(
-                            getattr(element, key) == value)
+                            getattr(entity, key) == value)
 
             if stale_check:
                 days_ago = datetime.now().date() - timedelta(
                     days=stale_lookback)
                 query_object = query_object.filter(
-                    getattr(element, "status").in_([
+                    getattr(entity, "status").in_([
                         "TODO", "IN_PROGRESS", "REVIEW"
-                    ])).join(TaskEvent, (element.id == TaskEvent.task)).filter(
+                    ])).join(TaskEvent, (entity.id == TaskEvent.task)).filter(
                         TaskEvent.date <= days_ago, TaskEvent.type == "STATUS")
                 return query_object.all()
             if overdue_check:
                 query_object = query_object.filter(
-                    getattr(element, "due_date") < datetime.now().date())
+                    getattr(entity, "due_date") < datetime.now().date())
                 return query_object.all()
         elif isinstance(filter_dict, str):
             if overdue_check:
                 query_object = query_object.filter(
-                    getattr(element, "due_date") < datetime.now().date())
+                    getattr(entity, "due_date") < datetime.now().date())
             if filter_dict.startswith("NOT:"):
                 return query_object.filter(
-                    getattr(element, "name") != filter_dict.replace(
+                    getattr(entity, "name") != filter_dict.replace(
                         "NOT:", "")).all()
             else:
                 return query_object.filter_by(name=filter_dict).first()
         if overdue_check:
             query_object = query_object.filter(
-                getattr(element, "due_date") < datetime.now().date())
+                getattr(entity, "due_date") < datetime.now().date())
         if stale_check:
             days_ago = datetime.now().date() - timedelta(days=stale_lookback)
             query_object = query_object.filter(
-                getattr(element,
+                getattr(entity,
                         "status").in_(["TODO", "IN_PROGRESS", "REVIEW"])).join(
-                            Event, (element.id == Event.element_id)).filter(
+                            Event, (entity.id == Event.entity_id)).filter(
                                 Event.date <= days_ago, Event.type == "status")
         return query_object.all()
 
-    def _add(self, element):
-        self.session.add(element)
+    def _add(self, entity):
+        self.session.add(entity)
 
-    def _get(self, element, element_name):
-        return self.session.query(element).filter_by(
-            name=element_name).one_or_none()
+    def _get(self, entity, entity_name):
+        return self.session.query(entity).filter_by(
+            name=entity_name).one_or_none()
 
-    def _get_by_element_id(self, element, element_id):
-        return self.session.query(element).filter_by(
-            id=element_id).one_or_none()
+    def _get_by_entity_id(self, entity, entity_id):
+        return self.session.query(entity).filter_by(
+            id=entity_id).one_or_none()
 
-    def _get_by_conditions(self, element, conditions):
-        query = self.session.query(element)
+    def _get_by_conditions(self, entity, conditions):
+        query = self.session.query(entity)
         for condition_name, condition_value in conditions.items():
             if isinstance(condition_value, MutableSequence):
                 query = query.filter(
-                    getattr(element, condition_name).in_(condition_value))
+                    getattr(entity, condition_name).in_(condition_value))
             else:
                 query = query.filter(
-                    getattr(element, condition_name) == condition_value)
+                    getattr(entity, condition_name) == condition_value)
         return query.all()

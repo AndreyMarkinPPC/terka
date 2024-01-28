@@ -35,8 +35,6 @@ class TaskInfo:
 
 class Task(Entity):
 
-    _next_task_id = 1
-
     def __init__(self,
                  name: str,
                  description: str | None = None,
@@ -54,9 +52,6 @@ class Task(Entity):
         if not isinstance(creation_date, datetime):
             raise ValueError(
                 "creation_date should be of type datetime.datetime!")
-        self._task_id = Task._next_task_id
-        Task._next_task_id += 1
-
         self.name = name
         self.creation_date = creation_date
         self.description = description

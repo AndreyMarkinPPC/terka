@@ -14,16 +14,12 @@ class ProjectStatus(Enum):
 
 class Project(Entity):
 
-    _next_project_id = 1
-
     def __init__(self,
                  name: str,
                  description: str | None = None,
                  created_by: str | None = None,
                  status: str = "ACTIVE",
                  workspace: int | None = None) -> None:
-        self._project_id = Project._next_project_id
-        Project._next_project_id += 1
         self.name = name
         self.description = description
         self.created_by = created_by

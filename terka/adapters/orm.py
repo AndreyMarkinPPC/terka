@@ -15,7 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import mapper, registry, relationship, validates, declarative_base, backref
 
-from terka.domain.entities import (collaborator, commentary, epic,
+from terka.domain.entities import (collaborator, commentary, composite, epic,
                                    event_history, note, project, sprint, story,
                                    tag, task, time_tracker, user, workspace)
 
@@ -249,7 +249,7 @@ epics = Table("epics", metadata,
               Column("description", String(1000), nullable=True),
               Column("project", ForeignKey("projects.id"), nullable=True),
               Column("assignee", ForeignKey("users.id"), nullable=True),
-              Column("status", Enum(epic.EpicStatus)),
+              Column("status", Enum(composite.CompositeStatus)),
               Column("created_by", ForeignKey("users.id"), nullable=True))
 
 epic_tasks = Table("epic_tasks", metadata,
@@ -264,7 +264,7 @@ stories = Table("stories", metadata,
                 Column("description", String(1000), nullable=True),
                 Column("project", ForeignKey("projects.id"), nullable=True),
                 Column("assignee", ForeignKey("users.id"), nullable=True),
-                Column("status", Enum(story.StoryStatus)),
+                Column("status", Enum(composite.CompositeStatus)),
                 Column("created_by", ForeignKey("users.id"), nullable=True))
 
 story_tasks = Table(
@@ -446,7 +446,7 @@ def start_mappers(engine=None):
                              "project_":
                              relationship(
                                  project.Project,
-                                 back_populates="epics",
+                                 back_populates="stories",
                              )
                           })
     project_mapper = mapper(project.Project,
