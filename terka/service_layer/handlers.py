@@ -8,13 +8,13 @@ import logging
 import os
 from rich.prompt import Confirm, Prompt
 
-from terka import exceptions, utils
+from terka import exceptions, views, utils
 from terka.adapters import publisher
 from terka.domain import commands, events, entities
 from terka.domain.external_connectors import asana
 from terka.presentations.vim import templates
 from terka.presentations.console import printer
-from terka.service_layer import unit_of_work, views
+from terka.service_layer import unit_of_work
 from terka.utils import create_command
 
 COMMAND_HANDLERS = {}

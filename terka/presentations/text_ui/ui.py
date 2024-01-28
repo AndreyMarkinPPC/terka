@@ -17,8 +17,7 @@ from textual.widgets import (Button, Input, Header, Footer, Label, Tabs,
 from terka import exceptions
 from terka.domain import commands, events, entities
 from terka.service_layer import services
-from terka.service_layer.formatter import Formatter
-
+from terka.presentations.formatter import Formatter
 from terka.presentations.text_ui import components
 
 

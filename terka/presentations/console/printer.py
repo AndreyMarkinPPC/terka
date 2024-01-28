@@ -10,7 +10,7 @@ from textual.app import App, ComposeResult
 from textual import widgets
 
 from terka import exceptions
-from terka.service_layer import formatter, views
+from terka.presentations import formatter
 from terka.presentations.text_ui import ui
 
 

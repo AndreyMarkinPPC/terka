@@ -4,9 +4,9 @@ from flask import Flask, request, render_template, send_from_directory
 import json
 from json import JSONEncoder
 
-from terka import bootstrap
+from terka import bootstrap, views
 from terka.domain import commands
-from terka.service_layer import views, unit_of_work
+from terka.service_layer import unit_of_work
 from terka.utils import load_config
 
 app = Flask(__name__)
