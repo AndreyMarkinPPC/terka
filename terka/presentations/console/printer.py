@@ -70,6 +70,12 @@ class TextualPrinter:
         if app.return_code == 4:
             raise exceptions.TerkaRefreshException
 
+    def print_task(self, task, bus):
+        app = ui.TerkaTask(task, bus)
+        app.run()
+        if app.return_code == 4:
+            raise exceptions.TerkaRefreshException
+
 
 class ConsolePrinter:
 

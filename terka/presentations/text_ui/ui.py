@@ -302,33 +302,21 @@ class TerkaTask(App):
     BINDINGS = [("q", "quit", "Quit")]
     CSS_PATH = "css/vertical_layout.css"
 
-    def __init__(self,
-                 entity,
-                 project,
-                 is_completed: bool = False,
-                 history=None,
-                 commentaries=None):
+    def __init__(self, entity, bus) -> None:
         super().__init__()
         self.entity = entity
-        self.project = project
-        self.is_completed = True if entity.status.name in (
-            "DONE", "DELETED") else False
-        self.history = history
-        self.commentaries = commentaries
-        self.is_overdue = datetime.today().date(
-        ) > entity.due_date if entity.due_date and entity.status.name not in (
-            "DONE", "DELETED") else False
+        self.bus = bus
 
     def compose(self) -> ComposeResult:
         yield Header()
         task_text = f"[bold]Task {self.entity.id}: {self.entity.name}[/bold]"
-        if self.is_completed:
+        if self.entity.is_completed:
             yield Static(task_text, classes="header_completed", id="header")
-        elif self.is_overdue:
+        elif self.entity.is_overdue:
             yield Static(task_text, classes="header_overdue", id="header")
         else:
             yield Static(task_text, classes="header_simple", id="header")
-        yield Static(f"Project: [bold]{self.project}[/bold]", classes="transp")
+        yield Static(f"Project: [bold]{self.entity.project_.name}[/bold]", classes="transp")
         yield Static(f"Status: [bold]{self.entity.status.name}[/bold]",
                      classes="transp")
         yield Static(f"Priority: [bold]{self.entity.priority.name}[/bold]",
@@ -336,7 +324,7 @@ class TerkaTask(App):
         created_days_ago = (datetime.now() - self.entity.creation_date).days
         creation_message = f"{created_days_ago} days ago" if created_days_ago > 1 else "today"
         yield Static(f"Created {creation_message}", classes="transp")
-        if self.is_completed:
+        if self.entity.is_completed:
             completion_date = self.entity.completion_date
             if completion_date:
                 completed_days_ago = (datetime.now() - completion_date).days
@@ -391,10 +379,10 @@ class TerkaTask(App):
             yield Static("[italic]No description...[/italic]",
                          classes="body",
                          id="desc")
-        if self.commentaries:
+        if commentaries := self.entity.commentaries:
             comms = [
                 f"[italic]{comment.date.date()}[/italic]: {comment.text}"
-                for comment in self.commentaries
+                for comment in commentaries
             ]
             comms_message = "\n".join(comms)
             yield Static(f"[italic]Comments...\n\n[/italic]{comms_message}",

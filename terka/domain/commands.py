@@ -252,6 +252,11 @@ class SyncTask(Sync):
     ...
 
 
+@dataclass
+class ShowTask(Show):
+    ...
+
+
 # PROJECT
 @dataclass
 class CreateProject(Command):

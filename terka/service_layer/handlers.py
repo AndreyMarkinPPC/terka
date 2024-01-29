@@ -594,6 +594,14 @@ class TaskCommandHandlers:
                 print_options = printer.PrintOptions.from_kwargs(**context)
                 bus.printer.console.print_task(tasks, print_options)
 
+    @register(cmd=commands.ShowTask)
+    def show(cmd: commands.ShowTask,
+             bus: "messagebus.MessageBus",
+             context: dict = {}) -> None:
+        with bus.uow as uow:
+            task = uow.tasks.get_by_id(entities.task.Task, cmd.id)
+            bus.printer.tui.print_task(task, bus)
+
 
 class TaskEventHandlers:
 
