@@ -126,6 +126,12 @@ class Task(Entity):
             return True
         return False
 
+    @property
+    def is_completed(self):
+        if self.status.name in ("DONE", "DELETED"):
+            return True
+        return False
+
     def __repr__(self):
         return f"<Task {self.id}>: {self.name}, {self.status.name}, {self.creation_date}"
 
