@@ -439,6 +439,11 @@ class ListEpic(List):
     ...
 
 
+@dataclass
+class ShowEpic(Show):
+    ...
+
+
 # STORIES
 @dataclass
 class CreateStory(Command):
@@ -482,6 +487,11 @@ class ListStory(List):
     ...
 
 
+@dataclass
+class ShowStory(Show):
+    ...
+
+
 # WORKSPACES
 @dataclass
 class CreateWorkspace(Command):
@@ -504,13 +514,16 @@ class ShowTag(Show):
 class ListTag(List):
     ...
 
+
 @dataclass
 class CreateTag(Command):
     text: str
 
+
 @dataclass
 class DeleteTag(Command):
     text: str
+
 
 # USERS
 @dataclass

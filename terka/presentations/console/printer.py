@@ -76,6 +76,17 @@ class TextualPrinter:
         if app.return_code == 4:
             raise exceptions.TerkaRefreshException
 
+    def print_epic(self, epic, bus):
+        app = ui.TerkaEpic(epic, bus)
+        app.run()
+        if app.return_code == 4:
+            raise exceptions.TerkaRefreshException
+
+    def print_story(self, story, bus):
+        app = ui.TerkaStory(story, bus)
+        app.run()
+        if app.return_code == 4:
+            raise exceptions.TerkaRefreshException
 
 class ConsolePrinter:
 

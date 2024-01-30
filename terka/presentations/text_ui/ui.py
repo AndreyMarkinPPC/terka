@@ -54,11 +54,11 @@ class SelectionMixin:
                 self.query_one(components.Title).text = task_obj.name
                 self.query_one(
                     components.Description).text = task_obj.description
-                self.query_one(
-                    components.Status).value = task_obj.status.name
+                self.query_one(components.Status).value = task_obj.status.name
                 self.query_one(
                     components.Priority).value = task_obj.priority.name
-                self.query_one(components.Project).value = task_obj.project_.name
+                self.query_one(
+                    components.Project).value = task_obj.project_.name
                 self.query_one(components.Commentaries).values = [
                     (t.date.strftime("%Y-%m-%d %H:%M"), t.text)
                     for t in task_obj.commentaries
@@ -107,8 +107,7 @@ class PopupsMixin:
         self.notify(f"Task: {self.selected_task} is completed!")
 
     def action_task_comment(self) -> None:
-        self.push_screen(components.TaskComment(),
-                         self.task_comment_callback)
+        self.push_screen(components.TaskComment(), self.task_comment_callback)
 
     def task_comment_callback(self, result: commands.CommentTask):
         result.id = self.selected_task
@@ -316,7 +315,8 @@ class TerkaTask(App):
             yield Static(task_text, classes="header_overdue", id="header")
         else:
             yield Static(task_text, classes="header_simple", id="header")
-        yield Static(f"Project: [bold]{self.entity.project_.name}[/bold]", classes="transp")
+        yield Static(f"Project: [bold]{self.entity.project_.name}[/bold]",
+                     classes="transp")
         yield Static(f"Status: [bold]{self.entity.status.name}[/bold]",
                      classes="transp")
         yield Static(f"Priority: [bold]{self.entity.priority.name}[/bold]",
@@ -1015,6 +1015,136 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
     def open_new_element_window(self, event: Button.Pressed) -> None:
         if event.button.id == "new_task":
             self.push_screen(components.NewTask(), self.task_new_callback)
+
+
+class TerkaComposite(App, PopupsMixin, SelectionMixin, SortingMixin):
+
+    BINDINGS = [("q", "quit", "Quit"), ("r", "refresh", "Refresh")]
+    CSS_PATH = "css/entities.css"
+
+    def __init__(self, entity, bus) -> None:
+        super().__init__()
+        self.entity = entity
+        self.bus = bus
+
+    def on_mount(self) -> None:
+        self.title = f"Epic: {self.entity.id}"
+        self.sub_title = f"Project: {self.entity.project_.name}"
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Static(f"{self.entity.name}", classes="header")
+        yield Static(f"{self.entity.description}", classes="header")
+        with TabbedContent(initial="tasks"):
+            with TabPane("Open Tasks", id="tasks"):
+                table = DataTable(id="composite_open_tasks")
+                for column in ("id", "name", "status", "priority", "due_date",
+                               "assignee", "tags", "collaborators",
+                               "time_spent"):
+                    table.add_column(column, key=column)
+                for task in sorted(self.entity.open_tasks,
+                                   key=lambda x: x.status.name,
+                                   reverse=True):
+                    if tags := task.tags:
+                        tags_text = ",".join(
+                            [tag.base_tag.text for tag in list(tags)])
+                    else:
+                        tags_text = ""
+                    if collaborators := task.collaborators:
+                        collaborators_texts = sorted([
+                            collaborator.users.name
+                            for collaborator in list(collaborators)
+                            if collaborator.users
+                        ])
+                        collaborator_string = ",".join(collaborators_texts)
+                    else:
+                        collaborator_string = ""
+                    if task.is_overdue:
+                        task_id = f"[red]{task.id}[/red]"
+                    elif task.is_stale:
+                        task_id = f"[yellow]{task.id}[/yellow]"
+                    else:
+                        task_id = str(task.id)
+                    if len(commentaries := task.commentaries) > 0:
+                        task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
+                    else:
+                        task_name = task.name
+                    table.add_row(
+                        task_id,
+                        task_name,
+                        task.status.name,
+                        task.priority.name,
+                        task.due_date,
+                        str(task.assigned_to.name) if task.assigned_to else "",
+                        tags_text,
+                        collaborator_string,
+                        Formatter.format_time_spent(task.total_time_spent),
+                        key=task.id)
+                yield table
+            with TabPane("Completed Tasks", id="completed_tasks"):
+                table = DataTable(id="composite_completed_tasks_table")
+                for column in ("id", "name", "status", "priority",
+                               "completion_date", "assignee", "tags",
+                               "collaborators", "time_spent"):
+                    table.add_column(column, key=column)
+                for task in sorted(self.entity.completed_tasks,
+                                   key=lambda x: x.completion_date,
+                                   reverse=True):
+                    if tags := task.tags:
+                        tags_text = ",".join(
+                            [tag.base_tag.text for tag in list(tags)])
+                    else:
+                        tags_text = ""
+                    if collaborators := task.collaborators:
+                        collaborators_texts = sorted([
+                            collaborator.users.name
+                            for collaborator in list(collaborators)
+                            if collaborator.users
+                        ])
+                        collaborator_string = ",".join(collaborators_texts)
+                    else:
+                        collaborator_string = ""
+                    if len(commentaries := task.commentaries) > 0:
+                        task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
+                    else:
+                        task_name = task.name
+                    table.add_row(
+                        str(task.id),
+                        task_name,
+                        task.status.name,
+                        task.priority.name,
+                        task.completion_date.strftime("%Y-%m-%d"),
+                        str(task.assigned_to.name) if task.assigned_to else "",
+                        tags_text,
+                        collaborator_string,
+                        Formatter.format_time_spent(task.total_time_spent),
+                        key=task.id)
+                yield table
+            with TabPane("Time", id="time"):
+                plotext = PlotextPlot(classes="plotext")
+                plt = plotext.plt
+                if not (composite_time :=
+                        self.entity.daily_time_entries_hours()):
+                    yield Static("No time tracked")
+                else:
+                    plt.date_form('Y-m-d')
+                    plt.title(
+                        f"Time tracker - {Formatter.format_time_spent(self.entity.total_time_spent)} spent"
+                    )
+                    plt.stacked_bar(composite_time.keys(),
+                                    composite_time.values())
+                    yield plotext
+
+    def action_refresh(self):
+        self.exit(return_code=4)
+
+
+class TerkaEpic(TerkaComposite):
+    ...
+
+
+class TerkaStory(TerkaComposite):
+    ...
 
 
 def shorten_text(text: str | None, limit: int = 80) -> str | None:

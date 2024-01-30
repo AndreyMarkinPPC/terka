@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime
 from enum import Enum
 
@@ -37,6 +38,14 @@ class Composite(Entity):
         self.is_completed = False
 
     @property
+    def backlog_tasks(self) -> list[Task]:
+        tasks = []
+        for entity_task in self.tasks:
+            task = entity_task.tasks
+            if task.status.name == "BACKLOG":
+                tasks.append(task)
+        return tasks
+    @property
     def open_tasks(self) -> list[Task]:
         tasks = []
         for entity_task in self.tasks:
@@ -68,8 +77,15 @@ class Composite(Entity):
                                  last_n_days: int = 14) -> dict[str, float]:
         entries: dict[str, float] = defaultdict(float)
         for task in self.tasks:
-            task_entries = task.daily_time_entries_hours(
+            task_entries = task.tasks.daily_time_entries_hours(
                 last_n_days=last_n_days)
             for day, hours in task_entries.items():
                 entries[day] += hours
         return entries
+
+    @property
+    def total_time_spent(self):
+        total_time_spent = 0
+        for task in self.tasks:
+            total_time_spent += task.tasks.total_time_spent
+        return total_time_spent

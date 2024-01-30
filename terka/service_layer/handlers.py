@@ -1110,6 +1110,14 @@ class EpicCommandHandlers:
                 bus.printer.console.print_composite(
                     epics, printer.PrintOptions.from_kwargs(**context), "epic")
 
+    @register(cmd=commands.ShowEpic)
+    def show(cmd: commands.ShowEpic,
+             bus: "messagebus.MessageBus",
+             context: dict = {}) -> None:
+        with bus.uow as uow:
+            epic = uow.tasks.get_by_id(entities.epic.Epic, cmd.id)
+            bus.printer.tui.print_epic(epic, bus)
+
     def _process_extra_args(id, context, uow):
         if comment := context.get("comment"):
             uow.published_messages.append(
@@ -1214,6 +1222,14 @@ class StoryCommandHandlers:
                 bus.printer.console.print_composite(
                     storys, printer.PrintOptions.from_kwargs(**context),
                     "story")
+
+    @register(cmd=commands.ShowStory)
+    def show(cmd: commands.ShowStory,
+             bus: "messagebus.MessageBus",
+             context: dict = {}) -> None:
+        with bus.uow as uow:
+            story = uow.tasks.get_by_id(entities.story.Story, cmd.id)
+            bus.printer.tui.print_story(story, bus)
 
     def _process_extra_args(id, context, uow):
         if comment := context.get("comment"):
