@@ -89,11 +89,25 @@ class Sprint(Entity):
         return total_time_spent_sprint
 
     @property
-    def open_tasks(self):
-        return [
-            task for task in self.tasks
-            if task.tasks.status.name not in ("DONE", "DELETED")
-        ]
+    def open_tasks(self) -> list[Task]:
+        tasks = []
+        for entity_task in self.tasks:
+            task = entity_task.tasks
+            if task.status.name not in ("DONE", "DELETED"):
+                task.story_points = entity_task.story_points
+                tasks.append(task)
+        return tasks
+
+    @property
+    def completed_tasks(self) -> list[Task]:
+        tasks = []
+        for entity_task in self.tasks:
+            task = entity_task.tasks
+            if task.status.name in ("DONE", "DELETED"):
+                task.story_points = entity_task.story_points
+                tasks.append(task)
+        return tasks
+
 
     @property
     def pct_completed(self) -> float:

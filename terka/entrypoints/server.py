@@ -408,10 +408,11 @@ def delete_user(user_id):
     return _build_response(result)
 
 
-# tags 
+# tags
 @app.route("/api/v1/tags", methods=["GET"])
 def list_tags():
     return _build_response(views.tags(bus.uow))
+
 
 @app.route("/api/v1/tags/<tag_id>", methods=["GET"])
 def get_tag(tag_id):
@@ -432,6 +433,7 @@ def delete_tag():
     cmd = commands.DeleteTag.from_kwargs(**data)
     result = bus.handle(cmd)
     return _build_response(result)
+
 
 def _build_response(msg="", status=200, mimetype="application/json"):
     """Helper method to build the response."""

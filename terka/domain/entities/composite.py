@@ -45,6 +45,7 @@ class Composite(Entity):
             if task.status.name == "BACKLOG":
                 tasks.append(task)
         return tasks
+
     @property
     def open_tasks(self) -> list[Task]:
         tasks = []

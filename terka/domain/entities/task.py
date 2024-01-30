@@ -7,6 +7,7 @@ import pandas as pd
 
 from .entity import Entity
 
+
 class TaskStatus(Enum):
     DELETED = 0
     BACKLOG = 1
@@ -106,10 +107,23 @@ class Task(Entity):
         return entries
 
     @property
+    def project_name(self) -> str:
+        if project := self.project_:
+            return project.name
+        return ""
+
+    @property
+    def assignee_name(self) -> str:
+        if assigned_to := self.assigned_to:
+            return assigned_to.name
+        return ""
+
+    @property
     def completion_date(self) -> datetime | None:
         for event in self.history:
             if event.new_value in ("DONE", "DELETED"):
                 return event.date
+        return datetime.utcfromtimestamp(0)
 
     @property
     def is_stale(self):
@@ -132,6 +146,27 @@ class Task(Entity):
             return True
         return False
 
+    @property
+    def collaborators_string(self) -> str:
+        if collaborators := self.collaborators:
+            collaborators_texts = sorted([
+                collaborator.users.name for collaborator in list(collaborators)
+                if collaborator.users
+            ])
+            collaborator_string = ",".join(collaborators_texts)
+        else:
+            collaborator_string = ""
+        return collaborator_string
+
+    @property
+    def tags_string(self) -> str:
+        if tags := self.tags:
+            tags_text = ",".join(
+                [tag.base_tag.text for tag in list(tags)])
+        else:
+            tags_text = ""
+        return tags_text
+
     def __repr__(self):
         return f"<Task {self.id}>: {self.name}, {self.status.name}, {self.creation_date}"
 
@@ -147,9 +182,8 @@ class Task(Entity):
         if not isinstance(other, Task):
             return False
         if (self.name, self.description, self.project, self.status,
-                self.priority, self.due_date,
-                self.assignee) != (other.name, other.description,
-                                   other.project, other.status, other.priority,
-                                   other.due_date, other.assignee):
+                self.priority, self.due_date, self.assignee) != (
+                    other.name, other.description, other.project, other.status,
+                    other.priority, other.due_date, other.assignee):
             return False
         return True

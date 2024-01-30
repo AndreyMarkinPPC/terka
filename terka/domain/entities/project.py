@@ -4,6 +4,7 @@ from enum import Enum
 from statistics import median
 
 from .entity import Entity
+from .task import Task
 
 class ProjectStatus(Enum):
     DELETED = 0
@@ -109,6 +110,30 @@ class Project(Entity):
     @property
     def deleted(self):
         return self._count_task_status("DELETED")
+
+    @property
+    def backlog_tasks(self) -> list[Task]:
+        tasks = []
+        for task in self.tasks:
+            if task.status.name == "BACKLOG":
+                tasks.append(task)
+        return tasks
+
+    @property
+    def open_tasks(self) -> list[Task]:
+        tasks = []
+        for task in self.tasks:
+            if task.status.name not in ("DONE", "DELETED"):
+                tasks.append(task)
+        return tasks
+
+    @property
+    def completed_tasks(self) -> list[Task]:
+        tasks = []
+        for task in self.tasks:
+            if task.status.name in ("DONE", "DELETED"):
+                tasks.append(task)
+        return tasks
 
     def daily_time_entries_hours(
             self,
