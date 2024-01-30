@@ -10,7 +10,7 @@ EXTRAS_REQUIRE['all'] = list(set(chain(*EXTRAS_REQUIRE.values())))
 
 setup(
     name="terka",
-    version="2.8.0",
+    version="2.8.5",
     description="CLI utility for creating and managing tasks in a terminal",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -20,7 +20,7 @@ setup(
     url="https://github.com/AndreyMarkinPPC/terka",
     packages=find_packages(),
     include_package_data=True,
-    package_data={"": ["service_layer/*.css"]},
+    package_data={"": ["presentations/text_ui/css/*.css"]},
     install_requires=[
         "sqlalchemy==1.4.0",
         "pyaml",
