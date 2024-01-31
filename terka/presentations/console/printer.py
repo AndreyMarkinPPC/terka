@@ -303,26 +303,12 @@ class ConsolePrinter:
             table.add_column(column)
 
         for task in sorted(entities, key=lambda x: x.id, reverse=True):
-            if tags := task.tags:
-                tags_text = ",".join([tag.base_tag.text for tag in list(tags)])
-            else:
-                tags_text = ""
-            if collaborators := task.collaborators:
-                collaborators_texts = sorted([
-                    collaborator.users.name
-                    for collaborator in list(collaborators)
-                    if collaborator.users
-                ])
-                collaborator_string = ",".join(collaborators_texts)
-            else:
-                collaborator_string = ""
             if task.is_overdue:
                 task_id = f"[red]{task.id}[/red]"
             elif task.is_stale:
                 task_id = f"[yellow]{task.id}[/yellow]"
             else:
                 task_id = str(task.id)
-            project = str(task.project_.name) if task.project_ else ""
             printable_row = {
                 "id":
                 task_id,
@@ -335,13 +321,13 @@ class ConsolePrinter:
                 "priority":
                 task.priority.name,
                 "project":
-                project,
+                task.project_name,
                 "due_date":
                 str(task.due_date),
                 "tags":
-                tags_text,
+                task.tags_string,
                 "collaborators":
-                collaborator_string,
+                task.collaborators_string,
                 "time_spent":
                 formatter.Formatter.format_time_spent(task.total_time_spent),
             }

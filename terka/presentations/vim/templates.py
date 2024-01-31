@@ -85,7 +85,7 @@ def edit_epic_template(epic: entities.epic.Epic, project) -> str:
         name: {epic.name}
         description: {epic.description}
         status: {epic.status.name}
-        project: {project}
+        project: {epic.project_name}
         """
 
 
@@ -96,7 +96,7 @@ def edit_story_template(story: entities.story.Story, project) -> str:
         name: {story.name}
         description: {story.description}
         status: {story.status.name}
-        project: {project}
+        project: {story.project_name}
         """
 
 
@@ -107,35 +107,34 @@ def edited_task_template(task: entities.task.Task) -> str:
         status: {task.status.name}
         name: {task.name}
         description: {task.description or ""}
-        project: {task.project_.name if task.project else ""}
-        assignee: {task.assigned_to.name if task.project else ""}
+        project: {task.project_name}
+        assignee: {task.assignee_name}
         sprints: {task.sprints[-1].sprint if task.sprints else ""}
         epics: {task.epics[-1].epic if task.epics else ""}
         stories: {task.stories[-1].story if task.stories else ""}
         tags: {task.tags.pop() if task.tags else ""}
-        collaborators: {task.collaborators.pop() if task.collaborators else ""}
+        collaborators: {task.collaborators_string}
         time_spent: 0 (task total_time_spent {task.total_time_spent})
         comment: 
         """
 
 
-def edited_project_template(task: entities.project.Project,
+def edited_project_template(project: entities.project.Project,
                             workspace: int) -> str:
     return f"""
-        # You are editing project {task.id}, enter below:
+        # You are editing project {project.id}, enter below:
         ---
-        status: {task.status.name}
-        name: {task.name}
-        description: {task.description if task.description else ""}
-        workspace: {workspace}
-        tags: {task.tags.pop() if task.tags else ""}
-        collaborators: {task.collaborators.pop() if task.collaborators else ""}
+        status: {project.status.name}
+        name: {project.name}
+        description: {project.description if project.description else ""}
+        workspace: {project.workspace_name}
+        tags: {project.tags.pop() if project.tags else ""}
+        collaborators: {project.collaborators.pop() if project.collaborators else ""}
         comment: 
         """
 
 
-def completed_task_template(task: entities.task.Task,
-                            project: str | None = None) -> str:
+def completed_task_template(task: entities.task.Task) -> str:
     return f"""
         # You are closing task {task.id}, enter below:
         ---
@@ -143,7 +142,7 @@ def completed_task_template(task: entities.task.Task,
         time_spent: 0 (task total_time_spent {task.total_time_spent})
         comment: 
         name: {task.name}
-        project: {project or ""}
+        project: {task.project_name}
         description: {task.description if task.description else ""}
         sprints: {task.sprints[-1].sprint if task.sprints else ""}
         epics: {task.epics[-1].epic if task.epics else ""}
@@ -156,27 +155,19 @@ def completed_task_template(task: entities.task.Task,
 def generate_message_template(entity,
                               kwargs: dict[str, str] | None = None) -> str:
     if not isinstance(entity, type):
-        if isinstance(
-                entity,
-            (entities.task.Task, entities.story.Story, entities.epic.Epic)):
-            # TODO: convert project from int to name
-            project = entity.project
-        elif isinstance(entity, entities.project.Project):
-            project = entity.name
-            workspace = entity.workspace
         if isinstance(entity, entities.sprint.Sprint):
             if not entity.id:
                 message_template = new_sprint_template()
             else:
                 message_template = edit_sprint_template(entity)
         elif isinstance(entity, entities.project.Project):
-            message_template = edited_project_template(entity, workspace)
+            message_template = edited_project_template(entity)
         elif isinstance(entity, entities.task.Task):
             message_template = edited_task_template(entity)
         elif isinstance(entity, entities.epic.Epic):
-            message_template = edit_epic_template(entity, project)
+            message_template = edit_epic_template(entity)
         elif isinstance(entity, entities.story.Story):
-            message_template = edit_story_template(entity, project)
+            message_template = edit_story_template(entity)
     else:
         if not kwargs:
             if entity == entities.task.Task:
@@ -188,7 +179,7 @@ def generate_message_template(entity,
             if entity in (entities.epic.Epic, entities.story.Story):
                 message_template = new_composite_template(entity)
         elif kwargs and kwargs.get("status"):
-            message_template = completed_task_template(entity, project)
+            message_template = completed_task_template(entity)
         else:
             message_template = edited_task_template(entity)
     return re.sub("\n +", "\n", message_template.lstrip())

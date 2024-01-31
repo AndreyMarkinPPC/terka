@@ -827,7 +827,8 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                     yield plotext
             with TabPane("Overview", id="overview"):
                 project_split = defaultdict(int)
-                for task in self.get_tasks(all=True):
+                for task in self.entity.tasks:
+                    task = task.tasks
                     project = task.project_name
                     project_split[project] += task.total_time_spent
                 collaborators = self.entity.collaborators
