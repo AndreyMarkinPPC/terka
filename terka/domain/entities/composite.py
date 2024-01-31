@@ -38,6 +38,12 @@ class Composite(Entity):
         self.is_completed = False
 
     @property
+    def project_name(self) -> str:
+        if project := self.project_:
+            return project.name
+        return ""
+
+    @property
     def backlog_tasks(self) -> list[Task]:
         tasks = []
         for entity_task in self.tasks:

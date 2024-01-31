@@ -27,6 +27,12 @@ class Project(Entity):
         self.status = status
         self.workspace = workspace
 
+    @property
+    def workspace_name(self) -> str:
+        if workspace := self.workspace_:
+            return workspace.name
+        return ""
+
     def _validate_status(self, status):
         if status not in [
                 s.name for s in ProjectStatus if s.name != "DELETED"
