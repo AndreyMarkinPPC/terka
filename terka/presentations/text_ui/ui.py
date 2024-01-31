@@ -431,7 +431,6 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
         super().__init__()
         self.entity = entity
         self.bus = bus
-        self.tasks = list()
         self.selected_task = None
         self.selected_column = None
         self.project_id = entity.id
@@ -472,27 +471,17 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
                 for task in sorted(self.entity.backlog_tasks,
                                    key=lambda x: x.id,
                                    reverse=True):
-                    if task.is_overdue:
-                        task_id = f"[red]{task.id}[/red]"
-                    elif task.is_stale:
-                        task_id = f"[yellow]{task.id}[/yellow]"
-                    else:
-                        task_id = str(task.id)
-                    if len(commentaries := task.commentaries) > 0:
-                        task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
-                    else:
-                        task_name = task.name
-                    table.add_row(
-                        task_id,
-                        task_name,
-                        task.priority.name,
-                        task.due_date,
-                        task.creation_date.strftime("%Y-%m-%d"),
-                        task.assignee_name,
-                        task.tags_string,
-                        task.collaborators_string,
-                        Formatter.format_time_spent(task.total_time_spent),
-                        key=task.id)
+                    table.add_row(color_task_id(task),
+                                  add_comment_count(task),
+                                  task.priority.name,
+                                  task.due_date,
+                                  task.creation_date.strftime("%Y-%m-%d"),
+                                  task.assignee_name,
+                                  task.tags_string,
+                                  task.collaborators_string,
+                                  Formatter.format_time_spent(
+                                      task.total_time_spent),
+                                  key=task.id)
                 yield table
             with TabPane("Open Tasks", id="tasks"):
                 table = DataTable(id="project_open_tasks")
@@ -503,18 +492,8 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
                 for task in sorted(self.entity.open_tasks,
                                    key=lambda x: x.status.name,
                                    reverse=True):
-                    if task.is_overdue:
-                        task_id = f"[red]{task.id}[/red]"
-                    elif task.is_stale:
-                        task_id = f"[yellow]{task.id}[/yellow]"
-                    else:
-                        task_id = str(task.id)
-                    if len(commentaries := task.commentaries) > 0:
-                        task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
-                    else:
-                        task_name = task.name
-                    table.add_row(task_id,
-                                  task_name,
+                    table.add_row(color_task_id(task),
+                                  add_comment_count(task),
                                   task.status.name,
                                   task.priority.name,
                                   task.due_date,
@@ -534,21 +513,17 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
                 for task in sorted(self.entity.completed_tasks,
                                    key=lambda x: x.completion_date,
                                    reverse=True):
-                    if len(commentaries := task.commentaries) > 0:
-                        task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
-                    else:
-                        task_name = task.name
-                    table.add_row(
-                        str(task.id),
-                        task_name,
-                        task.status.name,
-                        task.priority.name,
-                        task.completion_date.strftime("%Y-%m-%d"),
-                        task.assignee_name,
-                        task.tags_string,
-                        task.collaborators_string,
-                        Formatter.format_time_spent(task.total_time_spent),
-                        key=task.id)
+                    table.add_row(str(task.id),
+                                  add_comment_count(task),
+                                  task.status.name,
+                                  task.priority.name,
+                                  task.completion_date.strftime("%Y-%m-%d"),
+                                  task.assignee_name,
+                                  task.tags_string,
+                                  task.collaborators_string,
+                                  Formatter.format_time_spent(
+                                      task.total_time_spent),
+                                  key=task.id)
                 yield table
             with TabPane("Epics", id="epics"):
                 yield Button("+Epic",
@@ -741,16 +716,8 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
         self.entity = entity
         self.bus = bus
         self.sprint_id = entity.id
-        self.tasks = self.get_tasks()
         self.selected_task = None
         self.selected_column = None
-
-    def get_tasks(self, all: bool = False):
-        for sprint_task in self.entity.tasks:
-            if all:
-                yield sprint_task.tasks
-            elif sprint_task.tasks.status.name not in ("DONE", "DELETED"):
-                yield sprint_task.tasks
 
     def action_refresh(self):
         self.exit(return_code=4)
@@ -789,29 +756,19 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                 for task in sorted(self.entity.open_tasks,
                                    key=lambda x: x.status.value,
                                    reverse=True):
-                    if task.is_overdue:
-                        task_id = f"[red]{task.id}[/red]"
-                    elif task.is_stale:
-                        task_id = f"[yellow]{task.id}[/yellow]"
-                    else:
-                        task_id = str(task.id)
-                    if len(commentaries := task.commentaries) > 0:
-                        task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
-                    else:
-                        task_name = task.name
-                    table.add_row(
-                        task_id,
-                        task_name,
-                        task.status.name,
-                        task.priority.name,
-                        str(task.story_points),
-                        task.project_name,
-                        task.due_date,
-                        task.assignee_name,
-                        task.tags_string,
-                        task.collaborators_string,
-                        Formatter.format_time_spent(task.total_time_spent),
-                        key=task.id)
+                    table.add_row(color_task_id(task),
+                                  add_comment_count(task),
+                                  task.status.name,
+                                  task.priority.name,
+                                  str(task.story_points),
+                                  task.project_name,
+                                  task.due_date,
+                                  task.assignee_name,
+                                  task.tags_string,
+                                  task.collaborators_string,
+                                  Formatter.format_time_spent(
+                                      task.total_time_spent),
+                                  key=task.id)
                 yield table
             with TabPane("Completed Tasks", id="completed_tasks"):
                 table = DataTable(id="sprint_completed_tasks_table")
@@ -822,23 +779,19 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                 for task in sorted(self.entity.completed_tasks,
                                    key=lambda x: x.completion_date,
                                    reverse=True):
-                    if len(commentaries := task.commentaries) > 0:
-                        task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
-                    else:
-                        task_name = task.name
-                    table.add_row(
-                        str(task.id),
-                        task_name,
-                        task.project_name,
-                        task.completion_date.strftime("%Y-%m-%d")
-                        if task.completion_date else "",
-                        task.assignee_name,
-                        task.tags_string,
-                        task.collaborators_string,
-                        Formatter.format_time_spent(
-                            round(task.story_points * 60)),
-                        Formatter.format_time_spent(task.total_time_spent),
-                        key=task.id)
+                    table.add_row(str(task.id),
+                                  add_comment_count(task),
+                                  task.project_name,
+                                  task.completion_date.strftime("%Y-%m-%d")
+                                  if task.completion_date else "",
+                                  task.assignee_name,
+                                  task.tags_string,
+                                  task.collaborators_string,
+                                  Formatter.format_time_spent(
+                                      round(task.story_points * 60)),
+                                  Formatter.format_time_spent(
+                                      task.total_time_spent),
+                                  key=task.id)
                 yield table
             with TabPane("Notes", id="notes"):
                 table = DataTable(id="sprint_notes_table")
@@ -958,26 +911,16 @@ class TerkaComposite(App, PopupsMixin, SelectionMixin, SortingMixin):
                 for task in sorted(self.entity.open_tasks,
                                    key=lambda x: x.status.name,
                                    reverse=True):
-                    if task.is_overdue:
-                        task_id = f"[red]{task.id}[/red]"
-                    elif task.is_stale:
-                        task_id = f"[yellow]{task.id}[/yellow]"
-                    else:
-                        task_id = str(task.id)
-                    if len(commentaries := task.commentaries) > 0:
-                        task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
-                    else:
-                        task_name = task.name
-                    table.add_row(
-                        task_id,
-                        task_name,
-                        task.status.name,
-                        task.priority.name,
-                        task.assignee_name,
-                        task.tags_string,
-                        task.collaborators_string,
-                        Formatter.format_time_spent(task.total_time_spent),
-                        key=task.id)
+                    table.add_row(color_task_id(task),
+                                  add_comment_count(task),
+                                  task.status.name,
+                                  task.priority.name,
+                                  task.assignee_name,
+                                  task.tags_string,
+                                  task.collaborators_string,
+                                  Formatter.format_time_spent(
+                                      task.total_time_spent),
+                                  key=task.id)
                 yield table
             with TabPane("Completed Tasks", id="completed_tasks"):
                 table = DataTable(id="composite_completed_tasks_table")
@@ -988,21 +931,17 @@ class TerkaComposite(App, PopupsMixin, SelectionMixin, SortingMixin):
                 for task in sorted(self.entity.completed_tasks,
                                    key=lambda x: x.completion_date,
                                    reverse=True):
-                    if len(commentaries := task.commentaries) > 0:
-                        task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
-                    else:
-                        task_name = task.name
-                    table.add_row(
-                        str(task.id),
-                        task_name,
-                        task.status.name,
-                        task.priority.name,
-                        task.completion_date.strftime("%Y-%m-%d"),
-                        task.assignee_name,
-                        task.tags_string,
-                        task.collaborators_string,
-                        Formatter.format_time_spent(task.total_time_spent),
-                        key=task.id)
+                    table.add_row(str(task.id),
+                                  add_comment_count(task_name),
+                                  task.status.name,
+                                  task.priority.name,
+                                  task.completion_date.strftime("%Y-%m-%d"),
+                                  task.assignee_name,
+                                  task.tags_string,
+                                  task.collaborators_string,
+                                  Formatter.format_time_spent(
+                                      task.total_time_spent),
+                                  key=task.id)
                 yield table
             with TabPane("Time", id="time"):
                 plotext = PlotextPlot(classes="plotext")
@@ -1048,3 +987,21 @@ def get_times(dates: list[str],
                 break
         times.append(value_for_date)
     return times
+
+
+def color_task_id(task: entities.task.Task) -> str:
+    if task.is_overdue:
+        task_id = f"[red]{task.id}[/red]"
+    elif task.is_stale:
+        task_id = f"[yellow]{task.id}[/yellow]"
+    else:
+        task_id = str(task.id)
+    return task_id
+
+
+def add_comment_count(task: entities.task.Task) -> str:
+    if len(commentaries := task.commentaries) > 0:
+        task_name = f"{task.name} [blue][{len(task.commentaries)}][/blue]"
+    else:
+        task_name = task.name
+    return task_name
