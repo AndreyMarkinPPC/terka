@@ -575,7 +575,7 @@ class TaskCommandHandlers:
         if comment := context.get("comment"):
             uow.published_messages.append(
                 commands.CommentTask(id=id, text=comment))
-        if hours := context.get("time_spent"):
+        if hours := context.get("hours"):
             uow.published_messages.append(commands.TrackTask(id=id, hours=hours))
 
     @register(cmd=commands.ListTask)
