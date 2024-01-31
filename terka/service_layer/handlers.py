@@ -199,6 +199,22 @@ class SprintCommandHandlers:
                 bus.printer.console.print_sprint(
                     sprints, printer.PrintOptions.from_kwargs(**context))
 
+    @register(cmd=commands.NoteSprint)
+    def note(cmd: commands.NoteSprint,
+             bus: "messagebus.MessageBus",
+             context: dict = {}) -> int:
+        if not cmd:
+            cmd, context = templates.create_command_from_editor(
+                entities.notes.SprintNote, type(cmd))
+        with bus.uow as uow:
+            cmd = convert_user(cmd, bus, "created_by")
+            note = entities.note.SprintNote(**asdict(cmd))
+            uow.tasks.add(note)
+            uow.commit()
+            note_id = note.id
+            bus.printer.console.print_new_object(note)
+            return note_id
+
 
 class SprintEventHandlers:
 

@@ -607,10 +607,15 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
                              variant="success",
                              classes="new_entity")
                 table = DataTable(id="project_notes_table")
-                for column in ("id", "text"):
+                for column in ("id", "date", "name"):
                     table.add_column(column, key=f"note_{column}")
-                for note in self.entity.notes:
-                    table.add_row(str(note.id), note.name, key=note.id)
+                for note in sorted(self.entity.notes,
+                                   key=lambda x: x.date,
+                                   reverse=True):
+                    table.add_row(str(note.id),
+                                  note.date.strftime("%Y-%m-%d"),
+                                  note.name,
+                                  key=note.id)
                 yield table
             with TabPane("Time", id="time"):
                 plotext = PlotextPlot(classes="plotext")
@@ -795,9 +800,15 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                 yield table
             with TabPane("Notes", id="notes"):
                 table = DataTable(id="sprint_notes_table")
-                table.add_columns("id", "text")
-                for task in self.entity.notes:
-                    table.add_row(str(task.id), task.name)
+                for column in ("id", "date", "name"):
+                    table.add_column(column, key=f"note_{column}")
+                for note in sorted(self.entity.notes,
+                                   key=lambda x: x.date,
+                                   reverse=True):
+                    table.add_row(str(note.id),
+                                  note.date.strftime("%Y-%m-%d"),
+                                  note.name,
+                                  key=note.id)
                 yield table
             with TabPane("Time", id="time"):
                 plotext = PlotextPlot(classes="plotext")

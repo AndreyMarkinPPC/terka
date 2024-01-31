@@ -48,7 +48,9 @@ class Command:
 @dataclass
 class Note(Command):
     id: int
+    name: str
     text: str
+    created_by: int | None = None
 
 
 @dataclass
@@ -101,11 +103,6 @@ class Update(Command):
 
 @dataclass
 class Start(Command):
-    ...
-
-
-@dataclass
-class Create(Command):
     ...
 
 
@@ -323,6 +320,11 @@ class ListProject(List):
 
 
 @dataclass
+class NoteProject(Note):
+    ...
+
+
+@dataclass
 class GetTask(Get):
     ...
 
@@ -393,6 +395,11 @@ class ShowSprint(Show):
 
 @dataclass
 class ListSprint(List):
+    ...
+
+
+@dataclass
+class NoteSprint(Note):
     ...
 
 
@@ -502,6 +509,7 @@ class CreateWorkspace(Command):
 @dataclass
 class DeleteWorkspace(Delete):
     ...
+
 
 @dataclass
 class ListWorkspace(List):
