@@ -19,6 +19,7 @@ Key features:
 To install `terka` run the following command:
 
 `pip install terka`
+> install the latest development version with `pip install -e git+https://github.com/AndreyMarkinPPC/terka.git#egg=terka[all]`
 
 It will make `terka` command available in your shell.
 
