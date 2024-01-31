@@ -503,6 +503,10 @@ class CreateWorkspace(Command):
 class DeleteWorkspace(Delete):
     ...
 
+@dataclass
+class ListWorkspace(List):
+    ...
+
 
 # TAGS
 @dataclass

@@ -378,10 +378,10 @@ class TaskCommandHandlers:
                         if existing_task.status.name == "BACKLOG":
                             task_params.update({"status": "TODO"})
                         if (not existing_task.due_date
-                                or existing_task.due_date >
-                                existing_entity.end_date
-                                or existing_task.due_date <
-                                existing_entity.start_date):
+                                or existing_task.due_date
+                                > existing_entity.end_date
+                                or existing_task.due_date
+                                < existing_entity.start_date):
                             task_params.update(
                                 {"due_date": existing_entity.end_date})
                         if task_params:
@@ -567,7 +567,8 @@ class TaskCommandHandlers:
                     commands.AddTask(id=id, sprint=sprint))
         if epics := context.get("epic"):
             for epic in epics.split(","):
-                uow.published_messages.append(commands.AddTask(id=id, epic=epic))
+                uow.published_messages.append(
+                    commands.AddTask(id=id, epic=epic))
         if stories := context.get("story"):
             for story in stories.split(","):
                 uow.published_messages.append(
@@ -576,7 +577,8 @@ class TaskCommandHandlers:
             uow.published_messages.append(
                 commands.CommentTask(id=id, text=comment))
         if hours := context.get("hours"):
-            uow.published_messages.append(commands.TrackTask(id=id, hours=hours))
+            uow.published_messages.append(
+                commands.TrackTask(id=id, hours=hours))
 
     @register(cmd=commands.ListTask)
     def list(cmd: commands.ListTask,
@@ -974,8 +976,8 @@ class ProjectCommandHandlers:
     def _process_extra_args(id, context, uow):
         if tags := context.get("tags"):
             for tag in tags.split(","):
-                uow.published_messages.append(commands.TagProject(id=id,
-                                                                tag=tag))
+                uow.published_messages.append(
+                    commands.TagProject(id=id, tag=tag))
         if collaborators := context.get("collaborators"):
             for collaborator_name in collaborators.split(","):
                 uow.published_messages.append(
@@ -1254,6 +1256,15 @@ class WorkspaceCommandHandlers:
                 bus.printer.console.print_new_object(new_workspace)
             else:
                 logging.warning(f"Workspace {cmd.name} already exists")
+
+    @register(cmd=commands.ListWorkspace)
+    def list(cmd: commands.ListWorkspace,
+             bus: "messagebus.MessageBus",
+             context: dict = {}) -> None:
+        with bus.uow as uow:
+            if workspaces := uow.tasks.list(entities.workspace.Workspace):
+                bus.printer.console.print_workspace(
+                    workspaces, printer.PrintOptions.from_kwargs(**context))
 
 
 class TagCommandHandlers:

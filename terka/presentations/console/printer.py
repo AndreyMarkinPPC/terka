@@ -159,13 +159,12 @@ class ConsolePrinter:
         for column in printable_columns:
             non_active_entities.add_column(column, style="bold")
         for i, entity in enumerate(entities):
-            project = str(entity.project_.name) if entity.project_ else ""
             printable_row = {
                 "id": f"{entity.id}",
                 "name": str(entity.name),
                 "description": entity.description,
                 "status": entity.status.name,
-                "project": project,
+                "project": entity.project_name,
                 "tasks": str(len(entity.open_tasks))
             }
             printable_elements = [
@@ -395,6 +394,38 @@ class ConsolePrinter:
         if print_options.show_completed:
             self.console.print(all_sprints)
         elif table.row_count:
+            self.console.print(table)
+
+    def print_workspace(self,
+                        entities,
+                        print_options,
+                        kwargs=None):
+        if not entities:
+            self.console.print("[red]No workspaces found[/red]")
+            exit()
+        table = Table(box=self.box,
+                      title="Workspaces",
+                      expand=print_options.expand_table)
+        default_columns = ("id", "name", "description", "projects")
+        if print_options.columns:
+            printable_columns = print_options.columns.split(",")
+        else:
+            printable_columns = default_columns
+        for column in printable_columns:
+            table.add_column(column, style="bold")
+        for i, entity in enumerate(entities):
+            printable_row = {
+                "id": f"{entity.id}",
+                "name": str(entity.name),
+                "description": entity.description,
+                "projects": str(len(entity.projects))
+            }
+            printable_elements = [
+                value for key, value in printable_row.items()
+                if key in printable_columns
+            ]
+            table.add_row(*printable_elements)
+        if table.row_count:
             self.console.print(table)
 
     def _get_attributes(self, obj) -> list[tuple[str, str]]:
