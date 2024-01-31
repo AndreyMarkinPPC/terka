@@ -43,10 +43,6 @@ class ServiceCommandHander:
         is_service_command = True
         if command == "init":
             self.init_terka()
-        elif command == "focus":
-            self.focus(entity, task_dict)
-        elif command == "unfocus":
-            self.unfocus()
         elif command == "switch" and entity == "workspace":
             self.switch(task_dict.get("id"))
         elif command == "set" and entity == "workspace":
@@ -85,30 +81,6 @@ class ServiceCommandHander:
                 exit()
         else:
             print("Terka directory already exist.")
-
-    def focus(self, entity_type, kwargs):
-        if entity_type == "tasks":
-            self.config["task_id"] = kwargs["id"]
-            if "project_name" in self.config.keys():
-                del self.config["project_name"]
-        if entity_type == "projects":
-            self.config["project_name"] = kwargs["id"]
-            if "task_id" in self.config.keys():
-                del self.config["task_id"]
-        with open(f"{self.home_dir}/.terka/config.yaml", "w",
-                  encoding="utf-8") as f:
-            yaml.dump(self.config, f)
-        logging.info("<focus> %s: %s", entity_type, "")
-
-    def unfocus(self):
-        if "task_id" in self.config.keys():
-            del self.config["task_id"]
-        if "project_name" in self.config.keys():
-            del self.config["project_name"]
-        with open(f"{self.home_dir}/.terka/config.yaml", "w",
-                  encoding="utf-8") as f:
-            yaml.dump(self.config, f)
-        loging.info("<unfocus> %s: %s", "", "")
 
     def log(self, kwargs):
         table = Table(box=rich.box.SIMPLE)
