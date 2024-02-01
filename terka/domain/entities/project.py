@@ -61,20 +61,6 @@ class Project(Entity):
         return collaborators
 
     @property
-    def open_tasks(self):
-        return [
-            task for task in self.tasks
-            if task.status.name not in ("DONE", "DELETED")
-        ]
-
-    @property
-    def closed_tasks(self):
-        return [
-            task for task in self.tasks
-            if task.status.name in ("DONE", "DELETED")
-        ]
-
-    @property
     def overdue_tasks(self):
         return [
             task for task in self.open_tasks
@@ -129,17 +115,16 @@ class Project(Entity):
     def open_tasks(self) -> list[Task]:
         tasks = []
         for task in self.tasks:
-            if task.status.name not in ("DONE", "DELETED"):
+            if task.status.name in ("TODO", "IN_PROGRESS", "REVIEW"):
                 tasks.append(task)
         return tasks
 
     @property
     def completed_tasks(self) -> list[Task]:
-        tasks = []
-        for task in self.tasks:
-            if task.status.name in ("DONE", "DELETED"):
-                tasks.append(task)
-        return tasks
+        return [
+            task for task in self.tasks
+            if task.status.name in ("DONE", "DELETED")
+        ]
 
     def daily_time_entries_hours(
             self,
