@@ -1295,7 +1295,7 @@ class TagCommandHandlers:
                 new_tag = entities.tag.BaseTag(**asdict(cmd))
                 uow.tasks.add(new_tag)
                 uow.commit()
-                bus.printer.console.print_new_object(new_tag, {})
+                bus.printer.console.print_new_object(new_tag)
                 return cmd.text
             else:
                 logging.warning(f"Tag {cmd.text} already exists")

@@ -88,6 +88,7 @@ class TextualPrinter:
         if app.return_code == 4:
             raise exceptions.TerkaRefreshException
 
+
 class ConsolePrinter:
 
     def __init__(self, uow, box=rich.box.SIMPLE, config=None) -> None:
@@ -396,10 +397,7 @@ class ConsolePrinter:
         elif table.row_count:
             self.console.print(table)
 
-    def print_workspace(self,
-                        entities,
-                        print_options,
-                        kwargs=None):
+    def print_workspace(self, entities, print_options, kwargs=None):
         if not entities:
             self.console.print("[red]No workspaces found[/red]")
             exit()
@@ -433,20 +431,12 @@ class ConsolePrinter:
         for name, value in inspect.getmembers(obj):
             if (not name.startswith("_") and not inspect.ismethod(value)
                     and not name.endswith("_")):
-                if not value:
+                if not value or name in ("assignee", "assigned_to", "project",
+                                         "workspace"):
                     continue
                 elif name == "created_by":
                     user = obj.created_by_.name if obj.created_by_ else ""
                     attributes.append((name, user))
-                elif name == "assignee":
-                    user = obj.assigned_to.name if obj.assigned_to else ""
-                    attributes.append((name, user))
-                elif name == "project":
-                    project = obj.project_.name if obj.project else ""
-                    attributes.append((name, project))
-                elif name == "workspace":
-                    workspace = obj.workspace._name if obj.workspace_ else ""
-                    attributes.append((name, workspace))
                 elif hasattr(value, "name"):
                     attributes.append((name, value.name))
                 elif isinstance(value, datetime):
