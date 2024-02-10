@@ -350,6 +350,7 @@ class CreateSprint(Command):
     goal: str | None = None
     start_date: str | None = None
     end_date: str | None = None
+    capacity: int = 40
 
     def __bool__(self) -> bool:
         if self.start_date and self.end_date:

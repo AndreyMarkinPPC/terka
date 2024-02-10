@@ -60,6 +60,7 @@ def new_sprint_template() -> str:
         description: 
         start_date: {next_monday}
         end_date:  {next_sunday}
+        capacity: 40
         """
 
 
@@ -75,6 +76,8 @@ def edit_sprint_template(sprint: entities.sprint.Sprint) -> str:
         status: {sprint.status.name}
         start_date: {sprint.start_date}
         end_date: {sprint.end_date}
+        capacity: {sprint.capacity}
+
         """
 
 

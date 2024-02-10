@@ -1,4 +1,5 @@
-from typing import Set
+from __future__ import annotations
+
 from collections import defaultdict
 from enum import Enum
 import logging
@@ -21,10 +22,11 @@ class SprintStatus(Enum):
 class Sprint(Entity):
 
     def __init__(self,
-                 start_date: datetime = None,
-                 end_date: datetime = None,
+                 start_date: datetime | None = None,
+                 end_date: datetime | None = None,
                  status: str = "PLANNED",
-                 goal: str = None,
+                 capacity: int = 40,
+                 goal: str | None = None,
                  **kwargs) -> None:
         if not start_date and not end_date:
             raise ValueError("Please add start and end date of the sprint")
@@ -45,6 +47,7 @@ class Sprint(Entity):
             raise ValueError(f"Sprint end date cannot be less than today")
         self.status = self._validate_status(status)
         self.goal = goal
+        self.capacity = capacity
         self.is_completed = False
 
     def _validate_status(self, status):
@@ -63,6 +66,15 @@ class Sprint(Entity):
                             self.id, len(incompleted_tasks))
         self.is_completed = True
 
+    @property
+    def overplanned(self) -> bool:
+        return self.velocity > self.capacity
+
+    @property
+    def remaining_capatity(self) -> float:
+        if not self.overplanned:
+            return self.capacity - self.velocity
+        return 0
     @property
     def velocity(self) -> float:
         return round(sum([t.story_points for t in self.tasks]), 1)

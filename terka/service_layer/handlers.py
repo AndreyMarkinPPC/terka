@@ -385,19 +385,29 @@ class TaskCommandHandlers:
                 uow.commit()
                 logging.debug(f"Task added to {entity_name}, context {cmd}")
                 if entity_name == "sprint":
-                    if existing_entity.status == entities.sprint.SprintStatus.COMPLETED:
+                    if (existing_entity.status ==
+                            entities.sprint.SprintStatus.COMPLETED):
                         raise exceptions.TerkaSprintCompleted(
                             f"Sprint {entity_id} is completed")
+                    if existing_entity.overplanned:
+                        raise exceptions.TerkaSprintOutOfCapacity(
+                            f"Sprint {entity_id} is overplanned")
+                    if (entity_task.story_points >
+                            existing_entity.remaining_capacity):
+                        raise exceptions.TerkaSprintOutOfCapacity(
+                            f"Sprint {entity_id} will overplanned "
+                            f"when task with {entity_task.story_points} is added"
+                        )
                     if existing_task := uow.tasks.get_by_id(
                             entities.task.Task, cmd.id):
                         task_params = {}
                         if existing_task.status.name == "BACKLOG":
                             task_params.update({"status": "TODO"})
                         if (not existing_task.due_date
-                                or existing_task.due_date
-                                > existing_entity.end_date
-                                or existing_task.due_date
-                                < existing_entity.start_date):
+                                or existing_task.due_date >
+                                existing_entity.end_date
+                                or existing_task.due_date <
+                                existing_entity.start_date):
                             task_params.update(
                                 {"due_date": existing_entity.end_date})
                         if task_params:

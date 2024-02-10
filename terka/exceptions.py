@@ -33,6 +33,10 @@ class TerkaSprintActive(TerkaException):
 class TerkaInitError(TerkaException):
     ...
 
+
 class TerkaRefreshException(TerkaException):
     ...
 
+
+class TerkaSprintOutOfCapacity(TerkaException):
+    ...

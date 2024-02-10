@@ -64,10 +64,10 @@ class TestTask:
     def test_creating_task_with_tag_creates_tag(self, bus):
         cmd = commands.CreateTask(name="test")
         task_id = bus.handle(cmd, context={"tags": "new_tag"})
-        new_task_tag = bus.uow.tasks.get_by_conditions(
-            entities.tag.TaskTag, {"task": task_id})
-        new_base_tag = bus.uow.tasks.get_by_conditions(
-            entities.tag.BaseTag, {"text": "new_tag"})
+        new_task_tag = bus.uow.tasks.get_by_conditions(entities.tag.TaskTag,
+                                                       {"task": task_id})
+        new_base_tag = bus.uow.tasks.get_by_conditions(entities.tag.BaseTag,
+                                                       {"text": "new_tag"})
         assert new_task_tag
         assert new_base_tag
 
@@ -78,7 +78,7 @@ class TestTask:
         [new_task_collaborator] = bus.uow.tasks.get_by_conditions(
             entities.collaborator.TaskCollaborator, {"task": task_id})
         new_user = bus.uow.tasks.get_by_id(entities.user.User,
-                                                   new_task_collaborator.id)
+                                           new_task_collaborator.id)
         assert new_task_collaborator
         assert new_user
 
@@ -99,16 +99,16 @@ class TestTask:
     def test_tagging_task_with_empty_tag_is_ignored(self, bus):
         cmd = commands.CreateTask(name="test")
         task_id = bus.handle(cmd, context={"tag": " "})
-        new_task_tag = bus.uow.tasks.get_by_conditions(
-            entities.tag.TaskTag, {"task": task_id})
+        new_task_tag = bus.uow.tasks.get_by_conditions(entities.tag.TaskTag,
+                                                       {"task": task_id})
         assert not new_task_tag
 
     @pytest.mark.parametrize("entity", ["epic", "sprint", "story"])
     def test_tagging_task_with_service_tag_is_ignored(self, bus, entity):
         cmd = commands.CreateTask(name="test")
         task_id = bus.handle(cmd, context={"tag": f"{entity}: 1"})
-        new_task_tag = bus.uow.tasks.get_by_conditions(
-            entities.tag.TaskTag, {"task": task_id})
+        new_task_tag = bus.uow.tasks.get_by_conditions(entities.tag.TaskTag,
+                                                       {"task": task_id})
         assert not new_task_tag
 
 
@@ -128,7 +128,18 @@ class TestSprint:
         next_monday = (today + timedelta(days=(7 - today.weekday())))
         next_sunday = (today + timedelta(days=(13 - today.weekday())))
         cmd = commands.CreateSprint(start_date=next_monday,
-                                     end_date=next_sunday)
+                                    end_date=next_sunday)
+        sprint_id = bus.handle(cmd)
+        return sprint_id
+
+    @pytest.fixture
+    def new_sprint_with_limited_capacity(self, bus):
+        today = datetime.now()
+        next_monday = (today + timedelta(days=(7 - today.weekday())))
+        next_sunday = (today + timedelta(days=(13 - today.weekday())))
+        cmd = commands.CreateSprint(start_date=next_monday,
+                                    end_date=next_sunday,
+                                    capacity=1)
         sprint_id = bus.handle(cmd)
         return sprint_id
 
@@ -164,18 +175,27 @@ class TestSprint:
         for task in sprint_tasks:
             assert task.story_points == 0
 
+    def test_cannot_add_task_to_sprint(self, bus,
+                                       new_sprint_with_limited_capacity,
+                                       tasks):
+        task_1, task_2 = tasks
+        add_task_1 = commands.AddTask(id=task_1,
+                                      sprint=new_sprint_with_limited_capacity,
+                                      story_points=2)
+        with pytest.raises(exceptions.TerkaSprintOutOfCapacity):
+            bus.handle(add_task_1)
+
     def test_starting_sprint_changes_status_due_date(self, bus, new_sprint,
                                                      sprint_with_tasks):
         cmd = commands.StartSprint(new_sprint)
         bus.handle(cmd)
-        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint,
-                                                 new_sprint)
+        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint, new_sprint)
         assert sprint.status == entities.sprint.SprintStatus.ACTIVE
         sprint_tasks = bus.uow.tasks.get_by_conditions(
             entities.sprint.SprintTask, {"sprint": new_sprint})
         for sprint_task in sprint_tasks:
             task = bus.uow.tasks.get_by_id(entities.task.Task,
-                                                   sprint_task.task)
+                                           sprint_task.task)
             assert task.status == entities.task.TaskStatus.TODO
             assert task.due_date == sprint.end_date
 
@@ -192,22 +212,20 @@ class TestSprint:
         cmd = commands.CompleteSprint(new_sprint)
         bus.handle(cmd)
         cmd = commands.StartSprint(new_sprint)
-        with pytest.raises(
-                exceptions.TerkaSprintCompleted):
+        with pytest.raises(exceptions.TerkaSprintCompleted):
             bus.handle(cmd)
 
     def test_completing_sprint_changes_status_due_date(self, bus, new_sprint,
                                                        sprint_with_tasks):
         cmd = commands.CompleteSprint(new_sprint)
         bus.handle(cmd)
-        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint,
-                                                 new_sprint)
+        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint, new_sprint)
         assert sprint.status == entities.sprint.SprintStatus.COMPLETED
         sprint_tasks = bus.uow.tasks.get_by_conditions(
             entities.sprint.SprintTask, {"sprint": new_sprint})
         for sprint_task in sprint_tasks:
             task = bus.uow.tasks.get_by_id(entities.task.Task,
-                                                   sprint_task.task)
+                                           sprint_task.task)
             assert task.status == entities.task.TaskStatus.BACKLOG
             assert not task.due_date
 
@@ -215,15 +233,14 @@ class TestSprint:
             self, bus, new_sprint, sprint_with_tasks):
         cmd = commands.StartSprint(new_sprint)
         bus.handle(cmd)
-        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint,
-                                                 new_sprint)
+        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint, new_sprint)
         update_task = commands.UpdateTask(id=1, status="REVIEW")
         bus.handle(update_task)
         sprint_tasks = bus.uow.tasks.get_by_conditions(
             entities.sprint.SprintTask, {"sprint": new_sprint})
         for sprint_task in sprint_tasks:
             task = bus.uow.tasks.get_by_id(entities.task.Task,
-                                                   sprint_task.task)
+                                           sprint_task.task)
             if task.id == 1:
                 assert task.status == entities.task.TaskStatus.REVIEW
 
@@ -234,21 +251,18 @@ class TestSprint:
         create_task_3 = commands.CreateTask(name="task_3")
         task_3 = bus.handle(create_task_3)
         cmd = commands.AddTask(id=task_3, sprint=new_sprint)
-        with pytest.raises(
-                exceptions.TerkaSprintCompleted):
+        with pytest.raises(exceptions.TerkaSprintCompleted):
             bus.handle(cmd)
 
     def test_deleting_task_from_sprint(self, bus, new_sprint,
                                        sprint_with_tasks):
         cmd = commands.StartSprint(new_sprint)
         bus.handle(cmd)
-        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint,
-                                                 new_sprint)
+        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint, new_sprint)
         delete_task = commands.DeleteTask(id=sprint.tasks[0].task,
-                                           sprint=new_sprint)
+                                          sprint=new_sprint)
         bus.handle(delete_task)
-        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint,
-                                                 new_sprint)
+        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint, new_sprint)
         assert len(sprint.tasks) == 1
 
     def test_adding_story_to_sprint_adds_non_completed_tasks(
@@ -260,11 +274,9 @@ class TestSprint:
         add_task_2 = commands.AddTask(id=task_2, story=story_id)
         bus.handle(add_task_1)
         bus.handle(add_task_2)
-        add_story_to_sprint = commands.AddStory(id=story_id,
-                                                 sprint=new_sprint)
+        add_story_to_sprint = commands.AddStory(id=story_id, sprint=new_sprint)
         bus.handle(add_story_to_sprint)
-        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint,
-                                                 new_sprint)
+        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint, new_sprint)
         assert len(sprint.tasks) == 2
 
     def test_adding_epic_to_sprint_adds_non_completed_tasks(
@@ -278,8 +290,7 @@ class TestSprint:
         bus.handle(add_task_2)
         add_epic_to_sprint = commands.AddEpic(id=epic_id, sprint=new_sprint)
         bus.handle(add_epic_to_sprint)
-        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint,
-                                                 new_sprint)
+        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint, new_sprint)
         assert len(sprint.tasks) == 2
 
     def test_adding_story_to_sprint_adds_only_non_completed_tasks(
@@ -293,11 +304,9 @@ class TestSprint:
         bus.handle(add_task_2)
         complete_task = commands.CompleteTask(task_1)
         bus.handle(complete_task)
-        add_story_to_sprint = commands.AddStory(id=story_id,
-                                                 sprint=new_sprint)
+        add_story_to_sprint = commands.AddStory(id=story_id, sprint=new_sprint)
         bus.handle(add_story_to_sprint)
-        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint,
-                                                 new_sprint)
+        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint, new_sprint)
         assert len(sprint.tasks) == 1
 
     def test_adding_epic_to_sprint_adds_only_non_completed_tasks(
@@ -313,6 +322,5 @@ class TestSprint:
         bus.handle(complete_task)
         add_epic_to_sprint = commands.AddEpic(id=epic_id, sprint=new_sprint)
         bus.handle(add_epic_to_sprint)
-        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint,
-                                                 new_sprint)
+        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint, new_sprint)
         assert len(sprint.tasks) == 1

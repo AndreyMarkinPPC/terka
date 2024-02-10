@@ -858,7 +858,7 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
 * Period: {self.entity.start_date} - {self.entity.end_date}
 * Open tasks: {len(self.entity.open_tasks)} ({len(self.entity.tasks)})
 * Pct Completed: {round(self.entity.pct_completed, 2) :.0%}
-* Velocity: {self.entity.velocity}
+* Velocity: {self.entity.velocity} ({self.entity.capacity})
 * Time spend: {Formatter.format_time_spent(self.entity.total_time_spent)}
 * Utilization: {round(self.entity.utilization, 2) :.0%}
 ## Collaborator split:

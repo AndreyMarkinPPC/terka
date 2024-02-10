@@ -221,6 +221,7 @@ sprints = Table("sprints", metadata,
                 Column("start_date", Date, nullable=False),
                 Column("end_date", Date, nullable=False),
                 Column("status", Enum(sprint.SprintStatus)),
+                Column("capacity", Integer, nullable=False),
                 Column("goal", String(225), nullable=True))
 
 sprint_tasks = Table(
