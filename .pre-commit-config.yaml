@@ -1,0 +1,31 @@
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v3.2.0
+  hooks:
+  - id: trailing-whitespace
+  - id: end-of-file-fixer
+  - id: check-yaml
+  - id: check-added-large-files
+  - id: debug-statements
+  - id: double-quote-string-fixer
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: v1.8.0
+  hooks:
+  - id: mypy
+    verbose: true
+    entry: bash -c 'mypy "$@" || true'
+    args: [--ignore-missing-imports]
+- repo: local
+  hooks:
+  - id: pytest-check
+    name: pytest-check
+    entry: pytest
+    language: system
+    pass_filenames: false
+    always_run: true
+  - id: yapf
+    name: yapf-formatter
+    entry: yapf
+    language: system
+    pass_filenames: false
+    always_run: true
