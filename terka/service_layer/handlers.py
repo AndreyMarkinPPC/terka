@@ -90,8 +90,10 @@ class SprintCommandHandlers:
             if existing_sprint.status.name == 'COMPLETED':
                 raise exceptions.TerkaSprintCompleted(
                     'Cannot start completed sprint')
-            uow.tasks.update(entities.sprint.Sprint, cmd.id,
-                             {'status': 'ACTIVE', 'started_at': datetime.now()})
+            uow.tasks.update(entities.sprint.Sprint, cmd.id, {
+                'status': 'ACTIVE',
+                'started_at': datetime.now()
+            })
             uow.commit()
             for sprint_task in existing_sprint.tasks:
                 task = sprint_task.tasks
@@ -147,8 +149,10 @@ class SprintCommandHandlers:
                     entities.sprint.Sprint, cmd.id)):
                 raise exceptions.EntityNotFound(
                     f'Sprint id {cmd.id} is not found')
-            uow.tasks.update(entities.sprint.Sprint, cmd.id,
-                             {'status': 'COMPLETED', 'completed_at': datetime.now()})
+            uow.tasks.update(entities.sprint.Sprint, cmd.id, {
+                'status': 'COMPLETED',
+                'completed_at': datetime.now()
+            })
             for sprint_task in existing_sprint.tasks:
                 task = sprint_task.tasks
                 task_params = {}
@@ -289,6 +293,9 @@ class TaskCommandHandlers:
                 update_dict['status'] = entities.task.TaskStatus[status]
             if priority := update_dict.get('priority'):
                 update_dict['priority'] = entities.task.TaskPriority[priority]
+            if (existing_task.status.name in ('DONE', 'DELETED')
+                    and status not in ('DONE', 'DELETED')):
+                update_dict['completed_at'] = None
             uow.tasks.update(entities.task.Task, cmd.id, update_dict)
             uow.commit()
             TaskCommandHandlers._process_extra_args(cmd.id, context, uow)
@@ -382,7 +389,8 @@ class TaskCommandHandlers:
                     if story_points:
                         entity_dict['story_points'] = story_points
                     if started_at := existing_entity.started_at:
-                        entity_dict['unplanned'] = (started_at < datetime.now())
+                        entity_dict['unplanned'] = (started_at <
+                                                    datetime.now())
                 entity_task = entity_task_type(**entity_dict)
                 uow.tasks.add(entity_task)
                 uow.commit()
@@ -439,8 +447,11 @@ class TaskCommandHandlers:
                 old_value=existing_task.status.name,
                 new_value='DONE')
             uow.published_messages.append(task_completed_event)
-            uow.tasks.update(entities.task.Task, cmd.id,
-                             {'status': entities.task.TaskStatus.DONE})
+            uow.tasks.update(
+                entities.task.Task, cmd.id, {
+                    'status': entities.task.TaskStatus.DONE,
+                    'completed_at': datetime.now()
+                })
             TaskCommandHandlers._process_extra_args(cmd.id, context, uow)
             uow.commit()
             bus.publisher.publish('Topic', task_completed_event)
@@ -524,8 +535,11 @@ class TaskCommandHandlers:
                     old_value=existing_task.status.name,
                     new_value='DELETED')
                 uow.published_messages.append(task_deleted_event)
-                uow.tasks.update(entities.task.Task, cmd.id,
-                                 {'status': entities.task.TaskStatus.DELETED})
+                uow.tasks.update(
+                    entities.task.Task, cmd.id, {
+                        'status': entities.task.TaskStatus.DELETED,
+                        'completed_at': datetime.now()
+                    })
                 uow.published_messages.append(task_deleted_event)
             TaskCommandHandlers._process_extra_args(cmd.id, context, uow)
             uow.commit()

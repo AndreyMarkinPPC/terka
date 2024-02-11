@@ -44,15 +44,15 @@ class Task(Entity):
                  assignee: int | None = None,
                  created_by: int | None = None,
                  due_date: datetime | None = None,
-                 status: str = "BACKLOG",
-                 priority: str = "NORMAL",
+                 status: str = 'BACKLOG',
+                 priority: str = 'NORMAL',
                  sync: bool = True,
                  **kwargs) -> None:
         if not name:
-            raise ValueError("task name cannot be empty!")
+            raise ValueError('task name cannot be empty!')
         if not isinstance(creation_date, datetime):
             raise ValueError(
-                "creation_date should be of type datetime.datetime!")
+                'creation_date should be of type datetime.datetime!')
         self.name = name
         self.creation_date = creation_date
         self.description = description
@@ -61,12 +61,13 @@ class Task(Entity):
         self.created_by = created_by
         if due_date and due_date.date() < datetime.today().date():
             raise ValueError(
-                f"Due date {due_date.date()} cannot be less than today")
+                f'Due date {due_date.date()} cannot be less than today')
         else:
             self.due_date = due_date
         self.status = self._cast_to_enum(TaskStatus, status)
         self.priority = self._cast_to_enum(TaskPriority, priority)
         self.sync = sync
+        self.completed_at = None
 
     @property
     def total_time_spent(self):
@@ -92,17 +93,17 @@ class Task(Entity):
             start_date = (datetime.today() - timedelta(last_n_days)).date()
             end_date = datetime.today().date()
         elif isinstance(start_date, str) and isinstance(end_date, str):
-            start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
-            end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
         dates = [
-            date.strftime("%Y-%m-%d") for date in pd.date_range(
+            date.strftime('%Y-%m-%d') for date in pd.date_range(
                 start_date, end_date).to_pydatetime().tolist()
         ]
         entries = dict.fromkeys(dates, 0.0)
         for entry in self.time_spent:
             creation_date = entry.creation_date.date()
             if creation_date >= start_date and creation_date <= end_date:
-                day = creation_date.strftime("%Y-%m-%d")
+                day = creation_date.strftime('%Y-%m-%d')
                 entries[day] += entry.time_spent_minutes / 60
         return entries
 
@@ -110,25 +111,27 @@ class Task(Entity):
     def project_name(self) -> str:
         if project := self.project_:
             return project.name
-        return ""
+        return ''
 
     @property
     def assignee_name(self) -> str:
         if assigned_to := self.assigned_to:
             return assigned_to.name
-        return ""
+        return ''
 
     @property
     def completion_date(self) -> datetime | None:
+        if self.completed_at:
+            return self.completed_at
         for event in self.history:
-            if event.new_value in ("DONE", "DELETED"):
+            if event.new_value in ('DONE', 'DELETED'):
                 return event.date
         return datetime.utcfromtimestamp(0)
 
     @property
     def is_stale(self):
-        if self.history and self.status.name in ("TODO", "IN_PROGRESS",
-                                                 "REVIEW"):
+        if self.history and self.status.name in ('TODO', 'IN_PROGRESS',
+                                                 'REVIEW'):
             if max([event.date for event in self.history
                     ]) < (datetime.today() - timedelta(days=5)):
                 return True
@@ -142,7 +145,7 @@ class Task(Entity):
 
     @property
     def is_completed(self):
-        if self.status.name in ("DONE", "DELETED"):
+        if self.status.name in ('DONE', 'DELETED'):
             return True
         return False
 
@@ -153,22 +156,22 @@ class Task(Entity):
                 collaborator.users.name for collaborator in list(collaborators)
                 if collaborator.users
             ])
-            collaborator_string = ",".join(collaborators_texts)
+            collaborator_string = ','.join(collaborators_texts)
         else:
-            collaborator_string = ""
+            collaborator_string = ''
         return collaborator_string
 
     @property
     def tags_string(self) -> str:
         if tags := self.tags:
-            tags_text = ",".join(
+            tags_text = ','.join(
                 [tag.base_tag.text for tag in list(tags)])
         else:
-            tags_text = ""
+            tags_text = ''
         return tags_text
 
     def __repr__(self):
-        return f"<Task {self.id}>: {self.name}, {self.status.name}, {self.creation_date}"
+        return f'<Task {self.id}>: {self.name}, {self.status.name}, {self.creation_date}'
 
     def _cast_to_enum(self, enum: Type[Enum], value: str | Enum) -> Enum:
         return enum[value] if isinstance(value, str) else value

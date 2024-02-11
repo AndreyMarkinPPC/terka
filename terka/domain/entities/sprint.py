@@ -24,45 +24,44 @@ class Sprint(Entity):
     def __init__(self,
                  start_date: datetime | None = None,
                  end_date: datetime | None = None,
-                 status: str = "PLANNED",
+                 status: str = 'PLANNED',
                  capacity: int = 40,
                  goal: str | None = None,
                  started_at: datetime | None = None,
-                 completed_at: datetime | None = None,
                  **kwargs) -> None:
         if not start_date and not end_date:
-            raise ValueError("Please add start and end date of the sprint")
+            raise ValueError('Please add start and end date of the sprint')
         if start_date.date() < datetime.today().date():
-            raise ValueError(f"start date cannot be less than today")
+            raise ValueError(f'start date cannot be less than today')
         if not start_date:
             raise ValueError(
-                "Please provide start date for the sprint in YYYY-MM-DD format"
+                'Please provide start date for the sprint in YYYY-MM-DD format'
             )
         self.start_date = start_date
         if not end_date:
             raise ValueError(
-                "Please provide end date for the sprint in YYYY-MM-DD format")
+                'Please provide end date for the sprint in YYYY-MM-DD format')
         self.end_date = end_date
         if end_date.date() < start_date.date():
-            raise ValueError(f"Sprint end date cannot be less than start date")
+            raise ValueError(f'Sprint end date cannot be less than start date')
         if end_date.date() < datetime.today().date():
-            raise ValueError(f"Sprint end date cannot be less than today")
+            raise ValueError(f'Sprint end date cannot be less than today')
         self.status = self._validate_status(status)
         self.goal = goal
         self.capacity = capacity
         self.started_at = started_at
-        self.completed_at = completed_at
+        self.completed_at = None
 
     def _validate_status(self, status):
         if status and status not in [s.name for s in SprintStatus]:
-            raise ValueError(f"{status} is invalid status")
+            raise ValueError(f'{status} is invalid status')
         else:
             return status
 
     def complete(self, tasks) -> None:
         incompleted_tasks = list()
         for task in tasks:
-            if task.tasks.status.name != "DONE":
+            if task.tasks.status.name != 'DONE':
                 incompleted_tasks.append(task)
         if incompleted_tasks:
             logging.warning("[Sprint %d]: %d tasks haven't been completed",
@@ -120,7 +119,7 @@ class Sprint(Entity):
         tasks = []
         for entity_task in self.tasks:
             task = entity_task.tasks
-            if task.status.name not in ("DONE", "DELETED"):
+            if task.status.name not in ('DONE', 'DELETED'):
                 task.story_points = entity_task.story_points
                 tasks.append(task)
         return tasks
@@ -130,7 +129,7 @@ class Sprint(Entity):
         tasks = []
         for entity_task in self.tasks:
             task = entity_task.tasks
-            if task.status.name in ("DONE", "DELETED"):
+            if task.status.name in ('DONE', 'DELETED'):
                 task.story_points = entity_task.story_points
                 tasks.append(task)
         return tasks
@@ -147,10 +146,10 @@ class Sprint(Entity):
         for sprint_task in self.tasks:
             if task_collaborators := sprint_task.tasks.collaborators:
                 for collaborator in task_collaborators:
-                    name = collaborator.users.name or "me"
+                    name = collaborator.users.name or 'me'
                     collaborators[name] += sprint_task.tasks.total_time_spent
             else:
-                collaborators["me"] += sprint_task.tasks.total_time_spent
+                collaborators['me'] += sprint_task.tasks.total_time_spent
         return collaborators
 
     @property
@@ -159,8 +158,8 @@ class Sprint(Entity):
         for user, story_point in sorted(self.collaborators.items(),
                                         key=lambda x: x[1],
                                         reverse=True):
-            collaborators.append(f"{user} ({round(story_point, 2)})")
-        return ",".join(collaborators)
+            collaborators.append(f'{user} ({round(story_point, 2)})')
+        return ','.join(collaborators)
 
     def daily_time_entries_hours(self) -> dict[str, float]:
         entries: dict[str, float] = defaultdict(float)

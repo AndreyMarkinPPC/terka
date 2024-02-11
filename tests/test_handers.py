@@ -8,11 +8,11 @@ from terka.domain import commands, entities, events
 class TestTask:
 
     def test_create_simple_task(self, bus):
-        cmd = commands.CreateTask(name="test")
+        cmd = commands.CreateTask(name='test')
         bus.handle(cmd)
         new_task = bus.uow.tasks.get_by_id(entities.task.Task, 1)
         expected_task = entities.task.Task(
-            name="test",
+            name='test',
             description=None,
             project=None,
             assignee=None,
@@ -22,102 +22,114 @@ class TestTask:
         assert new_task == expected_task
 
     def test_updating_task_sets_modification_date(self, bus):
-        cmd = commands.CreateTask(name="test")
+        cmd = commands.CreateTask(name='test')
         task_id = bus.handle(cmd)
         new_task = bus.uow.tasks.get_by_id(entities.task.Task, task_id)
-        update_cmd = commands.UpdateTask(new_task.id, status="TODO")
+        update_cmd = commands.UpdateTask(new_task.id, status='TODO')
         bus.handle(update_cmd)
         new_task = bus.uow.tasks.get_by_id(entities.task.Task, task_id)
         assert new_task.modification_date > new_task.creation_date
         assert new_task.status == entities.task.TaskStatus.TODO
 
     def test_completing_task_creates_status_task_event(self, bus):
-        cmd = commands.CreateTask(name="test")
+        cmd = commands.CreateTask(name='test')
         task_id = bus.handle(cmd)
         complete_cmd = commands.CompleteTask(task_id)
         bus.handle(complete_cmd)
         new_task = bus.uow.tasks.get_by_id(entities.task.Task, task_id)
         task_event = bus.uow.tasks.get_by_conditions(
             entities.event_history.TaskEvent, {
-                "task": task_id,
-                "new_value": "DONE",
-                "old_value": "BACKLOG"
+                'task': task_id,
+                'new_value': 'DONE',
+                'old_value': 'BACKLOG'
             })
         assert task_event
         assert new_task.status == entities.task.TaskStatus.DONE
+        assert new_task.completed_at
 
     def test_deleting_task_creates_status_task_event(self, bus):
-        cmd = commands.CreateTask(name="test")
+        cmd = commands.CreateTask(name='test')
         task_id = bus.handle(cmd)
         complete_cmd = commands.DeleteTask(task_id)
         bus.handle(complete_cmd)
         new_task = bus.uow.tasks.get_by_id(entities.task.Task, task_id)
         task_event = bus.uow.tasks.get_by_conditions(
             entities.event_history.TaskEvent, {
-                "task": task_id,
-                "new_value": "DELETED",
-                "old_value": "BACKLOG"
+                'task': task_id,
+                'new_value': 'DELETED',
+                'old_value': 'BACKLOG'
             })
         assert task_event
         assert new_task.status == entities.task.TaskStatus.DELETED
+        assert new_task.completed_at
+
+    def test_uncompleting_task_removed_completed_at(self, bus):
+        cmd = commands.CreateTask(name='test')
+        task_id = bus.handle(cmd)
+        complete_cmd = commands.CompleteTask(task_id)
+        bus.handle(complete_cmd)
+        update_cmd = commands.UpdateTask(task_id, status='TODO')
+        bus.handle(update_cmd)
+        new_task = bus.uow.tasks.get_by_id(entities.task.Task, task_id)
+        assert not new_task.completed_at
 
     def test_creating_task_with_tag_creates_tag(self, bus):
-        cmd = commands.CreateTask(name="test")
-        task_id = bus.handle(cmd, context={"tags": "new_tag"})
+        cmd = commands.CreateTask(name='test')
+        task_id = bus.handle(cmd, context={'tags': 'new_tag'})
         new_task_tag = bus.uow.tasks.get_by_conditions(entities.tag.TaskTag,
-                                                       {"task": task_id})
+                                                       {'task': task_id})
         new_base_tag = bus.uow.tasks.get_by_conditions(entities.tag.BaseTag,
-                                                       {"text": "new_tag"})
+                                                       {'text': 'new_tag'})
         assert new_task_tag
         assert new_base_tag
 
     def test_creating_task_with_collaborator_creates_user(self, bus):
-        cmd = commands.CreateTask(name="test")
+        cmd = commands.CreateTask(name='test')
         task_id = bus.handle(cmd,
-                             context={"collaborators": "new_collaborator"})
+                             context={'collaborators': 'new_collaborator'})
         [new_task_collaborator] = bus.uow.tasks.get_by_conditions(
-            entities.collaborator.TaskCollaborator, {"task": task_id})
+            entities.collaborator.TaskCollaborator, {'task': task_id})
         new_user = bus.uow.tasks.get_by_id(entities.user.User,
                                            new_task_collaborator.id)
         assert new_task_collaborator
         assert new_user
 
     def test_creating_task_with_comment_creates_comment(self, bus):
-        cmd = commands.CreateTask(name="test")
-        task_id = bus.handle(cmd, context={"comment": "new_commentary"})
+        cmd = commands.CreateTask(name='test')
+        task_id = bus.handle(cmd, context={'comment': 'new_commentary'})
         new_task_comment = bus.uow.tasks.get_by_conditions(
-            entities.commentary.TaskCommentary, {"task": task_id})
+            entities.commentary.TaskCommentary, {'task': task_id})
         assert new_task_comment
 
     def test_commenting_task_with_empty_comment_is_ignored(self, bus):
-        cmd = commands.CreateTask(name="test")
-        task_id = bus.handle(cmd, context={"comment": " "})
+        cmd = commands.CreateTask(name='test')
+        task_id = bus.handle(cmd, context={'comment': ' '})
         new_task_comment = bus.uow.tasks.get_by_conditions(
-            entities.commentary.TaskCommentary, {"task": task_id})
+            entities.commentary.TaskCommentary, {'task': task_id})
         assert not new_task_comment
 
     def test_tagging_task_with_empty_tag_is_ignored(self, bus):
-        cmd = commands.CreateTask(name="test")
-        task_id = bus.handle(cmd, context={"tag": " "})
+        cmd = commands.CreateTask(name='test')
+        task_id = bus.handle(cmd, context={'tag': ' '})
         new_task_tag = bus.uow.tasks.get_by_conditions(entities.tag.TaskTag,
-                                                       {"task": task_id})
+                                                       {'task': task_id})
         assert not new_task_tag
 
-    @pytest.mark.parametrize("entity", ["epic", "sprint", "story"])
+    @pytest.mark.parametrize('entity', ['epic', 'sprint', 'story'])
     def test_tagging_task_with_service_tag_is_ignored(self, bus, entity):
-        cmd = commands.CreateTask(name="test")
-        task_id = bus.handle(cmd, context={"tag": f"{entity}: 1"})
+        cmd = commands.CreateTask(name='test')
+        task_id = bus.handle(cmd, context={'tag': f'{entity}: 1'})
         new_task_tag = bus.uow.tasks.get_by_conditions(entities.tag.TaskTag,
-                                                       {"task": task_id})
+                                                       {'task': task_id})
         assert not new_task_tag
 
 
 class TestSprint:
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture(scope='class')
     def tasks(self, bus):
-        create_task_1 = commands.CreateTask(name="task_1")
-        create_task_2 = commands.CreateTask(name="task_2")
+        create_task_1 = commands.CreateTask(name='task_1')
+        create_task_2 = commands.CreateTask(name='task_2')
         task_1 = bus.handle(create_task_1)
         task_2 = bus.handle(create_task_2)
         return task_1, task_2
@@ -170,7 +182,7 @@ class TestSprint:
 
     def test_adding_task_to_sprint(self, bus, new_sprint, sprint_with_tasks):
         sprint_tasks = bus.uow.tasks.get_by_conditions(
-            entities.sprint.SprintTask, {"sprint": new_sprint})
+            entities.sprint.SprintTask, {'sprint': new_sprint})
         assert len(sprint_tasks) == 2
         for task in sprint_tasks:
             assert task.story_points == 0
@@ -192,7 +204,7 @@ class TestSprint:
         sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint, new_sprint)
         assert sprint.status == entities.sprint.SprintStatus.ACTIVE
         sprint_tasks = bus.uow.tasks.get_by_conditions(
-            entities.sprint.SprintTask, {"sprint": new_sprint})
+            entities.sprint.SprintTask, {'sprint': new_sprint})
         for sprint_task in sprint_tasks:
             task = bus.uow.tasks.get_by_id(entities.task.Task,
                                            sprint_task.task)
@@ -222,7 +234,7 @@ class TestSprint:
         sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint, new_sprint)
         assert sprint.status == entities.sprint.SprintStatus.COMPLETED
         sprint_tasks = bus.uow.tasks.get_by_conditions(
-            entities.sprint.SprintTask, {"sprint": new_sprint})
+            entities.sprint.SprintTask, {'sprint': new_sprint})
         for sprint_task in sprint_tasks:
             task = bus.uow.tasks.get_by_id(entities.task.Task,
                                            sprint_task.task)
@@ -234,10 +246,10 @@ class TestSprint:
         cmd = commands.StartSprint(new_sprint)
         bus.handle(cmd)
         sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint, new_sprint)
-        update_task = commands.UpdateTask(id=1, status="REVIEW")
+        update_task = commands.UpdateTask(id=1, status='REVIEW')
         bus.handle(update_task)
         sprint_tasks = bus.uow.tasks.get_by_conditions(
-            entities.sprint.SprintTask, {"sprint": new_sprint})
+            entities.sprint.SprintTask, {'sprint': new_sprint})
         for sprint_task in sprint_tasks:
             task = bus.uow.tasks.get_by_id(entities.task.Task,
                                            sprint_task.task)
@@ -248,7 +260,7 @@ class TestSprint:
                                                 sprint_with_tasks):
         cmd = commands.CompleteSprint(new_sprint)
         bus.handle(cmd)
-        create_task_3 = commands.CreateTask(name="task_3")
+        create_task_3 = commands.CreateTask(name='task_3')
         task_3 = bus.handle(create_task_3)
         cmd = commands.AddTask(id=task_3, sprint=new_sprint)
         with pytest.raises(exceptions.TerkaSprintCompleted):
@@ -268,7 +280,7 @@ class TestSprint:
     def test_adding_story_to_sprint_adds_non_completed_tasks(
             self, bus, new_sprint, tasks):
         task_1, task_2 = tasks
-        create_story = commands.CreateStory(name="story_1")
+        create_story = commands.CreateStory(name='story_1')
         story_id = bus.handle(create_story)
         add_task_1 = commands.AddTask(id=task_1, story=story_id)
         add_task_2 = commands.AddTask(id=task_2, story=story_id)
@@ -282,7 +294,7 @@ class TestSprint:
     def test_adding_epic_to_sprint_adds_non_completed_tasks(
             self, bus, new_sprint, tasks):
         task_1, task_2 = tasks
-        create_epic = commands.CreateEpic(name="epic_1")
+        create_epic = commands.CreateEpic(name='epic_1')
         epic_id = bus.handle(create_epic)
         add_task_1 = commands.AddTask(id=task_1, epic=epic_id)
         add_task_2 = commands.AddTask(id=task_2, epic=epic_id)
@@ -296,7 +308,7 @@ class TestSprint:
     def test_adding_story_to_sprint_adds_only_non_completed_tasks(
             self, bus, new_sprint, tasks):
         task_1, task_2 = tasks
-        create_story = commands.CreateStory(name="story_1")
+        create_story = commands.CreateStory(name='story_1')
         story_id = bus.handle(create_story)
         add_task_1 = commands.AddTask(id=task_1, story=story_id)
         add_task_2 = commands.AddTask(id=task_2, story=story_id)
@@ -312,7 +324,7 @@ class TestSprint:
     def test_adding_epic_to_sprint_adds_only_non_completed_tasks(
             self, bus, new_sprint, tasks):
         task_1, task_2 = tasks
-        create_epic = commands.CreateEpic(name="epic_1")
+        create_epic = commands.CreateEpic(name='epic_1')
         epic_id = bus.handle(create_epic)
         add_task_1 = commands.AddTask(id=task_1, epic=epic_id)
         add_task_2 = commands.AddTask(id=task_2, epic=epic_id)
