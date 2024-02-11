@@ -22,9 +22,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest asana
           pip install -e .
-      - name: Test with pytest
+      - name: Generate Report
         run: |
-          pytest tests/*.py
+          pip install coverage
+          coverage run -m pytest
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
         env:
