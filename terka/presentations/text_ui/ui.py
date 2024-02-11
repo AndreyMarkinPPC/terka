@@ -853,10 +853,21 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
                                           key=lambda x: x[1],
                                           reverse=True):
                     sorted_projects += f"  * {name}: {Formatter.format_time_spent(value)} \n"
+                if started_at := self.entity.started_at:
+                    started_at_string = started_at.strftime("%Y-%m-%d %H:%M")
+                else:
+                    if self.entity.status.name != "PLANNED":
+                        started_at_string = self.entity.start_date.strftime(
+                            "%Y-%m-%d %H:%M")
+                    else:
+                        started_at_string = "Not started"
+
                 yield MarkdownViewer(f"""
 # Sprint details:
 * Period: {self.entity.start_date} - {self.entity.end_date}
+* Started: {started_at_string}
 * Open tasks: {len(self.entity.open_tasks)} ({len(self.entity.tasks)})
+* Share of unplanned tasks: {round(len(self.entity.unplanned_tasks) / len(self.entity.tasks), 2) :.0%}
 * Pct Completed: {round(self.entity.pct_completed, 2) :.0%}
 * Velocity: {self.entity.velocity} ({self.entity.capacity})
 * Time spend: {Formatter.format_time_spent(self.entity.total_time_spent)}

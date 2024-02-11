@@ -27,6 +27,8 @@ class Sprint(Entity):
                  status: str = "PLANNED",
                  capacity: int = 40,
                  goal: str | None = None,
+                 started_at: datetime | None = None,
+                 completed_at: datetime | None = None,
                  **kwargs) -> None:
         if not start_date and not end_date:
             raise ValueError("Please add start and end date of the sprint")
@@ -48,7 +50,8 @@ class Sprint(Entity):
         self.status = self._validate_status(status)
         self.goal = goal
         self.capacity = capacity
-        self.is_completed = False
+        self.started_at = started_at
+        self.completed_at = completed_at
 
     def _validate_status(self, status):
         if status and status not in [s.name for s in SprintStatus]:
@@ -64,17 +67,21 @@ class Sprint(Entity):
         if incompleted_tasks:
             logging.warning("[Sprint %d]: %d tasks haven't been completed",
                             self.id, len(incompleted_tasks))
-        self.is_completed = True
+
+    @property
+    def is_completed(self) -> bool:
+        return self.status == SprintStatus.COMPLETED
 
     @property
     def overplanned(self) -> bool:
         return self.velocity > self.capacity
 
     @property
-    def remaining_capatity(self) -> float:
+    def remaining_capacity(self) -> float:
         if not self.overplanned:
             return self.capacity - self.velocity
         return 0
+
     @property
     def velocity(self) -> float:
         return round(sum([t.story_points for t in self.tasks]), 1)
@@ -101,6 +108,14 @@ class Sprint(Entity):
         return total_time_spent_sprint
 
     @property
+    def unplanned_tasks(self) -> list[Task]:
+        tasks = []
+        for entity_task in self.tasks:
+            if entity_task.unplanned:
+                tasks.append(entity_task.tasks)
+        return tasks
+
+    @property
     def open_tasks(self) -> list[Task]:
         tasks = []
         for entity_task in self.tasks:
@@ -119,7 +134,6 @@ class Sprint(Entity):
                 task.story_points = entity_task.story_points
                 tasks.append(task)
         return tasks
-
 
     @property
     def pct_completed(self) -> float:
@@ -165,3 +179,4 @@ class SprintTask:
     story_points: int = 0
     #TODO: add actual_time_spent: int = 0
     is_active_link: bool = True
+    unplanned: bool = False

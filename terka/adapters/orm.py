@@ -222,7 +222,9 @@ sprints = Table("sprints", metadata,
                 Column("end_date", Date, nullable=False),
                 Column("status", Enum(sprint.SprintStatus)),
                 Column("capacity", Integer, nullable=False),
-                Column("goal", String(225), nullable=True))
+                Column("goal", String(225), nullable=True),
+                Column("started_at", DateTime, nullable=True),
+                Column("completed_at", DateTime, nullable=True))
 
 sprint_tasks = Table(
     "sprint_tasks",
@@ -232,6 +234,7 @@ sprint_tasks = Table(
     Column("sprint", ForeignKey("sprints.id"), nullable=False),
     Column("story_points", Integer, nullable=False),
     Column("is_active_link", Boolean, nullable=False),
+    Column("unplanned", Boolean, nullable=False),
 )
 
 time_tracker_entries = Table(

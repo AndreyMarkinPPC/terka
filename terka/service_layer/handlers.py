@@ -91,7 +91,7 @@ class SprintCommandHandlers:
                 raise exceptions.TerkaSprintCompleted(
                     "Cannot start completed sprint")
             uow.tasks.update(entities.sprint.Sprint, cmd.id,
-                             {"status": "ACTIVE"})
+                             {"status": "ACTIVE", "started": datetime.now()})
             uow.commit()
             for sprint_task in existing_sprint.tasks:
                 task = sprint_task.tasks
@@ -378,8 +378,11 @@ class TaskCommandHandlers:
                                      {"story_points": float(story_points)})
                     uow.commit()
             else:
-                if entity_name == "sprint" and story_points:
-                    entity_dict["story_points"] = story_points
+                if entity_name == "sprint":
+                    if story_points:
+                        entity_dict["story_points"] = story_points
+                    entity_dict["unplanned"] = (existing_entity.started_at <
+                                                datetime.now())
                 entity_task = entity_task_type(**entity_dict)
                 uow.tasks.add(entity_task)
                 uow.commit()
