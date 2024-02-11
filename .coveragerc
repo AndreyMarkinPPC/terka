@@ -1,0 +1,8 @@
+[paths]
+source =
+    terka
+    .tox/*/site-packages
+[report]
+skip_empty = true
+omit =
+    terka/entrypoints/*
