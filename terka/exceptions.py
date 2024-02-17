@@ -40,3 +40,7 @@ class TerkaRefreshException(TerkaException):
 
 class TerkaSprintOutOfCapacity(TerkaException):
     ...
+
+
+class TerkaSprintInvalidCapacity(TerkaException):
+    ...

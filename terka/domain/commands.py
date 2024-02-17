@@ -2,6 +2,8 @@ from typing import Dict, Literal, Optional, Type
 from datetime import datetime
 from dataclasses import dataclass, asdict
 
+from terka import exceptions
+
 
 @dataclass
 class Command:
@@ -9,12 +11,12 @@ class Command:
     def get_only_set_attributes(self) -> dict:
         set_attributes = {}
         for key, value in asdict(self).items():
-            if key == "due_date" or value:
-                set_attributes[key] = value if value != "Remove" else None
+            if key == 'due_date' or value:
+                set_attributes[key] = value if value != 'Remove' else None
         return set_attributes
 
     @classmethod
-    def from_kwargs(cls, **kwargs: dict) -> Type["Command"]:
+    def from_kwargs(cls, **kwargs: dict) -> Type['Command']:
         attributes = {
             k: v
             for k, v in kwargs.items()
@@ -22,26 +24,26 @@ class Command:
         }
         [
             Command.format_date(attributes, d)
-            for d in ("due_date", "start_date", "end_date")
+            for d in ('due_date', 'start_date', 'end_date')
         ]
         return cls(**attributes)
 
     def __bool__(self) -> bool:
-        return all(f for f in self.__dataclass_fields__ if f != "id")
+        return all(f for f in self.__dataclass_fields__ if f != 'id')
 
     def inject(self, config: dict) -> None:
         self.__dict__.update(config)
-        self.__dict__["created_by"] = self.__dict__.pop("user")
+        self.__dict__['created_by'] = self.__dict__.pop('user')
 
     @staticmethod
     def format_date(attributes: dict, date_attribute: str):
         if date_attribute_value := attributes.get(date_attribute):
             if not isinstance(date_attribute_value, datetime):
-                if date_attribute_value == "Remove":
-                    attributes[date_attribute] = "Remove"
+                if date_attribute_value == 'Remove':
+                    attributes[date_attribute] = 'Remove'
                 else:
                     attributes[date_attribute] = datetime.strptime(
-                        date_attribute_value, "%Y-%m-%d")
+                        date_attribute_value, '%Y-%m-%d')
 
 
 # Base Commands
@@ -95,7 +97,7 @@ class Update(Command):
 
     def __bool__(self) -> bool:
         cmd_dict = dict(self.__dict__)
-        _ = cmd_dict.pop("id")
+        _ = cmd_dict.pop('id')
         if any(cmd_dict.values()):
             return True
         return False
@@ -160,8 +162,8 @@ class CreateTask(Command):
     project: str | None = None
     assignee: str | None = None
     due_date: str | None = None
-    status: str = "BACKLOG"
-    priority: str = "NORMAL"
+    status: str = 'BACKLOG'
+    priority: str = 'NORMAL'
     sync: bool = True
     created_by: str | None = None
 
@@ -192,7 +194,7 @@ class UpdateTask(Command):
 
     def __bool__(self) -> bool:
         cmd_dict = dict(self.__dict__)
-        _ = cmd_dict.pop("id")
+        _ = cmd_dict.pop('id')
         if any(cmd_dict.values()):
             return True
         return False
@@ -260,7 +262,7 @@ class CreateProject(Command):
     name: str | None = None
     description: str | None = None
     workspace: int = 1
-    status: str = "ACTIVE"
+    status: str = 'ACTIVE'
 
 
 @dataclass
@@ -273,7 +275,7 @@ class UpdateProject(Command):
 
     def __bool__(self) -> bool:
         cmd_dict = dict(self.__dict__)
-        _ = cmd_dict.pop("id")
+        _ = cmd_dict.pop('id')
         if any(cmd_dict.values()):
             return True
         return False
@@ -370,13 +372,21 @@ class UpdateSprint(Command):
     status: str | None = None
     start_date: str | None = None
     end_date: str | None = None
+    capacity: int | None = None
 
     def __bool__(self) -> bool:
         cmd_dict = dict(self.__dict__)
-        _ = cmd_dict.pop("id")
+        _ = cmd_dict.pop('id')
         if any(cmd_dict.values()):
             return True
         return False
+
+    def __post_init__(self) -> None:
+        if self.capacity and self.capacity <= 0:
+            raise exceptions.TerkaSprintInvalidCapacity(
+                f'Invalid capacity {self.capacity}! '
+                'Sprint capacity cannot 0 or less'
+            )
 
 
 @dataclass

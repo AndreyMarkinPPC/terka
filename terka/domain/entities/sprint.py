@@ -6,8 +6,9 @@ import logging
 from datetime import datetime, date
 from dataclasses import dataclass
 
-from .entity import Entity
-from .task import Task
+from terka import exceptions
+from terka.domain.entities.entity import Entity
+from terka.domain.entities.task import Task
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class Sprint(Entity):
                  goal: str | None = None,
                  started_at: datetime | None = None,
                  **kwargs) -> None:
-        if not start_date and not end_date:
+        if not start_date or not end_date:
             raise ValueError('Please add start and end date of the sprint')
         if start_date.date() < datetime.today().date():
             raise ValueError(f'start date cannot be less than today')
@@ -48,6 +49,10 @@ class Sprint(Entity):
             raise ValueError(f'Sprint end date cannot be less than today')
         self.status = self._validate_status(status)
         self.goal = goal
+        if capacity < 0:
+            raise exceptions.TerkaSprintInvalidCapacity(
+                f'Invalid capacity {capacity}! Sprint capacity cannot 0 or less'
+            )
         self.capacity = capacity
         self.started_at = started_at
         self.completed_at = None

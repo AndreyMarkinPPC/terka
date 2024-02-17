@@ -389,8 +389,8 @@ class TaskCommandHandlers:
                     if story_points:
                         entity_dict['story_points'] = story_points
                     if started_at := existing_entity.started_at:
-                        entity_dict['unplanned'] = (started_at <
-                                                    datetime.now())
+                        entity_dict['unplanned'] = (started_at
+                                                    < datetime.now())
                 entity_task = entity_task_type(**entity_dict)
                 uow.tasks.add(entity_task)
                 uow.commit()
@@ -403,8 +403,8 @@ class TaskCommandHandlers:
                     if existing_entity.overplanned:
                         raise exceptions.TerkaSprintOutOfCapacity(
                             f'Sprint {entity_id} is overplanned')
-                    if (entity_task.story_points >
-                            existing_entity.remaining_capacity):
+                    if (entity_task.story_points
+                            > existing_entity.remaining_capacity):
                         raise exceptions.TerkaSprintOutOfCapacity(
                             f'Sprint {entity_id} will overplanned '
                             f'when task with {entity_task.story_points} is added'
@@ -415,10 +415,10 @@ class TaskCommandHandlers:
                         if existing_task.status.name == 'BACKLOG':
                             task_params.update({'status': 'TODO'})
                         if (not existing_task.due_date
-                                or existing_task.due_date >
-                                existing_entity.end_date
-                                or existing_task.due_date <
-                                existing_entity.start_date):
+                                or existing_task.due_date
+                                > existing_entity.end_date
+                                or existing_task.due_date
+                                < existing_entity.start_date):
                             task_params.update(
                                 {'due_date': existing_entity.end_date})
                         if task_params:

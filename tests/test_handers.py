@@ -9,7 +9,7 @@ class TestTask:
 
     def test_create_simple_task(self, bus):
         cmd = commands.CreateTask(name='test')
-        bus.handle(cmd)
+        new_task = bus.handle(cmd)
         new_task = bus.uow.tasks.get_by_id(entities.task.Task, 1)
         expected_task = entities.task.Task(
             name='test',
@@ -187,15 +187,26 @@ class TestSprint:
         for task in sprint_tasks:
             assert task.story_points == 0
 
-    def test_cannot_add_task_to_sprint(self, bus,
-                                       new_sprint_with_limited_capacity,
-                                       tasks):
+    def test_cannot_add_task_to_sprint_with_limited_capacity(
+            self, bus, new_sprint_with_limited_capacity, tasks):
         task_1, task_2 = tasks
         add_task_1 = commands.AddTask(id=task_1,
                                       sprint=new_sprint_with_limited_capacity,
                                       story_points=2)
         with pytest.raises(exceptions.TerkaSprintOutOfCapacity):
             bus.handle(add_task_1)
+
+    def test_updating_sprint_capacity(self, bus, new_sprint):
+        cmd = commands.UpdateSprint(id=new_sprint, capacity=4)
+        bus.handle(cmd)
+        sprint = bus.uow.tasks.get_by_id(entities.sprint.Sprint, new_sprint)
+        assert sprint.capacity == 4
+
+    @pytest.mark.parametrize('capacity', [-2, -1])
+    def test_cannot_update_sprint_capacity_to_zero_or_below(
+            self, bus, new_sprint, capacity):
+        with pytest.raises(exceptions.TerkaSprintInvalidCapacity):
+            cmd = commands.UpdateSprint(id=new_sprint, capacity=capacity)
 
     def test_starting_sprint_changes_status_due_date(self, bus, new_sprint,
                                                      sprint_with_tasks):
