@@ -387,15 +387,15 @@ class TaskCommandHandlers:
             else:
                 if entity_name == 'sprint':
                     if story_points:
-                        entity_dict['story_points'] = story_points
+                        entity_dict['story_points'] = float(story_points)
                     if started_at := existing_entity.started_at:
                         entity_dict['unplanned'] = (started_at
                                                     < datetime.now())
                 entity_task = entity_task_type(**entity_dict)
                 uow.tasks.add(entity_task)
-                uow.commit()
-                logging.debug(f'Task added to {entity_name}, context {cmd}')
-                if entity_name == 'sprint':
+                if entity_name in ('story', 'epic'):
+                    uow.commit()
+                elif entity_name == 'sprint':
                     if (existing_entity.status ==
                             entities.sprint.SprintStatus.COMPLETED):
                         raise exceptions.TerkaSprintCompleted(
@@ -409,22 +409,26 @@ class TaskCommandHandlers:
                             f'Sprint {entity_id} will overplanned '
                             f'when task with {entity_task.story_points} is added'
                         )
+                    uow.commit()
                     if existing_task := uow.tasks.get_by_id(
                             entities.task.Task, cmd.id):
                         task_params = {}
-                        if existing_task.status.name == 'BACKLOG':
-                            task_params.update({'status': 'TODO'})
-                        if (not existing_task.due_date
-                                or existing_task.due_date
-                                > existing_entity.end_date
-                                or existing_task.due_date
-                                < existing_entity.start_date):
-                            task_params.update(
-                                {'due_date': existing_entity.end_date})
+                        if (existing_entity.status ==
+                                entities.sprint.SprintStatus.ACTIVE):
+                            if existing_task.status.name == 'BACKLOG':
+                                task_params.update({'status': 'TODO'})
+                            if (not existing_task.due_date
+                                    or existing_task.due_date
+                                    > existing_entity.end_date
+                                    or existing_task.due_date
+                                    < existing_entity.start_date):
+                                task_params.update(
+                                    {'due_date': existing_entity.end_date})
                         if task_params:
                             task_params['id'] = existing_task.id
                             uow.published_messages.append(
                                 commands.UpdateTask(**task_params))
+                logging.debug(f'Task added to {entity_name}, context {cmd}')
 
     @register(cmd=commands.AssignTask)
     def assign(cmd: commands.AssignTask,
@@ -605,9 +609,12 @@ class TaskCommandHandlers:
                     commands.CollaborateTask(id=id,
                                              collaborator=collaborator_name))
         if sprints := context.get('sprint'):
+            story_points = context.get('story_points')
             for sprint in sprints.split(','):
                 uow.published_messages.append(
-                    commands.AddTask(id=id, sprint=sprint))
+                    commands.AddTask(id=id,
+                                     sprint=sprint,
+                                     story_points=story_points or 0))
         if epics := context.get('epic'):
             for epic in epics.split(','):
                 uow.published_messages.append(

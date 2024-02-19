@@ -88,7 +88,7 @@ class Sprint(Entity):
 
     @property
     def velocity(self) -> float:
-        return round(sum([t.story_points for t in self.tasks]), 1)
+        return round(sum([float(t.story_points) for t in self.tasks]), 1)
 
     @property
     def utilization(self) -> float:
