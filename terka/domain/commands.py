@@ -354,6 +354,9 @@ class CreateSprint(Command):
     end_date: str | None = None
     capacity: int = 40
 
+    def __post_init__(self) -> None:
+        self.capacity = int(self.capacity)
+
     def __bool__(self) -> bool:
         if self.start_date and self.end_date:
             return True
