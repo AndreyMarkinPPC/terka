@@ -10,7 +10,7 @@ in the terminal. Create task, assign it to a project, update it status, write
 comments and many more!
 
 Key features:
-* Manage tasks within projects with CLI and TUI interface
+* Manage tasks within projects with CLI and Text UI interface
 * Support for sprints (with story points assignment and time tracker)
 * Manage meta-tasks with epics and stories
 * Tag tasks and specify collaborators
