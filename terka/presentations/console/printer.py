@@ -269,7 +269,7 @@ class ConsolePrinter:
                     'name': str(entity.name),
                     'description': entity.description,
                     'status': entity.status.name,
-                    'open_tasks': str(len(open_tasks)),
+                    'open_tasks': str(len(incompleted_tasks)),
                 }
                 printable_elements = [
                     value for key, value in printable_row.items()
