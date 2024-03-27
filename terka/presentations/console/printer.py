@@ -221,9 +221,8 @@ class ConsolePrinter:
             reverse = False
         entities.sort(key=sort_fn, reverse=reverse)
         for entity in entities:
-            if len(open_tasks :=
-                   entity.open_tasks) > 0 and entity.status.name == 'ACTIVE':
-
+            if len(incompleted_tasks := entity.incompleted_tasks
+                   ) > 0 and entity.status.name == "ACTIVE":
                 if overdue_tasks := entity.overdue_tasks:
                     entity_id = f'[red]{entity.id}[/red]'
                 else:
@@ -237,9 +236,9 @@ class ConsolePrinter:
                     entity.description,
                     'status':
                     entity.status.name,
-                    'open_tasks':
-                    str(len(open_tasks)),
-                    'overdue':
+                    "open_tasks":
+                    str(len(incompleted_tasks)),
+                    "overdue":
                     str(len(overdue_tasks)),
                     'stale':
                     str(len(entity.stale_tasks)),

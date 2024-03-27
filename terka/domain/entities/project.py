@@ -6,6 +6,7 @@ from statistics import median
 from .entity import Entity
 from .task import Task
 
+
 class ProjectStatus(Enum):
     DELETED = 0
     ACTIVE = 1
@@ -105,26 +106,23 @@ class Project(Entity):
 
     @property
     def backlog_tasks(self) -> list[Task]:
-        tasks = []
-        for task in self.tasks:
-            if task.status.name == "BACKLOG":
-                tasks.append(task)
-        return tasks
+        return self._get_tasks_by_statuses(("BACKLOG"))
 
     @property
     def open_tasks(self) -> list[Task]:
-        tasks = []
-        for task in self.tasks:
-            if task.status.name in ("TODO", "IN_PROGRESS", "REVIEW"):
-                tasks.append(task)
-        return tasks
+        return self._get_tasks_by_statuses(("TODO", "IN_PROGRESS", "REVIEW"))
 
     @property
     def completed_tasks(self) -> list[Task]:
-        return [
-            task for task in self.tasks
-            if task.status.name in ("DONE", "DELETED")
-        ]
+        return self._get_tasks_by_statuses(("DONE", "DELETED"))
+
+    @property
+    def incompleted_tasks(self) -> list[Task]:
+        return self._get_tasks_by_statuses(
+            ("BACKLOG", "TODO", "IN_PROGRESS", "REVIEW"))
+
+    def _get_tasks_by_statuses(self, statuses: tuple[str]) -> list[Task]:
+        return [task for task in self.tasks if task.status.name in statuses]
 
     def daily_time_entries_hours(
             self,
