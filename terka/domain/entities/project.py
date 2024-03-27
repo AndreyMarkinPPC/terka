@@ -10,7 +10,6 @@ from terka.domain.entities.entity import Entity
 from terka.domain.entities.task import Task
 
 
-
 class ProjectStatus(Enum):
     DELETED = 0
     ACTIVE = 1
@@ -106,11 +105,30 @@ class Project(Entity):
 
     @property
     def deleted(self) -> int:
+        return self._count_task_status('BACKLOG')
+
+    @property
+    def todo(self) -> int:
+        return self._count_task_status('TODO')
+
+    @property
+    def in_progress(self) -> int:
+        return self._count_task_status('IN_PROGRESS')
+
+    @property
+    def review(self) -> int:
+        return self._count_task_status('REVIEW')
+
+    @property
+    def done(self) -> int:
+        return self._count_task_status('DONE')
+
+    @property
+    def deleted(self) -> int:
         return self._count_task_status('DELETED')
 
     @property
     def backlog_tasks(self) -> list[Task]:
-<<<<<<< HEAD
         return self._get_tasks_by_statuses(('BACKLOG'))
 
     @property
@@ -120,26 +138,11 @@ class Project(Entity):
     @property
     def completed_tasks(self) -> list[Task]:
         return self._get_tasks_by_statuses(('DONE', 'DELETED'))
-=======
-        return self._get_tasks_by_statuses(("BACKLOG"))
-
-    @property
-    def open_tasks(self) -> list[Task]:
-        return self._get_tasks_by_statuses(("TODO", "IN_PROGRESS", "REVIEW"))
-
-    @property
-    def completed_tasks(self) -> list[Task]:
-        return self._get_tasks_by_statuses(("DONE", "DELETED"))
->>>>>>> 3f01c2b (Add incomplete_tasks and improve printing of projects)
 
     @property
     def incompleted_tasks(self) -> list[Task]:
         return self._get_tasks_by_statuses(
-<<<<<<< HEAD
             ('BACKLOG', 'TODO', 'IN_PROGRESS', 'REVIEW'))
-=======
-            ("BACKLOG", "TODO", "IN_PROGRESS", "REVIEW"))
->>>>>>> 3f01c2b (Add incomplete_tasks and improve printing of projects)
 
     def _get_tasks_by_statuses(self, statuses: tuple[str]) -> list[Task]:
         return [task for task in self.tasks if task.status.name in statuses]
