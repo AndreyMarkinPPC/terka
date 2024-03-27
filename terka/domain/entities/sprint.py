@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from collections import defaultdict
-from enum import Enum
 import logging
-from datetime import datetime, date
+from collections import defaultdict
 from dataclasses import dataclass
+from datetime import datetime
+from enum import Enum
 
 from terka import exceptions
 from terka.domain.entities.entity import Entity

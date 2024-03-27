@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from .entity import Entity
 
 
@@ -7,12 +9,12 @@ class BaseTag(Entity):
         self.text = text
 
     def __repr__(self):
-        return f"<Tag> {self.text}"
+        return f'<Tag> {self.text}'
 
 
 class TagMixin:
     def __repr__(self):
-        return f"{self.base_tag.text}"
+        return f'{self.base_tag.text}'
 
 
 class TaskTag(TagMixin):

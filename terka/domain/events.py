@@ -1,7 +1,10 @@
-from typing import Any
+from __future__ import annotations
+
+from dataclasses import asdict
+from dataclasses import dataclass
 from datetime import datetime
-from dataclasses import dataclass, asdict
-from terka.domain.entities.task import TaskInfo
+from typing import Any
+
 
 
 @dataclass
@@ -75,8 +78,8 @@ class UpdateMask:
     project: str | None = None
     assignee: str | None = None
     due_date: str | None = None
-    status: str = "BACKLOG"
-    priority: str = "NORMAL"
+    status: str = 'BACKLOG'
+    priority: str = 'NORMAL'
 
     def get_only_set_attributes(self) -> dict:
         return {key: value for key, value in asdict(self).items() if value}

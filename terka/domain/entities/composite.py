@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections import defaultdict
 from datetime import datetime
 from enum import Enum
@@ -20,14 +22,14 @@ class Composite(Entity):
                  creation_date: datetime = datetime.now(),
                  project: int = None,
                  assignee: int = None,
-                 status: str = "ACTIVE",
+                 status: str = 'ACTIVE',
                  created_by: int = None,
                  **kwargs) -> None:
         if not name:
-            raise ValueError("task name cannot be empty!")
+            raise ValueError('task name cannot be empty!')
         if not isinstance(creation_date, datetime):
             raise ValueError(
-                "creation_date should be of type datetime.datetime!")
+                'creation_date should be of type datetime.datetime!')
         self.name = name
         self.creation_date = creation_date
         self.description = description
@@ -41,14 +43,14 @@ class Composite(Entity):
     def project_name(self) -> str:
         if project := self.project_:
             return project.name
-        return ""
+        return ''
 
     @property
     def backlog_tasks(self) -> list[Task]:
         tasks = []
         for entity_task in self.tasks:
             task = entity_task.tasks
-            if task.status.name == "BACKLOG":
+            if task.status.name == 'BACKLOG':
                 tasks.append(task)
         return tasks
 
@@ -57,7 +59,7 @@ class Composite(Entity):
         tasks = []
         for entity_task in self.tasks:
             task = entity_task.tasks
-            if task.status.name not in ("DONE", "DELETED"):
+            if task.status.name not in ('DONE', 'DELETED'):
                 tasks.append(task)
         return tasks
 
@@ -66,14 +68,14 @@ class Composite(Entity):
         tasks = []
         for entity_task in self.tasks:
             task = entity_task.tasks
-            if task.status.name in ("DONE", "DELETED"):
+            if task.status.name in ('DONE', 'DELETED'):
                 tasks.append(task)
         return tasks
 
     def complete(self, tasks) -> None:
         incompleted_tasks = list()
         for task in tasks:
-            if task.tasks.status.name != "DONE":
+            if task.tasks.status.name != 'DONE':
                 incompleted_tasks.append(task)
         if incompleted_tasks:
             logging.warning("[composite %d]: %d tasks haven't been completed",

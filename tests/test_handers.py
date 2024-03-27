@@ -1,8 +1,13 @@
+from __future__ import annotations
+
+from datetime import datetime
+from datetime import timedelta
+
 import pytest
-from datetime import datetime, timedelta
-import terka
-from terka import bootstrap, exceptions
-from terka.domain import commands, entities, events
+
+from terka import exceptions
+from terka.domain import commands
+from terka.domain import entities
 
 
 class TestTask:

@@ -1,12 +1,15 @@
 from __future__ import annotations
-from typing import Type
+
 import logging
+from typing import Type
 
 from terka import exceptions
 from terka.adapters import publisher
-from terka.domain import commands, events
-from terka.service_layer import unit_of_work, handlers
+from terka.domain import commands
+from terka.domain import events
 from terka.presentations.console import printer
+from terka.service_layer import handlers
+from terka.service_layer import unit_of_work
 
 Message = commands.Command | events.Event
 
@@ -48,7 +51,7 @@ class MessageBus:
                 self.return_value = result
             self.queue.extend(self.uow.collect_new_events())
         except exceptions.TaskAddedToEntity:
-            logging.warning("Task already added to compound entity")
+            logging.warning('Task already added to compound entity')
 
     def handle_event(self, event: events.Event, context: dict) -> None:
         for handler in self.event_handlers[type(event)]:

@@ -1,6 +1,9 @@
-from enum import Enum, auto
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
+from enum import auto
+from enum import Enum
 
 
 class EventType(Enum):
@@ -32,10 +35,10 @@ class TaskEvent:
             EventType[self.type]
         except KeyError as e:
             raise ValueError(
-                f"{self.type} is invalid EventType for Task") from None
+                f'{self.type} is invalid EventType for Task') from None
         # TODO: Select better name
-        self.syncable = self.type in ("STATUS", "DUE_DATE", "NAME",
-                                        "PROJECT", "DESCRIPTION", "PRIORITY")
+        self.syncable = self.type in ('STATUS', 'DUE_DATE', 'NAME',
+                                        'PROJECT', 'DESCRIPTION', 'PRIORITY')
 
 
 @dataclass
@@ -48,4 +51,4 @@ class ProjectEvent:
 
     def __post_init__(self) -> None:
         if self.event_type.upper() not in [e.name for e in EventType]:
-            raise ValueError(f"{self.event_type} is invalid EventType")
+            raise ValueError(f'{self.event_type} is invalid EventType')

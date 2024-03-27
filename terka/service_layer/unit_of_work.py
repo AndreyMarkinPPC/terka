@@ -1,9 +1,13 @@
+from __future__ import annotations
+
 import abc
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from terka.adapters import repository
-from terka.domain import commands, events
+from terka.domain import commands
+from terka.domain import events
 
 
 class AbstractUnitOfWork(abc.ABC):

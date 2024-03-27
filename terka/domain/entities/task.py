@@ -1,8 +1,12 @@
-from typing import Type
-from enum import Enum
+from __future__ import annotations
+
 from dataclasses import dataclass
-from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date
+from datetime import datetime
+from datetime import timedelta
+from enum import Enum
+from typing import Type
+
 import pandas as pd
 
 from .entity import Entity

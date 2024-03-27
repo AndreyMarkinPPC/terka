@@ -1,20 +1,26 @@
-from typing import Type
-import asana as asn
-from collections import defaultdict
-from dataclasses import asdict
-from datetime import datetime
+from __future__ import annotations
+
 import functools
 import logging
 import os
-from rich.prompt import Confirm, Prompt
+from collections import defaultdict
+from dataclasses import asdict
+from datetime import datetime
+from typing import Type
 
-from terka import exceptions, views, utils
-from terka.adapters import publisher
-from terka.domain import commands, events, entities
+import asana as asn
+from rich.prompt import Confirm
+from rich.prompt import Prompt
+
+from terka import exceptions
+from terka import utils
+from terka import views
+from terka.domain import commands
+from terka.domain import entities
+from terka.domain import events
 from terka.domain.external_connectors import asana
-from terka.presentations.vim import templates
 from terka.presentations.console import printer
-from terka.service_layer import unit_of_work
+from terka.presentations.vim import templates
 from terka.utils import create_command
 
 COMMAND_HANDLERS = {}

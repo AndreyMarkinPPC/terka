@@ -1,13 +1,16 @@
 from __future__ import annotations
+
+import inspect
 from collections import abc
 from dataclasses import dataclass
 from datetime import datetime
-import inspect
+
 import rich
 from rich.console import Console
 from rich.table import Table
-from textual.app import App, ComposeResult
 from textual import widgets
+from textual.app import App
+from textual.app import ComposeResult
 
 from terka import exceptions
 from terka.presentations import formatter
@@ -222,7 +225,7 @@ class ConsolePrinter:
         entities.sort(key=sort_fn, reverse=reverse)
         for entity in entities:
             if len(incompleted_tasks := entity.incompleted_tasks
-                   ) > 0 and entity.status.name == "ACTIVE":
+                   ) > 0 and entity.status.name == 'ACTIVE':
                 if overdue_tasks := entity.overdue_tasks:
                     entity_id = f'[red]{entity.id}[/red]'
                 else:
@@ -236,9 +239,9 @@ class ConsolePrinter:
                     entity.description,
                     'status':
                     entity.status.name,
-                    "open_tasks":
+                    'open_tasks':
                     str(len(incompleted_tasks)),
-                    "overdue":
+                    'overdue':
                     str(len(overdue_tasks)),
                     'stale':
                     str(len(entity.stale_tasks)),

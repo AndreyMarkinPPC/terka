@@ -1,11 +1,15 @@
-from typing import Type
-from datetime import datetime, timedelta
-import re
-from subprocess import run
-import tempfile
+from __future__ import annotations
 
-from terka.domain import entities, commands
-from terka.utils import convert_date, convert_status
+import re
+import tempfile
+from datetime import datetime
+from datetime import timedelta
+from subprocess import run
+from typing import Type
+
+from terka.domain import commands
+from terka.domain import entities
+from terka.utils import convert_status
 
 
 def new_task_template() -> str:

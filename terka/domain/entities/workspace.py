@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections import defaultdict
 from datetime import date
 
@@ -35,4 +37,4 @@ class Workspace(Entity):
         return entries
 
     def __str__(self):
-        return f"<Workspace {self.id}>: {self.name}"
+        return f'<Workspace {self.id}>: {self.name}'

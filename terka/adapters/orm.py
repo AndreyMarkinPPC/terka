@@ -1,21 +1,33 @@
-from sqlalchemy import (
-    Table,
-    MetaData,
-    Column,
-    Integer,
-    String,
-    Date,
-    DateTime,
-    Boolean,
-    Enum,
-    ForeignKey,
-)
-from sqlalchemy.orm import backref, mapper, relationship
+from __future__ import annotations
 
-from terka.domain.entities import (collaborator, commentary, composite, epic,
-                                   event_history, note, project, sprint, story,
-                                   tag, task, time_tracker, user, workspace)
+from sqlalchemy import Boolean
+from sqlalchemy import Column
+from sqlalchemy import Date
+from sqlalchemy import DateTime
+from sqlalchemy import Enum
+from sqlalchemy import ForeignKey
+from sqlalchemy import Integer
+from sqlalchemy import MetaData
+from sqlalchemy import String
+from sqlalchemy import Table
+from sqlalchemy.orm import backref
+from sqlalchemy.orm import mapper
+from sqlalchemy.orm import relationship
 
+from terka.domain.entities import collaborator
+from terka.domain.entities import commentary
+from terka.domain.entities import composite
+from terka.domain.entities import epic
+from terka.domain.entities import event_history
+from terka.domain.entities import note
+from terka.domain.entities import project
+from terka.domain.entities import sprint
+from terka.domain.entities import story
+from terka.domain.entities import tag
+from terka.domain.entities import task
+from terka.domain.entities import time_tracker
+from terka.domain.entities import user
+from terka.domain.entities import workspace
 from terka.domain.external_connectors import asana
 
 metadata = MetaData()

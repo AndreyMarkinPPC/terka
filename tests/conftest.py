@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, clear_mappers
+from sqlalchemy.orm import clear_mappers
+from sqlalchemy.orm import sessionmaker
 
 from terka import bootstrap
-from terka.adapters.orm import metadata, start_mappers
-from terka.adapters import publisher, repository
-from terka.domain import events
+from terka.adapters import publisher
+from terka.adapters.orm import metadata
+from terka.adapters.orm import start_mappers
 from terka.service_layer import unit_of_work
 
 
@@ -18,36 +21,36 @@ class FakePublisher(publisher.BasePublisher):
         self.events.append(event)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope='session')
 def fake_publisher():
     return FakePublisher()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope='session')
 def in_memory_db():
-    engine = create_engine("sqlite:///:memory:")
+    engine = create_engine('sqlite:///:memory:')
     metadata.create_all(engine)
     return engine
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope='session')
 def session(in_memory_db):
     start_mappers()
     yield sessionmaker(bind=in_memory_db)()
     clear_mappers()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope='session')
 def uow():
-    return unit_of_work.SqlAlchemyUnitOfWork("sqlite:///:memory:")
+    return unit_of_work.SqlAlchemyUnitOfWork('sqlite:///:memory:')
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope='session')
 def bus(fake_publisher, uow):
     return bootstrap.bootstrap(start_orm=True,
                                uow=uow,
                                publish_service=fake_publisher,
                                config={
-                                   "user": "test_user",
-                                   "workspace": "default"
+                                   'user': 'test_user',
+                                   'workspace': 'default'
                                })

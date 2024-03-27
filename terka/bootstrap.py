@@ -1,7 +1,10 @@
-import inspect
+from __future__ import annotations
 
-from terka.adapters import orm, publisher
-from terka.service_layer import handlers, messagebus, unit_of_work
+from terka.adapters import orm
+from terka.adapters import publisher
+from terka.service_layer import handlers
+from terka.service_layer import messagebus
+from terka.service_layer import unit_of_work
 
 
 def bootstrap(

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 
 
@@ -14,7 +16,7 @@ class BaseNote:
         self.created_by = created_by
 
     def __repr__(self):
-        return f"<Note> {self.text}"
+        return f'<Note> {self.text}'
 
 
 class TaskNote(BaseNote):

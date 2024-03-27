@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 
 from .entity import Entity
@@ -13,7 +15,7 @@ class BaseCommentary(Entity):
         self.date = date
 
     def __repr__(self):
-        return f"<Commentary> {self.text}"
+        return f'<Commentary> {self.text}'
 
     def __bool__(self) -> bool:
         return bool(self.text)

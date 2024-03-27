@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import abc
 from collections.abc import MutableSequence
-from datetime import datetime, timedelta
+from datetime import datetime
+from datetime import timedelta
 
 from terka.domain.entities.entity import Entity
 from terka.domain.entities.event_history import TaskEvent
-from . import orm
 
 
 class AbsRepository(abc.ABC):
@@ -66,19 +66,19 @@ class SqlAlchemyRepository(AbsRepository):
         query_object = self.session.query(entity)
         overdue_check = False
         stale_check = False
-        if "overdue" in filter_dict:
+        if 'overdue' in filter_dict:
             overdue_check = True
-            del filter_dict["overdue"]
-        if "stale" in filter_dict:
+            del filter_dict['overdue']
+        if 'stale' in filter_dict:
             stale_check = True
-            stale_lookback = int(filter_dict["stale"])
-            del filter_dict["stale"]
+            stale_lookback = int(filter_dict['stale'])
+            del filter_dict['stale']
         if filter_dict and isinstance(filter_dict, dict):
             query_dict = {}
             or_values = {}
             for k, v in filter_dict.items():
                 if isinstance(v, str):
-                    if len((multiple_values := v.split(","))) == 1:
+                    if len((multiple_values := v.split(','))) == 1:
                         query_dict[k] = str(v)
                     else:
                         or_values[k] = [str(v) for v in multiple_values]
@@ -93,9 +93,9 @@ class SqlAlchemyRepository(AbsRepository):
                         query_dict[k] = str(v[0])
             if or_values:
                 for key, values in or_values.items():
-                    if values[0].startswith("NOT"):
+                    if values[0].startswith('NOT'):
                         values = [
-                            value.replace("NOT:", "") for value in values
+                            value.replace('NOT:', '') for value in values
                         ]
                         query_object = query_object.filter(
                             ~getattr(entity, key).in_(values))
@@ -104,9 +104,9 @@ class SqlAlchemyRepository(AbsRepository):
                             getattr(entity, key).in_(values))
             if query_dict:
                 for key, value in query_dict.items():
-                    if isinstance(value, str) and value.startswith("NOT"):
+                    if isinstance(value, str) and value.startswith('NOT'):
                         query_object = query_object.filter(
-                            getattr(entity, key) != value.replace("NOT:", ""))
+                            getattr(entity, key) != value.replace('NOT:', ''))
                     if isinstance(value, datetime):
                         query_object = query_object.filter(
                             getattr(entity, key) <= value)
@@ -118,35 +118,35 @@ class SqlAlchemyRepository(AbsRepository):
                 days_ago = datetime.now().date() - timedelta(
                     days=stale_lookback)
                 query_object = query_object.filter(
-                    getattr(entity, "status").in_([
-                        "TODO", "IN_PROGRESS", "REVIEW"
+                    getattr(entity, 'status').in_([
+                        'TODO', 'IN_PROGRESS', 'REVIEW'
                     ])).join(TaskEvent, (entity.id == TaskEvent.task)).filter(
-                        TaskEvent.date <= days_ago, TaskEvent.type == "STATUS")
+                        TaskEvent.date <= days_ago, TaskEvent.type == 'STATUS')
                 return query_object.all()
             if overdue_check:
                 query_object = query_object.filter(
-                    getattr(entity, "due_date") < datetime.now().date())
+                    getattr(entity, 'due_date') < datetime.now().date())
                 return query_object.all()
         elif isinstance(filter_dict, str):
             if overdue_check:
                 query_object = query_object.filter(
-                    getattr(entity, "due_date") < datetime.now().date())
-            if filter_dict.startswith("NOT:"):
+                    getattr(entity, 'due_date') < datetime.now().date())
+            if filter_dict.startswith('NOT:'):
                 return query_object.filter(
-                    getattr(entity, "name") != filter_dict.replace(
-                        "NOT:", "")).all()
+                    getattr(entity, 'name') != filter_dict.replace(
+                        'NOT:', '')).all()
             else:
                 return query_object.filter_by(name=filter_dict).first()
         if overdue_check:
             query_object = query_object.filter(
-                getattr(entity, "due_date") < datetime.now().date())
+                getattr(entity, 'due_date') < datetime.now().date())
         if stale_check:
             days_ago = datetime.now().date() - timedelta(days=stale_lookback)
             query_object = query_object.filter(
                 getattr(entity,
-                        "status").in_(["TODO", "IN_PROGRESS", "REVIEW"])).join(
+                        'status').in_(['TODO', 'IN_PROGRESS', 'REVIEW'])).join(
                             Event, (entity.id == Event.entity_id)).filter(
-                                Event.date <= days_ago, Event.type == "status")
+                                Event.date <= days_ago, Event.type == 'status')
         return query_object.all()
 
     def _add(self, entity):

@@ -1,10 +1,13 @@
+from __future__ import annotations
+
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date
+from datetime import datetime
 from enum import Enum
 from statistics import median
 
-from .entity import Entity
-from .task import Task
+from terka.domain.entities.entity import Entity
+from terka.domain.entities.task import Task
 
 
 class ProjectStatus(Enum):
@@ -20,7 +23,7 @@ class Project(Entity):
                  name: str,
                  description: str | None = None,
                  created_by: str | None = None,
-                 status: str = "ACTIVE",
+                 status: str = 'ACTIVE',
                  workspace: int | None = None) -> None:
         self.name = name
         self.description = description
@@ -32,13 +35,13 @@ class Project(Entity):
     def workspace_name(self) -> str:
         if workspace := self.workspace_:
             return workspace.name
-        return ""
+        return ''
 
-    def _validate_status(self, status):
+    def _validate_status(self, status: str) -> str:
         if status not in [
-                s.name for s in ProjectStatus if s.name != "DELETED"
+                s.name for s in ProjectStatus if s.name != 'DELETED'
         ]:
-            raise ValueError(f"{status} is invalid status")
+            raise ValueError(f'{status} is invalid status')
         else:
             return status
 
@@ -55,25 +58,25 @@ class Project(Entity):
         for task in self.tasks:
             if task_collaborators := task.collaborators:
                 for collaborator in task.collaborators:
-                    name = collaborator.users.name or "me"
+                    name = collaborator.users.name or 'me'
                     collaborators[name] += task.total_time_spent
             else:
-                collaborators["me"] += task.total_time_spent
+                collaborators['me'] += task.total_time_spent
         return collaborators
 
     @property
-    def overdue_tasks(self):
+    def overdue_tasks(self) -> list[Task]:
         return [
             task for task in self.open_tasks
             if task.due_date and task.due_date <= datetime.now().date()
         ]
 
     @property
-    def stale_tasks(self):
+    def stale_tasks(self) -> list[Task]:
         return [task for task in self.open_tasks if task.is_stale]
 
     @property
-    def median_task_age(self):
+    def median_task_age(self) -> float:
         if self.open_tasks:
             return round(
                 median([(datetime.now() - task.creation_date).days
@@ -81,45 +84,45 @@ class Project(Entity):
         return 0
 
     @property
-    def backlog(self):
-        return self._count_task_status("BACKLOG")
+    def backlog(self) -> int:
+        return self._count_task_status('BACKLOG')
 
     @property
-    def todo(self):
-        return self._count_task_status("TODO")
+    def todo(self) -> int:
+        return self._count_task_status('TODO')
 
     @property
-    def in_progress(self):
-        return self._count_task_status("IN_PROGRESS")
+    def in_progress(self) -> int:
+        return self._count_task_status('IN_PROGRESS')
 
     @property
-    def review(self):
-        return self._count_task_status("REVIEW")
+    def review(self) -> int:
+        return self._count_task_status('REVIEW')
 
     @property
-    def done(self):
-        return self._count_task_status("DONE")
+    def done(self) -> int:
+        return self._count_task_status('DONE')
 
     @property
-    def deleted(self):
-        return self._count_task_status("DELETED")
+    def deleted(self) -> int:
+        return self._count_task_status('DELETED')
 
     @property
     def backlog_tasks(self) -> list[Task]:
-        return self._get_tasks_by_statuses(("BACKLOG"))
+        return self._get_tasks_by_statuses(('BACKLOG'))
 
     @property
     def open_tasks(self) -> list[Task]:
-        return self._get_tasks_by_statuses(("TODO", "IN_PROGRESS", "REVIEW"))
+        return self._get_tasks_by_statuses(('TODO', 'IN_PROGRESS', 'REVIEW'))
 
     @property
     def completed_tasks(self) -> list[Task]:
-        return self._get_tasks_by_statuses(("DONE", "DELETED"))
+        return self._get_tasks_by_statuses(('DONE', 'DELETED'))
 
     @property
     def incompleted_tasks(self) -> list[Task]:
         return self._get_tasks_by_statuses(
-            ("BACKLOG", "TODO", "IN_PROGRESS", "REVIEW"))
+            ('BACKLOG', 'TODO', 'IN_PROGRESS', 'REVIEW'))
 
     def _get_tasks_by_statuses(self, statuses: tuple[str]) -> list[Task]:
         return [task for task in self.tasks if task.status.name in statuses]
@@ -137,8 +140,8 @@ class Project(Entity):
                 entries[day] += hours
         return entries
 
-    def __str__(self):
-        return f"<Project {self.id}>: {self.name} {self.tasks}"
+    def __str__(self) -> str:
+        return f'<Project {self.id}>: {self.name} {self.tasks}'
 
     def _count_task_status(self, status: str) -> int:
         return [task for task in self.tasks if task.status.name == status]

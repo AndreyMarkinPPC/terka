@@ -1,11 +1,19 @@
+from __future__ import annotations
+
 from datetime import datetime
+
 from textual import on
 from textual.app import ComposeResult
-from textual.containers import Container, Grid
+from textual.containers import Container
+from textual.containers import Grid
 from textual.reactive import reactive
 from textual.screen import ModalScreen
 from textual.validation import Number
-from textual.widgets import Button, Input, Label, Select, Static
+from textual.widgets import Button
+from textual.widgets import Input
+from textual.widgets import Label
+from textual.widgets import Select
+from textual.widgets import Static
 
 from terka.domain import commands
 

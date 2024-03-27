@@ -1,3 +1,4 @@
+from __future__ import annotations
 class CollaboratorMixin:
     def __repr__(self):
         return str(self.users.name)
@@ -21,4 +22,3 @@ class ProjectCollaborator(CollaboratorMixin):
                  **kwargs: str) -> None:
         self.project = id
         self.collaborator = collaborator_id
-

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from datetime import datetime
 
 from terka.domain import entities
@@ -15,10 +16,10 @@ def project(uow, project_id: int) -> dict:
                                                project_id)):
             return {}
         result = project.to_dict()
-        for column in ("open_tasks", "backlog", "overdue_tasks", "review",
-                       "in_progress", "done"):
+        for column in ('open_tasks', 'backlog', 'overdue_tasks', 'review',
+                       'in_progress', 'done'):
             result[column] = len(getattr(project, column))
-        result["workspace"] = project.workspace_.name
+        result['workspace'] = project.workspace_.name
         return result
 
 
@@ -44,7 +45,7 @@ def task(uow, task_id: int) -> dict:
         result = task.to_dict()
         if commentaries := task.commentaries:
             commentaries = [comment.to_dict() for comment in commentaries]
-        result["commentaries"] = commentaries
+        result['commentaries'] = commentaries
         return result
 
 
@@ -72,7 +73,7 @@ def workspace(uow, workspace_id: int) -> dict:
         if projects := workspace.projects:
             projects = [project.to_dict() for project in workspace.projects]
             result = workspace.to_dict()
-        result["projects"] = projects
+        result['projects'] = projects
         return result
 
 
@@ -98,7 +99,7 @@ def epic(uow, epic_id: int) -> dict:
         if tasks := epic.tasks:
             tasks = [task.tasks.to_dict() for task in epic.tasks]
             result = epic.to_dict()
-        result["tasks"] = tasks
+        result['tasks'] = tasks
         return result
 
 
@@ -123,7 +124,7 @@ def story(uow, story_id: int) -> dict:
         if tasks := story.tasks:
             tasks = [task.tasks.to_dict() for task in story.tasks]
             result = story.to_dict()
-        result["tasks"] = tasks
+        result['tasks'] = tasks
         return result
 
 
@@ -149,7 +150,7 @@ def sprint(uow, sprint_id: int) -> dict:
         if tasks := sprint.tasks:
             tasks = [task.tasks.to_dict() for task in sprint.tasks]
             result = sprint.to_dict()
-        result["tasks"] = tasks
+        result['tasks'] = tasks
         return result
 
 
@@ -230,10 +231,10 @@ def external_connectors_asana_tasks(
     """, dict(project_id=project_id))
     return {
         r.id: {
-            "asana_task_id":
+            'asana_task_id':
             r.asana_task_id,
-            "sync_date":
-            datetime.strptime(r.sync_date, "%Y-%m-%d %H:%M:%S.%f")
+            'sync_date':
+            datetime.strptime(r.sync_date, '%Y-%m-%d %H:%M:%S.%f')
             if r.sync_date else None
         }
         for r in results

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from terka import utils
 
 def test_create_task_dict():

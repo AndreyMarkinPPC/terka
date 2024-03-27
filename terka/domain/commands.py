@@ -1,6 +1,9 @@
-from typing import Dict, Literal, Optional, Type
+from __future__ import annotations
+
+from dataclasses import asdict
+from dataclasses import dataclass
 from datetime import datetime
-from dataclasses import dataclass, asdict
+from typing import Type
 
 from terka import exceptions
 
