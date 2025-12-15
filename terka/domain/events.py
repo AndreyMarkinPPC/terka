@@ -1,239 +1,217 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import Any
 
 
-
 @dataclass
-class Event:
-    ...
+class Event: ...
 
 
 # Base
 @dataclass
 class Created(Event):
-    id: int
+  id: int
 
 
 @dataclass
 class Completed(Event):
-    id: int
-    comment: str | None = None
+  id: int
+  comment: str | None = None
 
 
 @dataclass
 class Deleted(Event):
-    id: int
+  id: int
 
 
 @dataclass
 class Updated(Event):
-    id: int
+  id: int
 
 
 @dataclass
 class Commented(Event):
-    id: int
-    text: str
+  id: int
+  text: str
 
 
 # TASKS
 @dataclass
-class TaskEvent(Event):
-    ...
+class TaskEvent(Event): ...
 
 
 @dataclass
-class SprintEvent(Event):
-    ...
+class SprintEvent(Event): ...
 
 
 @dataclass
-class ProjectEvent(Event):
-    ...
+class ProjectEvent(Event): ...
 
 
 @dataclass
 class TaskCreated(TaskEvent):
-    id: int
+  id: int
 
 
 @dataclass
 class TaskCompleted(Completed):
-    hours: int | None = None
+  hours: int | None = None
 
 
 @dataclass
-class TaskDeleted(Deleted):
-    ...
+class TaskDeleted(Deleted): ...
 
 
 @dataclass
 class UpdateMask:
-    name: str | None = None
-    description: str | None = None
-    project: str | None = None
-    assignee: str | None = None
-    due_date: str | None = None
-    status: str = 'BACKLOG'
-    priority: str = 'NORMAL'
+  name: str | None = None
+  description: str | None = None
+  project: str | None = None
+  assignee: str | None = None
+  due_date: str | None = None
+  status: str = 'BACKLOG'
+  priority: str = 'NORMAL'
 
-    def get_only_set_attributes(self) -> dict:
-        return {key: value for key, value in asdict(self).items() if value}
+  def get_only_set_attributes(self) -> dict:
+    return {key: value for key, value in asdict(self).items() if value}
 
 
 @dataclass
 class TaskUpdated(TaskEvent):
-    task: int
-    type: str
-    old_value: Any
-    new_value: Any
+  task: int
+  type: str
+  old_value: Any
+  new_value: Any
 
 
 @dataclass
 class TaskCommentAdded(TaskEvent):
-    id: int
-    text: str
+  id: int
+  text: str
 
 
 @dataclass
 class TaskHoursSubmitted(TaskEvent):
-    id: int
-    hours: int
+  id: int
+  hours: int
 
 
 @dataclass
 class TaskCollaboratorAdded(TaskEvent):
-    id: int
-    collaborator: str
+  id: int
+  collaborator: str
 
 
 @dataclass
 class TaskTagAdded(TaskEvent):
-    id: int
-    tag: str
+  id: int
+  tag: str
 
 
 @dataclass
 class TaskAddedToSprint(TaskEvent):
-    id: int
-    sprint_id: int
+  id: int
+  sprint_id: int
 
 
 @dataclass
 class TaskAddedToEpic(TaskEvent):
-    id: int
-    epic_id: int
+  id: int
+  epic_id: int
 
 
 @dataclass
 class TaskAddedToStory(TaskEvent):
-    id: int
-    story_id: int
+  id: int
+  story_id: int
 
 
 @dataclass
 class TaskSynced(TaskEvent):
-    id: int
-    project: int
-    asana_task_id: str
-    sync_date: datetime
+  id: int
+  project: int
+  asana_task_id: str
+  sync_date: datetime
 
 
 # PROJECTS
 @dataclass
-class ProjectCreated(Created):
-    ...
+class ProjectCreated(Created): ...
 
 
 @dataclass
-class ProjectCompleted(Completed):
-    ...
+class ProjectCompleted(Completed): ...
 
 
 @dataclass
-class ProjectDeleted(Deleted):
-    ...
+class ProjectDeleted(Deleted): ...
 
 
 @dataclass
-class ProjectCommented(Commented):
-    ...
+class ProjectCommented(Commented): ...
 
 
 @dataclass
 class ProjectSynced(ProjectEvent):
-    id: int
-    asana_project_id: str
-    sync_date: datetime
+  id: int
+  asana_project_id: str
+  sync_date: datetime
 
 
 @dataclass
 class SprintTaskStoryPointAssigned(SprintEvent):
-    id: int
-    story_points: float
+  id: int
+  story_points: float
 
 
 # EPICS
 @dataclass
-class EpicCreated(Created):
-    ...
+class EpicCreated(Created): ...
 
 
 @dataclass
-class EpicCompleted(Completed):
-    ...
+class EpicCompleted(Completed): ...
 
 
 @dataclass
-class EpicDeleted(Deleted):
-    ...
+class EpicDeleted(Deleted): ...
 
 
 @dataclass
-class EpicUpdated(Updated):
-    ...
+class EpicUpdated(Updated): ...
 
 
 @dataclass
-class EpicCommented(Commented):
-    ...
+class EpicCommented(Commented): ...
 
 
 # STORIES
 @dataclass
-class StoryCreated(Created):
-    ...
+class StoryCreated(Created): ...
 
 
 @dataclass
-class StoryCompleted(Completed):
-    ...
+class StoryCompleted(Completed): ...
 
 
 @dataclass
-class StoryDeleted(Deleted):
-    ...
+class StoryDeleted(Deleted): ...
 
 
 @dataclass
-class StoryUpdated(Updated):
-    ...
+class StoryUpdated(Updated): ...
 
 
 @dataclass
-class StoryCommented(Commented):
-    ...
+class StoryCommented(Commented): ...
 
 
 # SPRINTS
 @dataclass
-class SprintCompleted(Completed):
-    ...
+class SprintCompleted(Completed): ...
+
 
 @dataclass
-class SprintDeleted(Deleted):
-    ...
+class SprintDeleted(Deleted): ...

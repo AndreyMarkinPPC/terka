@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "terka"
+dependencies = [
+  'sqlalchemy==1.4.0',
+  'pyaml',
+  'rich',
+  'textual==0.41.0',
+  'plotext==5.2.8',
+  'textual-plotext==0.2.1',
+  'pandas',
+  'matplotlib',
+]
+authors = [
+  {name = "Andrei Markin", email = "andrey.markin.ppc@gmail.com"},
+]
+requires-python = ">=3.10"
+description = "CLI utility for creating and managing tasks in a terminal"
+readme = "README.md"
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python"
+]
+dynamic = ["version"]
+
+[tool.setuptools.dynamic]
+version = {attr = "terka.__version__"}
+
+[project.optional-dependencies]
+asana = [
+  "asana"
+]
+all = [
+  "terka[asana]"
+]
+
+[options.extras_require]
+test =  [
+  "pytest",
+]
+
+[tool.setuptools.package-data]
+"*"= ["*presentations/text_ui/css/*.css"]
+
+[tool.pytest.ini_options]
+addopts = [
+  "-ra",
+]
+testpaths = [
+  "tests",
+]
+pythonpath = "terka"
+[project.scripts]
+terka="terka.entrypoints.cli:main"

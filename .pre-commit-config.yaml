@@ -1,3 +1,22 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+fail_fast: true
+default_stages: [commit]
 repos:
 - repo: https://github.com/pre-commit/pre-commit-hooks
   rev: v3.2.0
@@ -5,22 +24,11 @@ repos:
   - id: trailing-whitespace
   - id: end-of-file-fixer
   - id: check-yaml
+    exclude: ^mkdocs\.yml$
   - id: check-added-large-files
+    exclude: uv.lock
   - id: debug-statements
   - id: double-quote-string-fixer
-- repo: https://github.com/asottile/reorder-python-imports
-  rev: v3.12.0
-  hooks:
-  - id: reorder-python-imports
-    args:
-    - --py38-plus
-    - --add-import
-    - from __future__ import annotations
-- repo: https://github.com/PyCQA/autoflake
-  rev: v2.2.1
-  hooks:
-  - id: autoflake
-    args: [--remove-all-unused-imports, --in-place]
 - repo: https://github.com/pre-commit/mirrors-mypy
   rev: v1.8.0
   hooks:
@@ -28,6 +36,12 @@ repos:
     verbose: true
     entry: bash -c 'mypy "$@" || true'
     args: [--ignore-missing-imports]
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.4.6
+  hooks:
+    - id: ruff
+      args: [ --fix, --select, I]
+    - id: ruff-format
 - repo: local
   hooks:
   - id: pytest-check
@@ -35,10 +49,3 @@ repos:
     entry: pytest
     language: system
     pass_filenames: false
-    always_run: true
-  - id: yapf
-    name: yapf-formatter
-    entry: yapf
-    language: system
-    pass_filenames: false
-    always_run: true

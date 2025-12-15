@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import Type
 
@@ -10,572 +9,523 @@ from terka import exceptions
 
 @dataclass
 class Command:
+  def get_only_set_attributes(self) -> dict:
+    set_attributes = {}
+    for key, value in asdict(self).items():
+      if key == 'due_date' or value:
+        set_attributes[key] = value if value != 'Remove' else None
+    return set_attributes
 
-    def get_only_set_attributes(self) -> dict:
-        set_attributes = {}
-        for key, value in asdict(self).items():
-            if key == 'due_date' or value:
-                set_attributes[key] = value if value != 'Remove' else None
-        return set_attributes
+  @classmethod
+  def from_kwargs(cls, **kwargs: dict) -> Type['Command']:
+    attributes = {
+      k: v
+      for k, v in kwargs.items()
+      if k in cls.__match_args__ and v is not None
+    }
+    [
+      Command.format_date(attributes, d)
+      for d in ('due_date', 'start_date', 'end_date')
+    ]
+    return cls(**attributes)
 
-    @classmethod
-    def from_kwargs(cls, **kwargs: dict) -> Type['Command']:
-        attributes = {
-            k: v
-            for k, v in kwargs.items()
-            if k in cls.__match_args__ and v is not None
-        }
-        [
-            Command.format_date(attributes, d)
-            for d in ('due_date', 'start_date', 'end_date')
-        ]
-        return cls(**attributes)
+  def __bool__(self) -> bool:
+    return all(f for f in self.__dataclass_fields__ if f != 'id')
 
-    def __bool__(self) -> bool:
-        return all(f for f in self.__dataclass_fields__ if f != 'id')
+  def inject(self, config: dict) -> None:
+    self.__dict__.update(config)
+    self.__dict__['created_by'] = self.__dict__.pop('user')
 
-    def inject(self, config: dict) -> None:
-        self.__dict__.update(config)
-        self.__dict__['created_by'] = self.__dict__.pop('user')
-
-    @staticmethod
-    def format_date(attributes: dict, date_attribute: str):
-        if date_attribute_value := attributes.get(date_attribute):
-            if not isinstance(date_attribute_value, datetime):
-                if date_attribute_value == 'Remove':
-                    attributes[date_attribute] = 'Remove'
-                else:
-                    attributes[date_attribute] = datetime.strptime(
-                        date_attribute_value, '%Y-%m-%d')
+  @staticmethod
+  def format_date(attributes: dict, date_attribute: str):
+    if date_attribute_value := attributes.get(date_attribute):
+      if not isinstance(date_attribute_value, datetime):
+        if date_attribute_value == 'Remove':
+          attributes[date_attribute] = 'Remove'
+        else:
+          attributes[date_attribute] = datetime.strptime(
+            date_attribute_value, '%Y-%m-%d'
+          )
 
 
 # Base Commands
 @dataclass
 class Note(Command):
-    id: int
-    name: str
-    text: str
-    created_by: int | None = None
+  id: int
+  name: str
+  text: str
+  created_by: int | None = None
 
 
 @dataclass
 class Comment(Command):
-    id: int
-    text: str
+  id: int
+  text: str
 
-    def __bool__(self) -> bool:
-        if self.text:
-            return True
-        return False
+  def __bool__(self) -> bool:
+    if self.text:
+      return True
+    return False
 
 
 @dataclass
 class Complete(Command):
-    id: int
+  id: int
 
 
 @dataclass
 class Delete(Command):
-    id: int
+  id: int
 
 
 @dataclass
 class Tag(Command):
-    id: int
-    tag: int
+  id: int
+  tag: int
 
 
 @dataclass
-class Edit(Command):
-    ...
+class Edit(Command): ...
 
 
 @dataclass
-class Create(Command):
-    ...
+class Create(Command): ...
 
 
 @dataclass
 class Update(Command):
-
-    def __bool__(self) -> bool:
-        cmd_dict = dict(self.__dict__)
-        _ = cmd_dict.pop('id')
-        if any(cmd_dict.values()):
-            return True
-        return False
-
-
-@dataclass
-class Start(Command):
-    ...
+  def __bool__(self) -> bool:
+    cmd_dict = dict(self.__dict__)
+    _ = cmd_dict.pop('id')
+    if any(cmd_dict.values()):
+      return True
+    return False
 
 
 @dataclass
-class List(Command):
-    ...
+class Start(Command): ...
+
+
+@dataclass
+class List(Command): ...
 
 
 @dataclass
 class Show(Command):
-    id: int
+  id: int
 
 
 @dataclass
 class Get(Command):
-    id: int | None = None
+  id: int | None = None
 
 
 @dataclass
 class Collaborate(Command):
-    id: int
-    collaborator: str
+  id: int
+  collaborator: str
 
 
 @dataclass
-class Track(Command):
-    ...
+class Track(Command): ...
 
 
 @dataclass
-class Add(Command):
-    ...
+class Add(Command): ...
 
 
 @dataclass
 class Connect(Command):
-    id: int
+  id: int
 
 
 @dataclass
-class Report(Command):
-    ...
+class Report(Command): ...
 
 
 @dataclass
 class Sync(Command):
-    id: int | None = None
+  id: int | None = None
 
 
 # TASKS
 @dataclass
 class CreateTask(Command):
-    name: str | None = None
-    description: str | None = None
-    project: str | None = None
-    assignee: str | None = None
-    due_date: str | None = None
-    status: str = 'BACKLOG'
-    priority: str = 'NORMAL'
-    sync: bool = True
-    created_by: str | None = None
+  name: str | None = None
+  description: str | None = None
+  project: str | None = None
+  assignee: str | None = None
+  due_date: str | None = None
+  status: str = 'BACKLOG'
+  priority: str = 'NORMAL'
+  sync: bool = True
+  created_by: str | None = None
 
 
 @dataclass
 class CompleteTask(Complete):
-    hours: int | None = None
+  hours: int | None = None
 
 
 @dataclass
 class DeleteTask(Delete):
-    hours: int | None = None
-    sprint: str | None = None
-    epic: str | None = None
-    story: str | None = None
+  hours: int | None = None
+  sprint: str | None = None
+  epic: str | None = None
+  story: str | None = None
 
 
 @dataclass
 class UpdateTask(Command):
-    id: int
-    name: str | None = None
-    description: str | None = None
-    project: str | None = None
-    assignee: str | None = None
-    due_date: str | None = None
-    status: str | None = None
-    priority: str | None = None
+  id: int
+  name: str | None = None
+  description: str | None = None
+  project: str | None = None
+  assignee: str | None = None
+  due_date: str | None = None
+  status: str | None = None
+  priority: str | None = None
 
-    def __bool__(self) -> bool:
-        cmd_dict = dict(self.__dict__)
-        _ = cmd_dict.pop('id')
-        if any(cmd_dict.values()):
-            return True
-        return False
-
-
-@dataclass
-class TagTask(Tag):
-    ...
+  def __bool__(self) -> bool:
+    cmd_dict = dict(self.__dict__)
+    _ = cmd_dict.pop('id')
+    if any(cmd_dict.values()):
+      return True
+    return False
 
 
 @dataclass
-class CollaborateTask(Collaborate):
-    ...
+class TagTask(Tag): ...
+
+
+@dataclass
+class CollaborateTask(Collaborate): ...
 
 
 @dataclass
 class AssignTask(Command):
-    id: int
-    user: str
+  id: int
+  user: str
 
 
 @dataclass
 class AddTask(Command):
-    id: int
-    sprint: str | None = None
-    epic: str | None = None
-    story: str | None = None
-    story_points: float | None = None
+  id: int
+  sprint: str | None = None
+  epic: str | None = None
+  story: str | None = None
+  story_points: float | None = None
 
 
 @dataclass
-class NoteTask(Note):
-    ...
+class NoteTask(Note): ...
 
 
 @dataclass
-class CommentTask(Comment):
-    ...
+class CommentTask(Comment): ...
 
 
 @dataclass
 class TrackTask(Command):
-    id: int
-    hours: int | None = None
+  id: int
+  hours: int | None = None
 
-    def __bool__(self) -> bool:
-        if self.hours:
-            return True
-        return False
-
-
-@dataclass
-class SyncTask(Sync):
-    ...
+  def __bool__(self) -> bool:
+    if self.hours:
+      return True
+    return False
 
 
 @dataclass
-class ShowTask(Show):
-    ...
+class SyncTask(Sync): ...
+
+
+@dataclass
+class ShowTask(Show): ...
 
 
 # PROJECT
 @dataclass
 class CreateProject(Command):
-    name: str | None = None
-    description: str | None = None
-    workspace: int = 1
-    status: str = 'ACTIVE'
+  name: str | None = None
+  description: str | None = None
+  workspace: int = 1
+  status: str = 'ACTIVE'
 
 
 @dataclass
 class UpdateProject(Command):
-    id: int
-    name: str | None = None
-    description: str | None = None
-    workspace: str | None = None
-    status: str | None = None
+  id: int
+  name: str | None = None
+  description: str | None = None
+  workspace: str | None = None
+  status: str | None = None
 
-    def __bool__(self) -> bool:
-        cmd_dict = dict(self.__dict__)
-        _ = cmd_dict.pop('id')
-        if any(cmd_dict.values()):
-            return True
-        return False
-
-
-@dataclass
-class CompleteProject(Complete):
-    ...
+  def __bool__(self) -> bool:
+    cmd_dict = dict(self.__dict__)
+    _ = cmd_dict.pop('id')
+    if any(cmd_dict.values()):
+      return True
+    return False
 
 
 @dataclass
-class DeleteProject(Delete):
-    ...
+class CompleteProject(Complete): ...
 
 
 @dataclass
-class CommentProject(Comment):
-    ...
+class DeleteProject(Delete): ...
 
 
 @dataclass
-class TagProject(Tag):
-    ...
+class CommentProject(Comment): ...
 
 
 @dataclass
-class CollaborateProject(Collaborate):
-    ...
+class TagProject(Tag): ...
 
 
 @dataclass
-class ShowProject(Show):
-    ...
+class CollaborateProject(Collaborate): ...
 
 
 @dataclass
-class GetProject(Get):
-    ...
+class ShowProject(Show): ...
 
 
 @dataclass
-class ListProject(List):
-    ...
+class GetProject(Get): ...
 
 
 @dataclass
-class NoteProject(Note):
-    ...
+class ListProject(List): ...
 
 
 @dataclass
-class GetTask(Get):
-    ...
+class NoteProject(Note): ...
 
 
 @dataclass
-class ListTask(List):
-    ...
+class GetTask(Get): ...
 
 
 @dataclass
-class SyncProject(Sync):
-    ...
+class ListTask(List): ...
+
+
+@dataclass
+class SyncProject(Sync): ...
 
 
 @dataclass
 class ConnectProject(Connect):
-    external_project: str
+  external_project: str
 
 
 # SPRINT
 @dataclass
 class CreateSprint(Command):
-    goal: str | None = None
-    start_date: str | None = None
-    end_date: str | None = None
-    capacity: int = 40
+  goal: str | None = None
+  start_date: str | None = None
+  end_date: str | None = None
+  capacity: int = 40
 
-    def __post_init__(self) -> None:
-        self.capacity = int(self.capacity)
+  def __post_init__(self) -> None:
+    self.capacity = int(self.capacity)
 
-    def __bool__(self) -> bool:
-        if self.start_date and self.end_date:
-            return True
-        return False
+  def __bool__(self) -> bool:
+    if self.start_date and self.end_date:
+      return True
+    return False
 
 
 @dataclass
 class StartSprint(Command):
-    id: int
+  id: int
 
 
 @dataclass
 class UpdateSprint(Command):
-    id: int
-    goal: str | None = None
-    status: str | None = None
-    start_date: str | None = None
-    end_date: str | None = None
-    capacity: int | None = None
+  id: int
+  goal: str | None = None
+  status: str | None = None
+  start_date: str | None = None
+  end_date: str | None = None
+  capacity: int | None = None
 
-    def __bool__(self) -> bool:
-        cmd_dict = dict(self.__dict__)
-        _ = cmd_dict.pop('id')
-        if any(cmd_dict.values()):
-            return True
-        return False
+  def __bool__(self) -> bool:
+    cmd_dict = dict(self.__dict__)
+    _ = cmd_dict.pop('id')
+    if any(cmd_dict.values()):
+      return True
+    return False
 
-    def __post_init__(self) -> None:
-        if self.capacity and self.capacity <= 0:
-            raise exceptions.TerkaSprintInvalidCapacity(
-                f'Invalid capacity {self.capacity}! '
-                'Sprint capacity cannot 0 or less'
-            )
-
-
-@dataclass
-class CompleteSprint(Complete):
-    ...
+  def __post_init__(self) -> None:
+    if self.capacity and self.capacity <= 0:
+      raise exceptions.TerkaSprintInvalidCapacity(
+        f'Invalid capacity {self.capacity}! ' 'Sprint capacity cannot 0 or less'
+      )
 
 
 @dataclass
-class DeleteSprint(Delete):
-    ...
+class CompleteSprint(Complete): ...
 
 
 @dataclass
-class ShowSprint(Show):
-    ...
+class DeleteSprint(Delete): ...
 
 
 @dataclass
-class ListSprint(List):
-    ...
+class ShowSprint(Show): ...
 
 
 @dataclass
-class NoteSprint(Note):
-    ...
+class ListSprint(List): ...
+
+
+@dataclass
+class NoteSprint(Note): ...
 
 
 # EPIC
 @dataclass
 class CreateEpic(Command):
-    name: str | None = None
-    description: str | None = None
-    project: str | None = None
+  name: str | None = None
+  description: str | None = None
+  project: str | None = None
 
 
 @dataclass
-class CompleteEpic(Complete):
-    ...
+class CompleteEpic(Complete): ...
 
 
 @dataclass
-class DeleteEpic(Delete):
-    ...
+class DeleteEpic(Delete): ...
 
 
 @dataclass
 class UpdateEpic(Update):
-    id: int
-    name: str | None = None
-    description: str | None = None
-    status: str | None = None
-    project: str | None = None
+  id: int
+  name: str | None = None
+  description: str | None = None
+  status: str | None = None
+  project: str | None = None
 
 
 @dataclass
-class CommentEpic(Comment):
-    ...
+class CommentEpic(Comment): ...
 
 
 @dataclass
 class AddEpic(Command):
-    id: int
-    sprint: int
+  id: int
+  sprint: int
 
 
 @dataclass
-class ListEpic(List):
-    ...
+class ListEpic(List): ...
 
 
 @dataclass
-class ShowEpic(Show):
-    ...
+class ShowEpic(Show): ...
 
 
 # STORIES
 @dataclass
 class CreateStory(Command):
-    name: str | None = None
-    description: str | None = None
-    project: str | None = None
+  name: str | None = None
+  description: str | None = None
+  project: str | None = None
 
 
 @dataclass
-class CompleteStory(Complete):
-    ...
+class CompleteStory(Complete): ...
 
 
 @dataclass
-class DeleteStory(Delete):
-    ...
+class DeleteStory(Delete): ...
 
 
 @dataclass
 class UpdateStory(Update):
-    id: int
-    name: str | None = None
-    description: str | None = None
-    status: str | None = None
-    project: str | None = None
+  id: int
+  name: str | None = None
+  description: str | None = None
+  status: str | None = None
+  project: str | None = None
 
 
 @dataclass
-class CommentStory(Comment):
-    ...
+class CommentStory(Comment): ...
 
 
 @dataclass
 class AddStory(Command):
-    id: int
-    sprint: int
+  id: int
+  sprint: int
 
 
 @dataclass
-class ListStory(List):
-    ...
+class ListStory(List): ...
 
 
 @dataclass
-class ShowStory(Show):
-    ...
+class ShowStory(Show): ...
 
 
 # WORKSPACES
 @dataclass
 class CreateWorkspace(Command):
-    name: str | None = None
-    description: str | None = None
+  name: str | None = None
+  description: str | None = None
 
 
 @dataclass
-class DeleteWorkspace(Delete):
-    ...
+class DeleteWorkspace(Delete): ...
 
 
 @dataclass
-class ListWorkspace(List):
-    ...
+class ListWorkspace(List): ...
 
 
 # TAGS
 @dataclass
-class ShowTag(Show):
-    ...
+class ShowTag(Show): ...
 
 
 @dataclass
-class ListTag(List):
-    ...
+class ListTag(List): ...
 
 
 @dataclass
 class CreateTag(Command):
-    text: str
+  text: str
 
 
 @dataclass
 class DeleteTag(Command):
-    text: str
+  text: str
 
 
 # USERS
 @dataclass
 class CreateUser(Command):
-    name: str
+  name: str
 
 
 @dataclass
-class ShowUser(Show):
-    ...
+class ShowUser(Show): ...
 
 
 @dataclass
-class ListUser(List):
-    ...
+class ListUser(List): ...
 
 
 @dataclass
 class ConnectUser(Connect):
-    external_user: str
+  external_user: str
 
 
 # Notes
 @dataclass
-class ShowNote(Show):
-    ...
+class ShowNote(Show): ...
