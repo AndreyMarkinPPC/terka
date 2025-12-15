@@ -475,7 +475,10 @@ class TerkaProject(App, PopupsMixin, SelectionMixin, SortingMixin):
 
   def on_mount(self) -> None:
     self.title = f'Project: {self.entity.name}'
-    self.sub_title = f'Workspace: {self.bus.config.get('workspace')}, last synced: {self.last_synced}'
+    workspace_id = self.bus.config.get('workspace')
+    self.sub_title = (
+      f'Workspace: {workspace_id}, last synced: {self.last_synced}'
+    )
 
   def compose(self) -> ComposeResult:
     yield components.Sidebar(classes='-hidden')
@@ -805,8 +808,9 @@ class TerkaSprint(App, PopupsMixin, SelectionMixin, SortingMixin):
 
   def on_mount(self) -> None:
     self.title = 'Sprint'
+    workspace_id = self.bus.config.get('workspace')
     self.sub_title = (
-      f'Workspace: {self.bus.config.get('workspace')}; '
+      f'Workspace: {workspace_id}; '
       f'Time spent today - {Formatter.format_time_spent(self.entity.time_spent_today)}'
     )
 
