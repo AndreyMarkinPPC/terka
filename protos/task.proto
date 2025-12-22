@@ -1,0 +1,45 @@
+syntax = "proto3";
+package terka;
+
+
+message Task {
+  string name = 1;
+  string description = 2;
+  string project = 3;
+  string assignee = 4;
+}
+
+message CreateTaskRequest {
+  string name = 1;
+  string description = 2;
+  string project = 3;
+  string assignee = 4;
+}
+
+
+message CreateTaskResponse {
+  int64 task_id = 1;
+}
+
+
+message ListTaskRequest {
+  string query = 1;
+}
+
+message ListTaskResponse {
+  repeated Task tasks = 1;
+}
+
+message GetTaskRequest {
+  int64 task_id = 1;
+}
+
+message GetTaskResponse {
+  Task task = 1;
+}
+
+service TaskService {
+  rpc Create(CreateTaskRequest) returns (CreateTaskResponse) {}
+  rpc List(ListTaskRequest) returns (ListTaskResponse) {}
+  rpc Get(GetTaskRequest) returns (GetTaskResponse) {}
+}
