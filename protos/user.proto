@@ -1,0 +1,43 @@
+syntax = "proto3";
+package terka;
+
+message Empty {}
+
+message User {
+  string name = 1;
+}
+
+message CreateUserRequest {
+  string name = 1;
+}
+
+message CreateUserResponse {
+  int64 user_id = 1;
+}
+
+message DeleteUserRequest {
+  string name = 1;
+}
+
+message DeleteUserResponse {
+  int64 user_id = 1;
+}
+
+message GetUserRequest {
+  int64 user_id = 1;
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+message ListUsersResponse {
+  repeated User users = 1;
+}
+
+service UserService {
+  rpc Create(CreateUserRequest) returns (CreateUserResponse) {}
+  rpc Delete(DeleteUserRequest) returns (DeleteUserResponse) {}
+  rpc Get(GetUserRequest) returns (GetUserResponse) {}
+  rpc List(Empty) returns (ListUsersResponse) {}
+}
