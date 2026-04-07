@@ -55,4 +55,5 @@ def show(ctx: typer.Context, id: Workspace):
 def main(
   ctx: typer.Context,
 ):
-  list(ctx)
+  if ctx.invoked_subcommand is None:
+    list(ctx)

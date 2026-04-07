@@ -73,4 +73,5 @@ def complete(ctx: typer.Context, project: Project):
 def main(
   ctx: typer.Context,
 ):
-  list(ctx)
+  if ctx.invoked_subcommand is None:
+    list(ctx)

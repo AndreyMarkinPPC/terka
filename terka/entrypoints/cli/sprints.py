@@ -67,4 +67,5 @@ def complete(ctx: typer.Context, id: SprintId):
 def main(
   ctx: typer.Context,
 ):
-  list(ctx)
+  if ctx.invoked_subcommand is None:
+    list(ctx)
